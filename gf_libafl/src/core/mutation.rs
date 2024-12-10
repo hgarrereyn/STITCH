@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::{HashMap, HashSet}};
 
 use libc::free;
-use rand::Rng;
+use rand::{seq::IteratorRandom, Rng};
 use rand::seq::SliceRandom;
 
 use crate::core::schema::Schema;
@@ -315,6 +315,20 @@ impl MutationContext {
                 depth: *depth,
             });
         }
+    }
+
+    pub fn generate(&self) -> Graph {
+        let mut graph = Graph {
+            nodes: Vec::new(),
+        };
+
+        let endpoint = self.schema.endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
+        let _ = graph.add_node(endpoint.idx, 0, endpoint.inputs.len(), endpoint.outputs.len(), endpoint.context_size);
+
+        self.complete(&mut graph);
+        graph.sanitize();
+
+        graph
     }
 
     pub fn mutate_random(&self, graph: &mut Graph) {

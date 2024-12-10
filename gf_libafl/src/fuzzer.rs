@@ -34,7 +34,7 @@ use libafl_targets::{
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::{components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::GraphMutateDeleteOne}, core::{graph::{Graph, Node, NodeRef, NodeRefType}, harness::Harness, mutation::MutationContext, schema::Schema}};
+use crate::{components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateDeleteOne, GraphMutateIsolateComponent}}, core::{graph::{Graph, Node, NodeRef, NodeRefType}, harness::Harness, mutation::MutationContext, schema::Schema}};
 
 /// The actual fuzzer
 pub fn fuzz(
@@ -160,6 +160,7 @@ pub fn fuzz(
         &mut state,
         tuple_list!(
             GraphMutateDeleteOne::new(ctx.clone()),
+            GraphMutateIsolateComponent::new(ctx.clone()),
         ),
         7,
         5,
@@ -249,57 +250,7 @@ pub fn fuzz(
 
     // If corpus is empty, add a seed
     if state.corpus().count() == 0 {
-        // let mut generator = BytesGenerator;
-        // state.generate_initial_inputs_forced(&mut fuzzer, &mut executor, &mut generator, &mut mgr, 1).unwrap();
-
-        let g = Graph {
-            nodes: vec![
-                Node {
-                    index: 0,
-                    typ: 0,
-                    layer: 0,
-                    in_ref: vec![],
-                    out_ref: vec![
-                        NodeRefType::Connected(NodeRef {
-                            node_idx: 1,
-                            conn_idx: 0,
-                        })
-                    ],
-                    context: vec![],
-                },
-                Node {
-                    index: 1,
-                    typ: 1,
-                    layer: 1,
-                    in_ref: vec![
-                        NodeRefType::Connected(NodeRef {
-                            node_idx: 0,
-                            conn_idx: 0,
-                        })
-                    ],
-                    out_ref: vec![
-                        NodeRefType::Connected(NodeRef {
-                            node_idx: 2,
-                            conn_idx: 0,
-                        })
-                    ],
-                    context: vec![b'A'],
-                },
-                Node {
-                    index: 2,
-                    typ: 3,
-                    layer: 1,
-                    in_ref: vec![
-                        NodeRefType::Connected(NodeRef {
-                            node_idx: 1,
-                            conn_idx: 0,
-                        })
-                    ],
-                    out_ref: vec![],
-                    context: vec![],
-                },
-            ]
-        };
+        let g = ctx.generate();
 
         let input = GraphInput {
             graph: g,

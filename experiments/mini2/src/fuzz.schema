@@ -1,0 +1,70 @@
+{
+    "types": [
+        {
+            "name": "Bar",
+            "idx": 0
+        },
+        {
+            "name": "Foo",
+            "idx": 1
+        }
+    ],
+    "endpoints": [
+        {
+            "name": "Bar(uint64_t magic)",
+            "idx": 0,
+            "inputs": [],
+            "outputs": [0],
+            "context_size": 8
+        },
+        {
+            "name": "Bar::enable",
+            "idx": 1,
+            "inputs": [0],
+            "outputs": [0],
+            "context_size": 0
+        },
+        {
+            "name": "Bar::value",
+            "idx": 2,
+            "inputs": [0],
+            "outputs": [0],
+            "context_size": 0
+        },
+        {
+            "name": "~Bar()",
+            "idx": 3,
+            "inputs": [0],
+            "outputs": [],
+            "context_size": 0
+        },
+        {
+            "name": "Foo()",
+            "idx": 4,
+            "inputs": [],
+            "outputs": [1],
+            "context_size": 0
+        },
+        {
+            "name": "Foo::compose",
+            "idx": 5,
+            "inputs": [1,0,0],
+            "outputs": [1,0,0],
+            "context_size": 0
+        },
+        {
+            "name": "Foo::check",
+            "idx": 6,
+            "inputs": [1],
+            "outputs": [1],
+            "context_size": 0
+        },
+        {
+            "name": "~Foo()",
+            "idx": 7,
+            "inputs": [1],
+            "outputs": [],
+            "context_size": 0
+        }
+    ]
+}

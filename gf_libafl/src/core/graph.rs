@@ -213,24 +213,24 @@ impl Graph {
         self.nodes[node].index = new_idx;
         let n = self.nodes[node].clone();
 
-        for out_ref in n.out_ref.iter() {
+        for (i, out_ref) in n.out_ref.iter().enumerate() {
             match out_ref {
                 NodeRefType::Connected(ref node_ref) => {
                     self.nodes[node_ref.node_idx].in_ref[node_ref.conn_idx] = NodeRefType::Connected(NodeRef {
                         node_idx: new_idx,
-                        conn_idx: node_ref.conn_idx
+                        conn_idx: i
                     });
                 },
                 NodeRefType::Disconnected => {},
             }
         }
 
-        for in_ref in n.in_ref.iter() {
+        for (i, in_ref) in n.in_ref.iter().enumerate() {
             match in_ref {
                 NodeRefType::Connected(ref node_ref) => {
                     self.nodes[node_ref.node_idx].out_ref[node_ref.conn_idx] = NodeRefType::Connected(NodeRef {
                         node_idx: new_idx,
-                        conn_idx: node_ref.conn_idx
+                        conn_idx: i
                     });
                 },
                 NodeRefType::Disconnected => {},

@@ -40,6 +40,9 @@ pub struct Options {
     #[arg(short, long)]
     pub minimize: Option<String>,
 
+    #[arg(short, long, default_value = "10000")]
+    pub minimize_cycles: usize,
+
     #[arg(short, long)]
     pub schema: Option<String>,
 
@@ -77,7 +80,7 @@ pub extern "C" fn libafl_main() {
     } else if res.execute.is_some() {
         execute_one(res, gf_harness);
     } else if res.minimize.is_some() {
-        minimizer::minimize(res.minimize.unwrap(), gf_harness, schema);
+        minimizer::minimize(res.minimize.unwrap(), res.minimize_cycles, gf_harness, schema);
     } else {
         println!("Either input and out directories or execute command must be provided.");
         return;

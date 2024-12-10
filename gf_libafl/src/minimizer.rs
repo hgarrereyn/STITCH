@@ -9,7 +9,7 @@ use crate::{components::graph_input::GraphInput, core::{graph::Graph, harness::H
 
 
 
-pub fn minimize(path: String, gf_harness: Harness, schema: Schema) {
+pub fn minimize(path: String, cycles: usize, gf_harness: Harness, schema: Schema) {
     let mctx = MutationContext::new(schema);
     println!("Computing mutation context...");
     mctx.compute(3);
@@ -90,7 +90,7 @@ pub fn minimize(path: String, gf_harness: Harness, schema: Schema) {
         timeout,
     ).unwrap();
 
-    for _ in 0..1000 {
+    for _ in 0..cycles {
         let mut g = inp.graph.clone();
         mctx.mutate_random(&mut g);
 
