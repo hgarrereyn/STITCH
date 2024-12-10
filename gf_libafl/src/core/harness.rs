@@ -1,0 +1,57 @@
+
+use core::panic;
+use std::ffi::c_void;
+
+use crate::core::graph::Graph;
+
+use super::graph::NodeRefType;
+
+
+extern "C" {
+    fn GRAPHFUZZ_TARGET_INFO(shim_ptr: &mut *const c_void, num_shims: &mut usize);
+}
+
+
+type Shim = unsafe fn(in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8);
+
+pub struct Harness {
+    shims: Vec<Shim>,
+}
+
+impl Harness {
+    pub const MAX_SLOTS: usize = 20;
+
+    pub fn new() -> Self {
+        let mut shim_ptr: *const c_void = std::ptr::null();
+        let mut num_shims: usize = 0;
+        unsafe {
+            GRAPHFUZZ_TARGET_INFO(&mut shim_ptr, &mut num_shims);
+        }
+
+        let shims = unsafe { std::slice::from_raw_parts(shim_ptr as *const Shim, num_shims).to_vec() };
+        
+        Self {
+            shims,
+        }
+    }
+
+    pub fn invoke(&self, graph: &Graph) {
+        let slots = vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
+        
+        let order = graph.topological_sort();
+
+        for idx in order.iter() {
+            let node = &graph.nodes[*idx];
+            let in_ref = node.in_ref.iter().map(
+                |x| match x {
+                    NodeRefType::Connected(ref y) => slots[y.node_idx][y.conn_idx],
+                    NodeRefType::Disconnected => panic!("Disconnected node reference"),
+                }).collect::<Vec<_>>();
+            let out_ref = slots[node.index].as_ptr();
+
+            unsafe {
+                (self.shims[node.typ])(in_ref.as_ptr(), out_ref, node.context.as_ptr());
+            }
+        }
+    }
+}
