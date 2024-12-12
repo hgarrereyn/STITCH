@@ -1,10 +1,9 @@
 use std::{cell::RefCell, collections::{HashMap, HashSet}};
 
-use libc::free;
 use rand::{seq::IteratorRandom, Rng};
 use rand::seq::SliceRandom;
 
-use crate::core::schema::Schema;
+use crate::schema::Schema;
 
 use super::graph::{Graph, NodeRefType};
 
@@ -367,7 +366,9 @@ impl MutationContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::graph::Node;
+    // use crate::core::graph::Node;
+
+    use crate::graph::Node;
 
     use super::*;
 

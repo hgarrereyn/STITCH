@@ -1,1 +1,1 @@
-gf_libafl_cxx -o fuzz fuzz_exec.cpp
+gf_libafl_cxx -o fuzz fuzz.cpp

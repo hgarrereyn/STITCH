@@ -15,6 +15,8 @@ overflow-checks = true
 lto = true
 
 [dependencies]
+gf_core = { path = "../gf_core" }
+
 libafl = { version = "0.14.1" }
 libafl_cc = { version = "0.14.1" }
 libafl_targets = { version = "0.14.1", features = ["libfuzzer", "sancov_cmplog", "sancov_pcguard_hitcounts", "sanitizer_interfaces", "sancov_8bit"] }

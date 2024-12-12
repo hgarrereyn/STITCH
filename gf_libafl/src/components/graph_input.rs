@@ -3,7 +3,7 @@ use libafl::inputs::Input;
 use libafl_bolts::HasLen;
 use serde::{Serialize, Deserialize};
 
-use crate::core::graph::Graph;
+use gf_core::graph::Graph;
 
 
 

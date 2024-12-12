@@ -13,12 +13,14 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 COPY rust-toolchain.toml /src/rust-toolchain.toml
+COPY /gf_core /src/gf_core
 COPY /gf_libafl /src/gf_libafl
 
 ENV LIBAFL_EDGES_MAP_SIZE=400000
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/src/gf_libafl/target \
+    --mount=type=cache,target=/src/gf_core/target \
     --mount=type=cache,target=/root/.rustup \
     cd /src/gf_libafl && \
     OUT_DIR=/deps cargo build --release && \

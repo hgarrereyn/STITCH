@@ -1,7 +1,7 @@
 
-use core::graph::{Graph, Node, NodeRef};
-use core::harness::Harness;
-use core::schema::Schema;
+use gf_core::graph::{Graph, Node, NodeRef};
+use gf_core::harness::Harness;
+use gf_core::schema::Schema;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fs};
@@ -12,7 +12,6 @@ use libafl::observers::StdMapObserver;
 use libafl_targets::{libfuzzer_initialize, libfuzzer_test_one_input, std_edges_map_observer};
 
 pub mod components;
-pub mod core;
 pub mod fuzzer;
 pub mod minimizer;
 
@@ -38,7 +37,13 @@ pub struct Options {
     pub execute: Option<String>,
 
     #[arg(short, long)]
+    pub write: Option<String>,
+
+    #[arg(short, long)]
     pub minimize: Option<String>,
+
+    #[arg(short, long, default_value = "false")]
+    pub full_write: bool,
 
     #[arg(short, long, default_value = "10000")]
     pub minimize_cycles: usize,
@@ -79,8 +84,10 @@ pub extern "C" fn libafl_main() {
         run_fuzzer(res, gf_harness, schema, obs);
     } else if res.execute.is_some() {
         execute_one(res, gf_harness);
+    } else if res.write.is_some() {
+        write_one(res, gf_harness);
     } else if res.minimize.is_some() {
-        minimizer::minimize(res.minimize.unwrap(), res.minimize_cycles, gf_harness, schema);
+        minimizer::minimize(res.minimize.unwrap(), res.minimize_cycles, gf_harness, res.full_write, schema);
     } else {
         println!("Either input and out directories or execute command must be provided.");
         return;
@@ -137,4 +144,16 @@ fn execute_one(res: Options, gf_harness: Harness) {
     graph.pprint();
 
     gf_harness.invoke(&graph);
+}
+
+fn write_one(res: Options, gf_harness: Harness) {
+    let path = PathBuf::from(res.write.unwrap());
+    let inp = GraphInput::from_file(path).expect("Could not read input file");
+
+    let graph = inp.graph;
+
+    println!("Writing graph:");
+    graph.pprint();
+
+    gf_harness.write(&graph);
 }

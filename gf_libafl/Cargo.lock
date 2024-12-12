@@ -367,12 +367,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gf_core"
+version = "0.1.0"
+dependencies = [
+ "colored",
+ "rand",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gf_libafl"
 version = "0.1.0"
 dependencies = [
  "cc",
  "clap",
  "colored",
+ "gf_core",
  "libafl",
  "libafl_bolts",
  "libafl_cc",

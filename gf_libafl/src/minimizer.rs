@@ -1,15 +1,13 @@
 use core::time;
-use std::borrow::Borrow;
 
-use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventFirer, EventRestarter, SimpleEventManager, SimpleRestartingEventManager}, executors::{Executor, ExitKind, InProcessExecutor}, feedbacks::CrashFeedback, inputs::Input, monitors::SimpleMonitor, schedulers::QueueScheduler, state::{HasCorpus, HasSolutions, State, StdState, Stoppable}, Error, StdFuzzer};
+use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventRestarter, SimpleRestartingEventManager}, executors::{Executor, ExitKind, InProcessExecutor}, feedbacks::CrashFeedback, inputs::Input, monitors::SimpleMonitor, schedulers::QueueScheduler, state::{HasSolutions, StdState}, Error, StdFuzzer};
 use libafl_bolts::{rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::tuple_list};
 
-use crate::{components::graph_input::GraphInput, core::{graph::Graph, harness::Harness, mutation::MutationContext, schema::Schema}};
+use crate::components::graph_input::GraphInput;
+use gf_core::{harness::Harness, mutation::MutationContext, schema::Schema};
 
 
-
-
-pub fn minimize(path: String, cycles: usize, gf_harness: Harness, schema: Schema) {
+pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bool, schema: Schema) {
     let mctx = MutationContext::new(schema);
     println!("Computing mutation context...");
     mctx.compute(3);
@@ -78,7 +76,11 @@ pub fn minimize(path: String, cycles: usize, gf_harness: Harness, schema: Schema
 
     let thresh = inp.graph.nodes.len();
     println!("Current size: {:?}", thresh);
-    inp.graph.pprint();
+    if full_write {
+        gf_harness.write(&inp.graph);
+    } else {
+        inp.graph.pprint();
+    }
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
     let mut executor = InProcessExecutor::with_timeout(

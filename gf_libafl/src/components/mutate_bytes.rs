@@ -3,7 +3,7 @@ use std::{borrow::{Borrow, Cow}, rc::Rc};
 use libafl::{inputs::{BytesInput, HasMutatorBytes}, mutators::Mutator};
 use libafl_bolts::Named;
 
-use crate::core::mutation::MutationContext;
+use gf_core::mutation::MutationContext;
 
 use super::graph_input::GraphInput;
 

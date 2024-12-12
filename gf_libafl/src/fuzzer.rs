@@ -34,7 +34,8 @@ use libafl_targets::{
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::{components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateDeleteOne, GraphMutateIsolateComponent}}, core::{graph::{Graph, Node, NodeRef, NodeRefType}, harness::Harness, mutation::MutationContext, schema::Schema}};
+use crate::{components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateDeleteOne, GraphMutateIsolateComponent}}};
+use gf_core::{graph::{Graph, Node, NodeRef, NodeRefType}, harness::Harness, mutation::MutationContext, schema::Schema};
 
 /// The actual fuzzer
 pub fn fuzz(

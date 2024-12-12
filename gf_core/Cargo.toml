@@ -1,0 +1,10 @@
+[package]
+name = "gf_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+colored = "2.0.4"
+serde = { version = "*", features = ["derive"] }
+serde_json = "1.0.111"
+rand = "0.8.5"
