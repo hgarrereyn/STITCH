@@ -13,7 +13,6 @@ fn test_add() {
                 inputs: vec![],
                 outputs: vec![0],
                 args: vec![],
-                context_size: 0,
                 template: "$o0 = new Foo();".to_string()
             },
             EndpointSpec {
@@ -21,7 +20,6 @@ fn test_add() {
                 inputs: vec![0],
                 outputs: vec![0],
                 args: vec!["char".to_string()],
-                context_size: 1,
                 template: "$i0->write($a0);\n$o0 = $i0;".to_string()
             },
             EndpointSpec {
@@ -29,7 +27,6 @@ fn test_add() {
                 inputs: vec![0],
                 outputs: vec![0],
                 args: vec![],
-                context_size: 0,
                 template: "$i0->check();\n$o0 = $i0;".to_string()
             },
             EndpointSpec {
@@ -37,7 +34,6 @@ fn test_add() {
                 inputs: vec![0],
                 outputs: vec![],
                 args: vec![],
-                context_size: 0,
                 template: "delete $i0;".to_string()
             }
         ],

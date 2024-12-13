@@ -1,5 +1,4 @@
 
-use gf_core::graph::{Graph, Node, NodeRef};
 use gf_core::harness::Harness;
 use gf_core::schema::Schema;
 use std::path::PathBuf;
@@ -78,7 +77,11 @@ pub extern "C" fn libafl_main() {
     println!("Using schema at {:?}", schema_path);
 
     let schema = fs::read_to_string(schema_path).expect("Could not read schema file");
-    let schema: Schema = serde_json::from_str(&schema).expect("Could not parse schema");
+    let mut schema: Schema = serde_json::from_str(&schema).expect("Could not parse schema");
+
+    for (i, s) in gf_harness.shim_sizes.iter().enumerate() {
+        schema.endpoints[i].context_size = Some(*s as usize);
+    }
 
     if res.input.is_some() && res.out.is_some() {
         run_fuzzer(res, gf_harness, schema, obs);

@@ -88,7 +88,7 @@ impl Graph {
             assert!(node.out_ref.len() == schema.endpoints[node.typ].outputs.len(), "Node output reference count mismatch at {} (has {}, expected {})", idx, node.out_ref.len(), schema.endpoints[node.typ].outputs.len());
 
             // Ensure the context size matches the schema
-            assert!(node.context.len() == schema.endpoints[node.typ].context_size, "Node context size mismatch at {} (has {}, expected {})", idx, node.context.len(), schema.endpoints[node.typ].context_size);
+            assert!(node.context.len() == schema.endpoints[node.typ].context_size.unwrap(), "Node context size mismatch at {} (has {}, expected {})", idx, node.context.len(), schema.endpoints[node.typ].context_size.unwrap());
 
             // Ensure inputs and outputs are connected
             for (i, ref_type) in node.in_ref.iter().enumerate() {

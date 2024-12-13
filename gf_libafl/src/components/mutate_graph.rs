@@ -1,8 +1,8 @@
 
 
-use std::{borrow::{Borrow, Cow}, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
-use libafl::{inputs::{BytesInput, HasMutatorBytes}, mutators::Mutator};
+use libafl::mutators::Mutator;
 use libafl_bolts::Named;
 
 use gf_core::mutation::MutationContext;

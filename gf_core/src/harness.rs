@@ -8,7 +8,7 @@ use super::graph::NodeRefType;
 
 
 extern "C" {
-    fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, num_shims: &mut usize);
+    fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, shim_size_ptr: &mut *const c_void, num_shims: &mut usize);
 }
 
 
@@ -17,6 +17,7 @@ type Shim = unsafe fn(in_ref: *const *const c_void, out_ref: *const *const c_voi
 pub struct Harness {
     exec_shims: Vec<Shim>,
     write_shims: Vec<Shim>,
+    pub shim_sizes: Vec<u32>,
 }
 
 impl Harness {
@@ -25,17 +26,20 @@ impl Harness {
     pub fn new() -> Self {
         let mut exec_shim_ptr: *const c_void = std::ptr::null();
         let mut write_shim_ptr: *const c_void = std::ptr::null();
+        let mut shim_size_ptr: *const c_void = std::ptr::null();
         let mut num_shims: usize = 0;
         unsafe {
-            GRAPHFUZZ_TARGET_INFO(&mut exec_shim_ptr, &mut write_shim_ptr, &mut num_shims);
+            GRAPHFUZZ_TARGET_INFO(&mut exec_shim_ptr, &mut write_shim_ptr, &mut shim_size_ptr, &mut num_shims);
         }
 
         let exec_shims = unsafe { std::slice::from_raw_parts(exec_shim_ptr as *const Shim, num_shims).to_vec() };
         let write_shims = unsafe { std::slice::from_raw_parts(write_shim_ptr as *const Shim, num_shims).to_vec() };
+        let shim_sizes = unsafe { std::slice::from_raw_parts(shim_size_ptr as *const u32, num_shims).to_vec() };
 
         Self {
             exec_shims,
             write_shims,
+            shim_sizes
         }
     }
 

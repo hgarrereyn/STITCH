@@ -1,6 +1,6 @@
 use crate::spec::{EndpointSpec, HeaderSpec, Spec};
 
-
+static HELPER_CODE: &str = include_str!("helper.h");
 
 pub struct HarnessWriter<'a> {
     spec: &'a Spec
@@ -21,12 +21,18 @@ impl<'a> HarnessWriter<'a> {
 
         self.emit_headers(&mut code, &self.spec.headers);
 
+        self.emit_helpers(&mut code);
+
         for (idx, endpoint) in self.spec.endpoints.iter().enumerate() {
             self.emit_exec_endpoint(&mut code, idx, endpoint);
         }
 
         for (idx, endpoint) in self.spec.endpoints.iter().enumerate() {
             self.emit_write_endpoint(&mut code, idx, endpoint);
+        }
+
+        for (idx, endpoint) in self.spec.endpoints.iter().enumerate() {
+            self.emit_context_size_info(&mut code, idx, endpoint);
         }
 
         self.emit_linkage_info(&mut code);
@@ -43,17 +49,18 @@ impl<'a> HarnessWriter<'a> {
             let typ = &self.spec.types[*input].name;
             template = template.replace(&format!("$i{}", i), &format!("(({} *)in_ref[{}])", typ, i));
         }
-        for (i, output) in endpoint.outputs.iter().enumerate().rev() {
+        for (i, _output) in endpoint.outputs.iter().enumerate().rev() {
             template = template.replace(&format!("$o{}", i), &format!("out_ref[{}]", i));
         }
-        for (i, arg) in endpoint.args.iter().enumerate().rev() {
+        for (i, _arg) in endpoint.args.iter().enumerate().rev() {
             template = template.replace(&format!("$a{}", i), &format!("__arg_{}", i));
         }
 
         // Instantiate arguments.
         let mut arg_instantiations = String::new();
         for (i, arg) in endpoint.args.iter().enumerate() {
-            arg_instantiations.push_str(&format!("{} __arg_{} = context.consume();\n", arg, i));
+            arg_instantiations.push_str(&format!("{} __arg_{} = deserialize_from_bytes<{}>(context);\n", arg, i, arg));
+            arg_instantiations.push_str(&format!("context += sizeof({});\n", arg));
         }
 
         code.push_str(&format!("extern \"C\" void {}(void **in_ref, void **out_ref, char *context) {{\n", shim_name));
@@ -78,11 +85,14 @@ impl<'a> HarnessWriter<'a> {
         let mut template = printf_escape(&endpoint.template);
 
         // Replace template variables with references.
-        for (i, input) in endpoint.inputs.iter().enumerate().rev() {
+        for (i, _input) in endpoint.inputs.iter().enumerate().rev() {
             template = template.replace(&format!("$i{}", i), &format!("var_%{}$td", 1 + i));
         }
-        for (i, output) in endpoint.outputs.iter().enumerate().rev() {
+        for (i, _output) in endpoint.outputs.iter().enumerate().rev() {
             template = template.replace(&format!("$o{}", i), &format!("var_%{}$td", 1 + i + endpoint.inputs.len()));
+        }
+        for (i, _arg) in endpoint.args.iter().enumerate().rev() {
+            template = template.replace(&format!("$a{}", i), &format!("__arg_{}", i));
         }
 
         let mut template_args = String::new();
@@ -93,15 +103,39 @@ impl<'a> HarnessWriter<'a> {
         })).collect::<Vec<_>>();
         template_args.push_str(&args.join(", "));
 
+        // Instantiate arguments.
+        let mut arg_instantiations = String::new();
+        for (i, arg) in endpoint.args.iter().enumerate() {
+            arg_instantiations.push_str(&format!("{} __arg_{} = deserialize_from_bytes<{}>(context);\n", arg, i, arg));
+            arg_instantiations.push_str(&format!("context += sizeof({});\n", arg));
+        }
+
+        let mut print_arg_instantiations = String::new();
+        for (i, arg) in endpoint.args.iter().enumerate() {
+            print_arg_instantiations.push_str(&format!("printf(\"{} __arg_{} = %s;\\n\", generate_initializer(__arg_{}).c_str());\n", arg, i, i));
+        }
+
         code.push_str(&format!("extern \"C\" void {}(void **in_ref, void **out_ref, char *context) {{\n", shim_name));
-        // code.push_str(&arg_instantiations);
+        code.push_str(&arg_instantiations);
         code.push_str("// ----- TEMPLATE CODE -----\n");
         code.push_str(&variable_definitions);
         code.push_str(&format!("printf(\"{{ // start {}\\n\");\n", endpoint.name));
+        code.push_str(&print_arg_instantiations);
         code.push_str(&format!("printf(\"{}\\n\", {});\n", template, template_args));
         code.push_str(&format!("printf(\"}} // end {}\\n\");\n", endpoint.name));
         code.push_str("// -------------------------\n");
         code.push_str("}\n\n");
+    }
+
+    fn emit_context_size_info(&self, code: &mut String, idx: usize, endpoint: &EndpointSpec) {
+        let context_size = if endpoint.args.len() > 0 {
+            endpoint.args.iter().map(|x| {
+                format!("sizeof({})", x)
+            }).collect::<Vec<_>>().join(" + ")
+        } else {
+            "0".to_string()
+        };
+        code.push_str(&format!("const unsigned int shim_size_{} = {};\n", idx, context_size));
     }
 
     fn emit_linkage_info(&self, code: &mut String) {
@@ -118,12 +152,19 @@ impl<'a> HarnessWriter<'a> {
         }
         code.push_str("    };\n\n");
 
+        code.push_str("    unsigned int GRAPHFUZZ_SHIM_SIZES[] = {\n");
+        for (idx, _endpoint) in self.spec.endpoints.iter().enumerate() {
+            code.push_str(&format!("        shim_size_{},\n", idx));
+        }
+        code.push_str("    };\n\n");
+
         code.push_str("    const unsigned int GRAPHFUZZ_SHIMS_COUNT = ");
         code.push_str(&format!("{};\n\n", self.spec.endpoints.len()));
 
-        code.push_str("    void GRAPHFUZZ_TARGET_INFO(void **exec_shim_ptr, void **write_shim_ptr, unsigned int *shim_count) {\n");
+        code.push_str("    void GRAPHFUZZ_TARGET_INFO(void **exec_shim_ptr, void **write_shim_ptr, unsigned int **shim_size_ptr, unsigned int *shim_count) {\n");
         code.push_str("        *exec_shim_ptr = GRAPHFUZZ_EXEC_SHIMS;\n");
         code.push_str("        *write_shim_ptr = GRAPHFUZZ_WRITE_SHIMS;\n");
+        code.push_str("        *shim_size_ptr = GRAPHFUZZ_SHIM_SIZES;\n");
         code.push_str("        *shim_count = GRAPHFUZZ_SHIMS_COUNT;\n");
         code.push_str("    }\n");
         code.push_str("}\n");
@@ -141,6 +182,12 @@ impl<'a> HarnessWriter<'a> {
             }
         }
         code.push_str("\n");
+    }
+
+    fn emit_helpers(&self, code: &mut String) {
+        code.push_str("// ----- HELPER CODE -----\n");
+        code.push_str(HELPER_CODE);
+        code.push_str("// -------------------------\n");
     }
 }
 

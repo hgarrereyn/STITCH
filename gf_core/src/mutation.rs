@@ -239,7 +239,7 @@ impl MutationContext {
         if self.rng.borrow_mut().gen_bool(self.opts.self_link_probability) {
             let choice = {
                 let linkable = free_edges.iter().enumerate().filter(
-                    |(i,x)|
+                    |(_,x)|
                         x.typ == edge.typ &&
                         x.forward != edge.forward &&
                         if edge.forward { x.node_level > edge.node_level } else { x.node_level < edge.node_level }
@@ -282,7 +282,7 @@ impl MutationContext {
             edge.node_level + if edge.forward { 1 } else { -1 }, 
             self.schema.endpoints[endpoint.idx].inputs.len(), 
             self.schema.endpoints[endpoint.idx].outputs.len(), 
-            self.schema.endpoints[endpoint.idx].context_size
+            self.schema.endpoints[endpoint.idx].context_size.unwrap()
         );
 
         // Link the edge.
@@ -322,7 +322,7 @@ impl MutationContext {
         };
 
         let endpoint = self.schema.endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
-        let _ = graph.add_node(endpoint.idx, 0, endpoint.inputs.len(), endpoint.outputs.len(), endpoint.context_size);
+        let _ = graph.add_node(endpoint.idx, 0, endpoint.inputs.len(), endpoint.outputs.len(), endpoint.context_size.unwrap());
 
         self.complete(&mut graph);
         graph.sanitize();
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_complete() {
-        let mut ctx = setup_ctx();
+        let ctx = setup_ctx();
 
         let mut graph = Graph {
             nodes: vec![

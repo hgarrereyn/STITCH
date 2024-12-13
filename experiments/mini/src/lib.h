@@ -11,7 +11,6 @@ public:
     }
 
     void check() {
-        // printf("Checking buffer: %s\n", buffer.data());
         if (buffer.size() >= 4 && \
             buffer[0] == 'F' && \
             buffer[1] == 'U' && \

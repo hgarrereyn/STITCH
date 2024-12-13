@@ -20,7 +20,6 @@ pub struct EndpointSpec {
     pub inputs: Vec<usize>,
     pub outputs: Vec<usize>,
     pub args: Vec<String>,
-    pub context_size: usize,
     pub template: String,
 }
 

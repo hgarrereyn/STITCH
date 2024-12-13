@@ -2,7 +2,6 @@ use core::{cell::RefCell, time::Duration};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::{
-    env,
     fs::{File, OpenOptions},
     io::{self, Write},
     path::PathBuf,
@@ -10,18 +9,15 @@ use std::{
 };
 
 use libafl::{
-    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{inprocess::InProcessExecutor, ExitKind}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, inputs::{BytesInput, HasTargetBytes}, monitors::SimpleMonitor, mutators::{
-        havoc_mutations, havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
-    }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::{
-        powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, QueueScheduler, StdWeightedScheduler
-    }, stages::{
-        calibrate::CalibrationStage, power::StdPowerMutationalStage, StdMutationalStage,
+    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::SimpleEventManager, executors::{inprocess::InProcessExecutor, ExitKind}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
+        havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
+    }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::QueueScheduler, stages::{
+        StdMutationalStage,
         TracingStage,
     }, state::{HasCorpus, StdState}, Error, Evaluator, HasMetadata
 };
 use libafl_bolts::{
     current_time,
-    os::dup2,
     rands::StdRand,
     shmem::{ShMemProvider, StdShMemProvider},
     tuples::{tuple_list, Merge},
@@ -34,8 +30,8 @@ use libafl_targets::{
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::{components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateDeleteOne, GraphMutateIsolateComponent}}};
-use gf_core::{graph::{Graph, Node, NodeRef, NodeRefType}, harness::Harness, mutation::MutationContext, schema::Schema};
+use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateDeleteOne, GraphMutateIsolateComponent}};
+use gf_core::{harness::Harness, mutation::MutationContext, schema::Schema};
 
 /// The actual fuzzer
 pub fn fuzz(

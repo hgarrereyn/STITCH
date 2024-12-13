@@ -14,7 +14,7 @@ pub struct Endpoint {
     pub idx: usize,
     pub inputs: Vec<usize>,
     pub outputs: Vec<usize>,
-    pub context_size: usize,
+    pub context_size: Option<usize>,
 }
 
 // The schema is produced during harness generation and stored as `{/path/to/fuzzer}.schema` in JSON format

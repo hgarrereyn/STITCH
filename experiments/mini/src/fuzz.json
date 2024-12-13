@@ -10,7 +10,6 @@
       "inputs": [],
       "outputs": [0],
       "args": [],
-      "context_size": 0,
       "template": "$o0 = new Foo();"
     },
     {
@@ -18,7 +17,6 @@
       "inputs": [0],
       "outputs": [0],
       "args": ["char"],
-      "context_size": 1,
       "template": "$i0->write($a0);\n$o0 = $i0;"
     },
     {
@@ -26,7 +24,6 @@
       "inputs": [0],
       "outputs": [0],
       "args": [],
-      "context_size": 0,
       "template": "$i0->check();\n$o0 = $i0;"
     },
     {
@@ -34,7 +31,6 @@
       "inputs": [0],
       "outputs": [],
       "args": [],
-      "context_size": 0,
       "template": "delete $i0;"
     }
   ],
