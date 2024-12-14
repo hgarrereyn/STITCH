@@ -106,4 +106,6 @@ pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bo
 
     println!("No new crashes");
     mgr.send_exiting().unwrap();
+
+    gf_harness.write(&inp.graph);
 }

@@ -59,7 +59,9 @@ impl<'a> HarnessWriter<'a> {
         // Instantiate arguments.
         let mut arg_instantiations = String::new();
         for (i, arg) in endpoint.args.iter().enumerate() {
-            arg_instantiations.push_str(&format!("{} __arg_{} = deserialize_from_bytes<{}>(context);\n", arg, i, arg));
+            arg_instantiations.push_str(&format!("using __arg_{}_type = {};\n", i, arg));
+            arg_instantiations.push_str(&format!("__arg_{}_type __arg_{};\n", i, i));
+            arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, context, sizeof({}));\n", i, arg));
             arg_instantiations.push_str(&format!("context += sizeof({});\n", arg));
         }
 
@@ -106,13 +108,17 @@ impl<'a> HarnessWriter<'a> {
         // Instantiate arguments.
         let mut arg_instantiations = String::new();
         for (i, arg) in endpoint.args.iter().enumerate() {
-            arg_instantiations.push_str(&format!("{} __arg_{} = deserialize_from_bytes<{}>(context);\n", arg, i, arg));
+            // arg_instantiations.push_str(&format!("auto __arg_{} = deserialize_from_bytes<{}>(context);\n", i, arg));
+            arg_instantiations.push_str(&format!("using __arg_{}_type = {};\n", i, arg));
+            arg_instantiations.push_str(&format!("__arg_{}_type __arg_{};\n", i, i));
+            arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, context, sizeof({}));\n", i, arg));
             arg_instantiations.push_str(&format!("context += sizeof({});\n", arg));
         }
 
         let mut print_arg_instantiations = String::new();
         for (i, arg) in endpoint.args.iter().enumerate() {
-            print_arg_instantiations.push_str(&format!("printf(\"{} __arg_{} = %s;\\n\", generate_initializer(__arg_{}).c_str());\n", arg, i, i));
+            print_arg_instantiations.push_str(&format!("printf(\"using __arg_{}_type = {};\\n\");\n", i, arg));
+            print_arg_instantiations.push_str(&format!("printf(\"__arg_{}_type __arg_{} = %s;\\n\", generate_initializer(__arg_{}).c_str());\n", i, i, i));
         }
 
         code.push_str(&format!("extern \"C\" void {}(void **in_ref, void **out_ref, char *context) {{\n", shim_name));

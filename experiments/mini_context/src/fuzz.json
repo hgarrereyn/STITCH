@@ -10,31 +10,55 @@
       "inputs": [],
       "outputs": [0],
       "args": [],
-      "context_size": 0,
       "template": "$o0 = new Foo();"
     },
     {
-      "name": "Foo::write(char val)",
+      "name": "Foo::f1(char val)",
       "inputs": [0],
       "outputs": [0],
       "args": ["char"],
-      "context_size": 1,
-      "template": "$i0->write($a0);\n$o0 = $i0;"
+      "template": "$i0->f1($a0);\n$o0 = $i0;"
     },
     {
-      "name": "Foo::check()",
+      "name": "Foo::f2(int x, float y)",
       "inputs": [0],
       "outputs": [0],
-      "args": [],
-      "context_size": 0,
-      "template": "$i0->check();\n$o0 = $i0;"
+      "args": ["int", "float"],
+      "template": "$i0->f2($a0, $a1);\n$o0 = $i0;"
     },
     {
-      "name": "~Foo()",
+      "name": "Foo::f3(size_t size)",
+      "inputs": [0],
+      "outputs": [0],
+      "args": ["size_t"],
+      "template": "$i0->f3($a0);\n$o0 = $i0;"
+    },
+    {
+      "name": "Foo::f4(int x[20])",
+      "inputs": [0],
+      "outputs": [0],
+      "args": ["int[20]"],
+      "template": "$i0->f4($a0);\n$o0 = $i0;"
+    },
+    {
+      "name": "Foo::f5(int x[5][5])",
+      "inputs": [0],
+      "outputs": [0],
+      "args": ["int[5][5]"],
+      "template": "$i0->f5($a0);\n$o0 = $i0;"
+    },
+    {
+      "name": "Foo::f6(char a, char b[10], int x[10], float y[100])",
+      "inputs": [0],
+      "outputs": [0],
+      "args": ["char", "char[10]", "int[10]", "float[100]"],
+      "template": "$i0->f6($a0, $a1, $a2, $a3);\n$o0 = $i0;"
+    },
+    {
+      "name": "Foo::~Foo()",
       "inputs": [0],
       "outputs": [],
       "args": [],
-      "context_size": 0,
       "template": "delete $i0;"
     }
   ],

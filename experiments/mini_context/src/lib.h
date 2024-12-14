@@ -3,29 +3,27 @@
 #include <cstdio>
 #include <cassert>
 
+
 class Foo {
 public:
     Foo(): buffer(0) {}
 
-    // write an ascii character to the buffer
-    void write(char val) {
-        assert(val >= 0 && val <= 127);
+    void f1(char val) {
         buffer.push_back(val);
     }
 
-    void check() {
-        if (buffer.size() >= 4 && \
-            buffer[0] == 'F' && \
-            buffer[1] == 'U' && \
-            buffer[2] == 'Z' && \
-            buffer[3] == 'Z'
-        ) {
+    void f2(int x, float y) {}
+
+    void f3(size_t size) {}
+
+    void f4(int x[20]) {}
+
+    void f5(int x[5][5]) {}
+
+    void f6(char a, char b[10], int x[10], float y[100]) {
+        if (a == 'a') {
             __builtin_trap();
         }
-    }
-
-    void append_elements(const char *data, size_t size) {
-        buffer.insert(buffer.end(), data, data + size);
     }
 private:
     std::vector<char> buffer;
