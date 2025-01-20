@@ -1,0 +1,13 @@
+{
+  "stubs": [
+    {
+      "object_args": [
+        {
+          "name": "cur",
+          "typ": "IWKV_cursor",
+          "dir": "*"
+        }
+      ]
+    }
+  ]
+}

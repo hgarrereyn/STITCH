@@ -9,7 +9,7 @@ use std::{
 };
 
 use libafl::{
-    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::SimpleEventManager, executors::{inprocess::InProcessExecutor, ExitKind}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
+    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{inprocess::InProcessExecutor, ExitKind}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
         havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
     }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::QueueScheduler, stages::{
         StdMutationalStage,
@@ -44,12 +44,13 @@ pub fn fuzz(
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
     timeout: Duration,
+    bypass_validation: bool,
 ) -> Result<(), Error>
 {
 
     let mctx = MutationContext::new(schema);
     println!("Computing mutation context...");
-    mctx.compute(3);
+    mctx.compute(3, bypass_validation);
     println!("Computed mutation context");
     let ctx = Rc::new(mctx);
     
@@ -76,21 +77,21 @@ pub fn fuzz(
     // This way, we are able to continue fuzzing afterwards.
     let mut shmem_provider = StdShMemProvider::new()?;
 
-    // let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
-    // {
-    //     // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
-    //     Ok(res) => res,
-    //     Err(err) => match err {
-    //         Error::ShuttingDown => {
-    //             return Ok(());
-    //         }
-    //         _ => {
-    //             panic!("Failed to setup the restarter: {err}");
-    //         }
-    //     },
-    // };
+    let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
+    {
+        // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
+        Ok(res) => res,
+        Err(err) => match err {
+            Error::ShuttingDown => {
+                return Ok(());
+            }
+            _ => {
+                panic!("Failed to setup the restarter: {err}");
+            }
+        },
+    };
 
-    let mut mgr = SimpleEventManager::new(monitor);
+    // let mut mgr = SimpleEventManager::new(monitor);
 
     // Create an observation channel using the coverage map
     // We don't use the hitcounts (see the Cargo.toml, we use pcguard_edges)
@@ -119,7 +120,7 @@ pub fn fuzz(
     let mut objective = CrashFeedback::new();
 
     // If not restarting, create a State from scratch
-    let state = None;
+    // let state = None;
     let mut state = state.unwrap_or_else(|| {
         StdState::new(
             // RNGe

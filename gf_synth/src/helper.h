@@ -2,24 +2,9 @@
 #include <type_traits>
 #include <string>
 #include <sstream>
-
-template<typename T>
-bool can_deserialize_directly() {
-    return std::is_standard_layout_v<T> && 
-           std::is_trivially_copyable_v<T> &&
-           !std::is_pointer_v<T>;
-}
-
-template<typename T>
-T deserialize_from_bytes(const char* data) {
-    if (!can_deserialize_directly<T>()) {
-        throw std::runtime_error("Type cannot be directly deserialized");
-    }
-
-    T result;
-    std::memcpy(&result, data, sizeof(T));
-    return result;
-}
+#include <random>
+#include <limits>
+#include <setjmp.h>
 
 // Forward declaration
 template<typename T>
@@ -79,4 +64,112 @@ std::string generate_declaration(const std::string& var_name, const T& value) {
     }
     
     return type_name + " " + var_name + " = " + generate_initializer(value) + ";";
+}
+
+void *gf_malloc(size_t size) {
+    return malloc(size);
+}
+
+void gf_free(void *ptr) {
+    if (ptr) {
+        free(ptr);
+    }
+}
+
+template <typename T>
+void get_input(void *input, T *value) {
+    if (sizeof(T) <= sizeof(void *)) {
+        std::memcpy(value, &input, sizeof(T));
+    } else {
+        T *ptr = (T *)input;
+        std::memcpy(value, ptr, sizeof(T));
+        gf_free(ptr);
+    }
+}
+
+template <typename T>
+void set_output(void **output, T *value) {
+    if (sizeof(T) <= sizeof(void *)) {
+        std::memcpy(output, value, sizeof(T));
+    } else {
+        T *ptr = (T *)gf_malloc(sizeof(T));
+        std::memcpy(ptr, value, sizeof(T));
+        *output = ptr;
+    }
+}
+
+// Thread-local jump buffer for bail mechanism
+static thread_local jmp_buf gf_jump_buf;
+
+extern "C" {
+    void GRAPHFUZZ_INVOKE_SHIM(void *shim, void *in, void *out, void *context, int *bailed) {
+        if (setjmp(gf_jump_buf) != 0) {
+            *bailed = 1;
+            return;
+        }
+        *bailed = 0;
+        ((void (*)(void *, void *, void *))shim)(in, out, context);
+    }
+}
+
+// Invoked from user code inside shims
+void gf_bail() {
+    longjmp(gf_jump_buf, 1);
+}
+
+namespace gf_rand {
+    // Thread-local random number generator
+    inline std::mt19937& get_generator() {
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        return gen;
+    }
+
+    // Primary template for get<T>()
+    template<typename T>
+    T get() {
+        static_assert(std::is_standard_layout_v<T>, "Type must be standard layout");
+        static_assert(!std::is_pointer_v<T>, "Pointer types are not supported in gf_rand::get");
+        
+        if constexpr (std::is_same_v<T, bool>) {
+            std::uniform_int_distribution<int> dist(0, 1);
+            return dist(get_generator()) == 1;
+        }
+        else if constexpr (std::is_integral_v<T>) {
+            std::uniform_int_distribution<T> dist(
+                std::numeric_limits<T>::min(),
+                std::numeric_limits<T>::max()
+            );
+            return dist(get_generator());
+        }
+        else if constexpr (std::is_floating_point_v<T>) {
+            std::uniform_real_distribution<T> dist(
+                std::numeric_limits<T>::lowest(),
+                std::numeric_limits<T>::max()
+            );
+            return dist(get_generator());
+        }
+        else if constexpr (std::is_enum_v<T>) {
+            using underlying = typename std::underlying_type<T>::type;
+            return static_cast<T>(get<underlying>());
+        }
+        else if constexpr (std::is_array_v<T>) {
+            T arr;
+            using ElementType = std::remove_extent_t<T>;
+            constexpr std::size_t N = std::extent_v<T>;
+            for (std::size_t i = 0; i < N; ++i) {
+                arr[i] = get<ElementType>();
+            }
+            return arr;
+        }
+        else {
+            // For other types, generate random bytes
+            T value;
+            auto* bytes = reinterpret_cast<unsigned char*>(&value);
+            for (size_t i = 0; i < sizeof(T); ++i) {
+                bytes[i] = get<unsigned char>();
+            }
+            return value;
+        }
+    }
 }

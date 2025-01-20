@@ -7,10 +7,10 @@ use crate::components::graph_input::GraphInput;
 use gf_core::{harness::Harness, mutation::MutationContext, schema::Schema};
 
 
-pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bool, schema: Schema) {
+pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bool, schema: Schema, bypass_validation: bool) {
     let mctx = MutationContext::new(schema);
     println!("Computing mutation context...");
-    mctx.compute(3);
+    mctx.compute(3, bypass_validation);
     println!("Computed mutation context");
 
     let inp = GraphInput::from_file(path).unwrap();

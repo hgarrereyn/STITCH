@@ -1,0 +1,75 @@
+{
+  "endpoints": [
+    {
+      "name": "Foo()",
+      "variables": [
+        { "name": "$res", "typ": "Foo*", "dir": "new" }
+      ],
+      "template": "$res = new Foo();"
+    },
+    {
+      "name": "Foo::f1(char val)",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$val", "typ": "char" }
+      ],
+      "template": "$self->f1($val);"
+    },
+    {
+      "name": "Foo::f2(int x, float y)",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$x", "typ": "int" },
+        { "name": "$y", "typ": "float" }
+      ],
+      "template": "$self->f2($x, $y);"
+    },
+    {
+      "name": "Foo::f3(size_t size)",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$size", "typ": "size_t" }
+      ],
+      "template": "$self->f3($size);"
+    },
+    {
+      "name": "Foo::f4(int x[20])",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$x", "typ": "int[20]" }
+      ],
+      "template": "$self->f4($x);"
+    },
+    {
+      "name": "Foo::f5(int x[5][5])",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$x", "typ": "int[5][5]" }
+      ],
+      "template": "$self->f5($x);"
+    },
+    {
+      "name": "Foo::f6(char a, char b[10], int x[10], float y[100])",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$a", "typ": "char" },
+        { "name": "$b", "typ": "char[10]" },
+        { "name": "$x", "typ": "int[10]" },
+        { "name": "$y", "typ": "float[100]" }
+      ],
+      "template": "$self->f6($a, $b, $x, $y);"
+    },
+    {
+      "name": "Foo::~Foo()",
+      "variables": [
+        { "name": "$self", "typ": "Foo*", "dir": "del" }
+      ],
+      "template": "delete $self;"
+    }
+  ],
+  "headers": [
+    {
+      "CppHeader": "lib.h"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+    "endpoints": [
+      {
+        "name": "iwkv_init",
+        "variables": [],
+        "template": "iwrc rc = iwkv_init();"
+      }
+    ]
+}

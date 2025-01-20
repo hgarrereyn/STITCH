@@ -23,9 +23,11 @@ class Foo {
 public:
     Foo(): buffer(0) {}
 
+    // compose and destruct b2
     void compose(Bar *b1, Bar *b2) {
         buffer.push_back(b1->value());
         buffer.push_back(b2->value());
+        delete b2;
     }
 
     void check() {

@@ -1,0 +1,582 @@
+{
+    "endpoints": [
+      {
+        "name": "destruct_iwkv",
+        "variables": [
+          {
+            "name": "$obj",
+            "dir": "del",
+            "typ": "struct iwkv *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Ensure to close any database connections before closing the storage\n    iwrc rc = iwkv_close(&$obj);\n    if (rc != 0) {\n        gf_bail();\n    }\n    // Free the object\n    gf_free($obj);\n}"
+      },
+      {
+        "name": "construct_iwdb",
+        "variables": [
+          {
+            "name": "$obj",
+            "dir": "new",
+            "typ": "struct iwdb *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv *iwkv;\n    struct iwkv_opts opts = {\n        .path = \"mystore.db\",\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_TRUNC | IWKV_RDONLY,\n        .file_lock_fail_fast = true,\n        .wal = {\n            .enabled = true,\n            .check_crc_on_checkpoint = false,\n            .savepoint_timeout_sec = gf_rand::get<uint32_t>() % 60,\n            .checkpoint_timeout_sec = gf_rand::get<uint32_t>() % 600,\n            .wal_buffer_sz = gf_rand::get<size_t>(),\n            .checkpoint_buffer_sz = gf_rand::get<uint64_t>()\n        }\n    };\n\n    iwrc rc = iwkv_open(&opts, &iwkv);\n    if (rc) gf_bail();\n\n    uint32_t dbid;\n    iwdb_flags_t flags = IWDB_REALNUM_KEYS | IWDB_VNUM64_KEYS | IWDB_COMPOUND_KEYS;\n    rc = iwkv_new_db(iwkv, flags, &dbid, &$obj);\n    if (rc) gf_bail();\n}"
+      },
+      {
+        "name": "construct_iwkv_opts",
+        "variables": [
+          {
+            "name": "$obj",
+            "dir": "new",
+            "typ": "struct iwkv_opts *"
+          }
+        ],
+        "template": "// code:\n{\n    struct iwkv_opts * $obj = (struct iwkv_opts *)gf_malloc(sizeof(struct iwkv_opts));\n    if (!$obj) gf_bail();\n    $obj->path = \"mydatabase.db\";\n    $obj->random_seed = gf_rand::get<uint32_t>();\n    $obj->fmt_version = 0;\n    $obj->oflags = IWKV_RDONLY | IWKV_TRUNC;\n    $obj->file_lock_fail_fast = gf_rand::get<uint8_t>() ? true : false;\n\n    $obj->wal.enabled = gf_rand::get<uint8_t>() ? true : false;\n    $obj->wal.check_crc_on_checkpoint = gf_rand::get<uint8_t>() ? true : false;\n    $obj->wal.savepoint_timeout_sec = gf_rand::get<uint32_t>();\n    $obj->wal.checkpoint_timeout_sec = gf_rand::get<uint32_t>();\n    $obj->wal.wal_buffer_sz = gf_rand::get<size_t>();\n    $obj->wal.checkpoint_buffer_sz = gf_rand::get<uint64_t>();\n    $obj->wal.wal_lock_interceptor = NULL;\n    $obj->wal.wal_lock_interceptor_opaque = NULL;\n}"
+      },
+      {
+        "name": "destruct_iwkv_opts",
+        "variables": [
+          {
+            "name": "$obj",
+            "dir": "del",
+            "typ": "struct iwkv_opts *"
+          }
+        ],
+        "template": "// Code:\n{\n    if ($obj) {\n        // Free the path string if it is dynamically allocated\n        if($obj->path) {\n            gf_free((void*)$obj->path);\n        }\n\n        // Free the WAL options structure if it's dynamically allocated\n        \n        // Initialize wal options with default values before freeing\n        IWKV_WAL_OPTS wal_opts = $obj->wal;\n        // Further checks or freeing can be done if necessary\n\n        // Finally free the main object itself\n        gf_free($obj);\n    }\n}"
+      },
+      {
+        "name": "construct_iwkv_wal_opts",
+        "variables": [
+          {
+            "name": "$obj",
+            "dir": "new",
+            "typ": "struct iwkv_wal_opts *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_wal_opts *$obj = (struct iwkv_wal_opts *)gf_malloc(sizeof(struct iwkv_wal_opts));\n    if (!$obj) gf_bail();\n    $obj->enabled = gf_rand::get<int>() % 2;  // Generate random boolean (0 or 1)\n    $obj->check_crc_on_checkpoint = gf_rand::get<int>() % 2;  // Generate random boolean (0 or 1)\n    $obj->savepoint_timeout_sec = gf_rand::get<uint32_t>() % 1000; // Random timeout between 0-999 seconds\n    $obj->checkpoint_timeout_sec = gf_rand::get<uint32_t>() % 3600; // Random timeout between 0-3599 seconds\n    $obj->wal_buffer_sz = gf_rand::get<size_t>() % (8 * 1024 * 1024); // Random buffer size up to 8MB\n    $obj->checkpoint_buffer_sz = gf_rand::get<uint64_t>() % (1024 * 1024 * 1024); // Random checkpoint buffer size up to 1GB\n    $obj->wal_lock_interceptor = NULL; // Set to NULL, or assign an appropriate function if necessary\n    $obj->wal_lock_interceptor_opaque = NULL; // Set opaque data to NULL for simplicity\n}"
+      },
+      {
+        "name": "destruct_iwkv_wal_opts",
+        "variables": [
+          {
+            "name": "$obj",
+            "dir": "del",
+            "typ": "struct iwkv_wal_opts *"
+          }
+        ],
+        "template": "// Code:\n{\n    if ($obj) {\n        if ($obj->wal_lock_interceptor_opaque) {\n            gf_free($obj->wal_lock_interceptor_opaque);\n        }\n        $obj->wal_lock_interceptor = NULL;\n        memset($obj, 0, sizeof(struct iwkv_wal_opts));\n        gf_free($obj);\n    }\n}"
+      },
+      {
+        "name": "iwkv_init",
+        "variables": [],
+        "template": "// Code:\n{\n    iwrc rc = iwkv_init();\n    if (rc != 0) gf_bail();\n    struct iwkv_opts opts;\n    opts.path = \"example.db\";\n    opts.random_seed = gf_rand::get<uint32_t>();\n    opts.fmt_version = 0;\n    opts.oflags = IWKV_RDONLY | IWKV_TRUNC; // Changed IWKV_RDWR to IWKV_RDONLY\n    opts.file_lock_fail_fast = true;\n    opts.wal.enabled = true;\n    opts.wal.check_crc_on_checkpoint = false;\n    opts.wal.savepoint_timeout_sec = gf_rand::get<uint32_t>();\n    opts.wal.checkpoint_timeout_sec = gf_rand::get<uint32_t>();\n    opts.wal.wal_buffer_sz = gf_rand::get<size_t>() % 16 * 1024 * 1024; // Up to 16MB\n    opts.wal.checkpoint_buffer_sz = gf_rand::get<uint64_t>() % (1ULL << 30); // Up to 1GB\n\n    struct iwkv *kv;\n    rc = iwkv_open(&opts, &kv);\n    if (rc != 0) gf_bail();\n    // Perform other operations as needed\n    iwkv_close(&kv);\n}"
+      },
+      {
+        "name": "iwkv_open",
+        "variables": [
+          {
+            "name": "$opts",
+            "dir": "*",
+            "typ": "struct iwkv_opts *"
+          },
+          {
+            "name": "$iwkv",
+            "dir": "new",
+            "typ": "struct iwkv *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_opts $opts;\n    $opts.path = \"example.db\";\n    $opts.random_seed = gf_rand::get<uint32_t>();\n    $opts.fmt_version = 0;\n    $opts.oflags = IWKV_TRUNC | IWKV_RDONLY;\n    $opts.file_lock_fail_fast = true;\n    $opts.wal.enabled = true;\n    $opts.wal.check_crc_on_checkpoint = false;\n    $opts.wal.savepoint_timeout_sec = gf_rand::get<uint32_t>() % 60 + 1; // Random between 1 and 60 seconds\n    $opts.wal.checkpoint_timeout_sec = gf_rand::get<uint32_t>() % 3600 + 60; // Random between 60 seconds and 1 hour\n    $opts.wal.wal_buffer_sz = gf_rand::get<size_t>() % (8 * 1024 * 1024); // Random buffer size up to 8MB\n    $opts.wal.checkpoint_buffer_sz = gf_rand::get<uint64_t>() % (1024 * 1024 * 1024); // Random up to 1GB\n    iwrc rc = iwkv_open(&$opts, &$iwkv);\n    if (rc != 0) gf_bail();\n}"
+      },
+      {
+        "name": "iwkv_db",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv *iwkv;\n    struct iwkv_opts opts = {\n        .path = \"example.db\",\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_TRUNC,\n        .file_lock_fail_fast = true,\n        .wal = {\n            .enabled = true,\n            .check_crc_on_checkpoint = false,\n            .savepoint_timeout_sec = 10,\n            .checkpoint_timeout_sec = 300,\n            .wal_buffer_sz = 8 * 1024 * 1024,\n            .checkpoint_buffer_sz = 1 * 1024 * 1024 * 1024,\n            .wal_lock_interceptor = NULL,\n            .wal_lock_interceptor_opaque = NULL\n        }\n    };\n\n    iwrc rc = iwkv_open(&opts, &iwkv);\n    if (rc) gf_bail();\n\n    uint32_t db_id;\n    struct iwdb *db;\n    iwdb_flags_t db_flags = IWDB_COMPOUND_KEYS | IWDB_VNUM64_KEYS;\n\n    rc = iwkv_new_db(iwkv, db_flags, &db_id, &db);\n    if (rc) gf_bail();\n\n    rc = iwkv_db(iwkv, db_id, db_flags, &db);\n    if (rc) gf_bail();\n\n    iwkv_close(&iwkv);\n}"
+      },
+      {
+        "name": "iwkv_new_db",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv *iwkv;\n    iwdb_flags_t flags = IWDB_VNUM64_KEYS | IWDB_COMPOUND_KEYS;\n    uint32_t dbid;\n    struct iwdb *db;\n\n    // Initialize iwkv\n    if (iwkv_init() != 0) gf_bail();\n\n    // Setup database open options\n    struct iwkv_opts opts = {\n        .path = \"mystore.db\",\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_TRUNC | IWKV_NO_TRIM_ON_CLOSE,\n        .file_lock_fail_fast = true,\n        .wal = {\n            .enabled = true,\n            .check_crc_on_checkpoint = false,\n            .savepoint_timeout_sec = gf_rand::get<uint32_t>() % 60,\n            .checkpoint_timeout_sec = gf_rand::get<uint32_t>() % 600,\n            .wal_buffer_sz = gf_rand::get<size_t>() % (8 * 1024 * 1024),\n            .checkpoint_buffer_sz = gf_rand::get<uint64_t>() % (1024 * 1024 * 1024),\n            .wal_lock_interceptor = NULL,\n            .wal_lock_interceptor_opaque = NULL\n        }\n    };\n\n    // Open the iwkv storage\n    iwrc rc = iwkv_open(&opts, &iwkv);\n    if (rc != 0) gf_bail();\n\n    // Create a new database with random flags\n    rc = iwkv_new_db(iwkv, flags, &dbid, &db);\n    if (rc != 0) gf_bail();\n    \n    // Clean up resources\n    iwkv_close(&iwkv);\n}"
+      },
+      {
+        "name": "iwkv_db_destroy",
+        "variables": [],
+        "template": "// Code:\n{\n    iwrc rc;\n    IWKV iwkv = nullptr;\n    struct iwdb *db = nullptr;\n    uint32_t dbid = 0;\n    iwdb_flags_t db_flags = IWDB_REALNUM_KEYS | IWDB_COMPOUND_KEYS;\n\n    // Initialize the iwkv storage\n    rc = iwkv_init();\n    if (rc != 0) gf_bail();\n\n    // Open the database\n    struct iwkv_opts opts = { .path = \"mydb.db\", .random_seed = gf_rand::get<uint32_t>(), .oflags = IWKV_TRUNC };\n    rc = iwkv_open(&opts, &iwkv);\n    if (rc != 0) gf_bail();\n\n    // Create a new database\n    rc = iwkv_new_db(iwkv, db_flags, &dbid, &db);\n    if (rc != 0) gf_bail();\n\n    // Destroy the database\n    iwkv_db_destroy(&db);\n\n    // Clean up and exit\n    iwkv_close(&iwkv);\n}"
+      },
+      {
+        "name": "iwkv_sync",
+        "variables": [],
+        "template": "// Code:\n{\n    IWKV kv = NULL;\n    IWDB db = NULL;\n    iwrc rc;\n    struct iwkv_opts opts = {.path = \"mydatabase.db\", .random_seed = gf_rand::get<uint32_t>(), .oflags = IWKV_TRUNC};\n\n    // Initialize and open the database\n    if ((rc = iwkv_init()) != 0) gf_bail();\n    if ((rc = iwkv_open(&opts, &kv)) != 0) gf_bail();\n\n    // Dereference the kv to call iwkv_new_db\n    if ((rc = iwkv_new_db(kv, 0, NULL, &db)) != 0) gf_bail();\n\n    // Prepare key and value data containers with random data\n    char kbuf[16];\n    char vbuf[64];\n    IWKV_val key = { .data = kbuf, .size = sizeof(kbuf) }; // Random key\n    IWKV_val value = { .data = vbuf, .size = sizeof(vbuf) }; // Random value\n\n    // Manually fill kbuf and vbuf with random data\n    for (size_t i = 0; i < sizeof(kbuf); i++) {\n        kbuf[i] = static_cast<char>(gf_rand::get<uint8_t>()); // Fill with random byte\n    }\n    for (size_t i = 0; i < sizeof(vbuf); i++) {\n        vbuf[i] = static_cast<char>(gf_rand::get<uint8_t>()); // Fill with random byte\n    }\n\n    // Store a record in the database\n    if ((rc = iwkv_put(db, &key, &value, IWKV_SYNC)) != 0) gf_bail();\n\n    // Call the sync function with dereferenced kv\n    if ((rc = iwkv_sync(kv, 0)) != 0) gf_bail();\n\n    // Clean up\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&value);\n    iwkv_db_destroy(&db);\n    iwkv_close(&kv);\n}"
+      },
+      {
+        "name": "iwkv_close",
+        "variables": [],
+        "template": "// Code:\n{\n    IWKV kv;\n    IWDB db;\n    uint32_t dbid;\n    iwrc rc;\n\n    // Generate a random path for the database and store it as a C-style string\n    std::string random_path = gf_rand::get<std::string>();\n    const char *path_cstr = random_path.c_str();\n\n    struct iwkv_opts options = {\n        .path = path_cstr,\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_TRUNC,\n        .file_lock_fail_fast = true,\n        .wal = {.enabled = true}\n    };\n\n    rc = iwkv_open(&options, &kv);\n    if (rc) gf_bail(); // Check for errors when opening the kv\n\n    rc = iwkv_new_db(kv, IWDB_COMPOUND_KEYS | IWDB_REALNUM_KEYS, &dbid, &db);\n    if (rc) gf_bail(); // Check for errors when creating the db\n\n    std::string key_str = gf_rand::get<std::string>();\n    std::string value_str = gf_rand::get<std::string>();\n    iwkv_val key = {.data = (void*)key_str.data(), .size = key_str.size()};\n    iwkv_val value = {.data = (void*)value_str.data(), .size = value_str.size()};\n\n    rc = iwkv_put(db, &key, &value, IWKV_NO_OVERWRITE);\n    if (rc && rc != IWKV_ERROR_KEY_EXISTS) gf_bail(); // Insert key-value pair\n\n    rc = iwkv_close(&kv);\n    if (rc) gf_bail(); // Close db\n}"
+      },
+      {
+        "name": "iwkv_put",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          },
+          {
+            "name": "$val",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Assume $key and $val are already initialized and are valid\n    struct iwkv_val new_key;\n    struct iwkv_val new_val;\n\n    // Generate random sizes for $key and value and allocate data\n    new_key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    new_val.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n\n    new_key.data = malloc(new_key.size);\n    new_val.data = malloc(new_val.size);\n\n    // Check for memory allocation success\n    if (!new_key.data || !new_val.data) {\n        gf_bail();\n    }\n\n    // Fill $key and value with random data\n    memset(new_key.data, gf_rand::get<int>(), new_key.size);\n    memset(new_val.data, gf_rand::get<int>(), new_val.size);\n\n    // Invoke the iwkv_put function to store the $key-value pair in the database\n    iwrc rc = iwkv_put($db, &new_key, &new_val, 0); // Use the newly allocated `new_val`\n\n    // Clean up allocated memory\n    free(new_key.data);\n    free(new_val.data);\n\n    // Check for errors on put operation\n    if (rc != 0) {\n        gf_bail();\n    }\n}"
+      },
+      {
+        "name": "iwkv_puth",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv_val key, val;\n    key.data = gf_rand::get<char*>();  // Random key data\n    key.size = gf_rand::get<size_t>(); // Random key size\n    val.data = gf_rand::get<char*>();  // Random value data\n    val.size = gf_rand::get<size_t>(); // Random value size\n    iwkv_opflags opflags = static_cast<iwkv_opflags>(gf_rand::get<int>() % 16); // Random opflags\n    IWKV_PUT_HANDLER handler = nullptr; // Could be assigned a valid handler if needed\n    void *handler_op = nullptr; // Opaque data for handler, if needed\n\n    struct iwdb *db = nullptr; // Initialize db here\n    // Assume db initialization code is present here\n    // For example:\n    // iwrc rc = iwkv_open(&opts, &db);\n    // if (rc != 0) { gf_bail(); }\n\n    iwrc rc = iwkv_puth(db, &key, &val, opflags, handler, handler_op);\n    if (rc != 0) {\n        gf_bail(); // Handle error appropriately\n    }\n    iwkv_val_dispose(&key); // Clean up key\n    iwkv_val_dispose(&val); // Clean up value\n}"
+      },
+      {
+        "name": "iwkv_get",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          },
+          {
+            "name": "$oval",
+            "dir": "new",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize the output $oval variable\n    $oval = (struct iwkv_val *)malloc(sizeof(struct iwkv_val));\n    if (!$oval) gf_bail();\n\n    // Create a random $key value for search\n    struct iwkv_val random_key;\n    random_key.size = sizeof(uint64_t);\n    random_key.data = malloc(random_key.size);\n    if (!random_key.data) gf_bail();\n    *(uint64_t *)random_key.data = gf_rand::get<uint64_t>();\n\n    // Retrieve the value associated with the generated $key\n    iwrc rc = iwkv_get($db, &random_key, $oval);\n    if (rc != 0) {\n        // Handle error cases appropriately\n        free(random_key.data);\n        iwkv_val_dispose($oval);\n        gf_bail();\n    }\n\n    // Clean up the random $key memory\n    free(random_key.data);\n}"
+      },
+      {
+        "name": "iwkv_get",
+        "variables": [],
+        "template": "// Code:\n{\n    // Initialize database options and values\n    struct iwkv *kv;\n    struct iwkv_opts opts = {.path = \"mystore.db\", .random_seed = gf_rand::get<uint32_t>(), .oflags = IWKV_TRUNC};\n    iwrc rc = iwkv_open(&opts, &kv);\n    if (rc != 0) gf_bail();\n\n    // Initialize database\n    uint32_t dbid;\n    struct iwdb *db;\n    rc = iwkv_new_db(kv, IWDB_REALNUM_KEYS, &dbid, &db);\n    if (rc != 0) gf_bail();\n\n    // Prepare key and value for insertion\n    IWKV_val key = {.data = gf_rand::get<char*>(), .size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ};\n    IWKV_val value = {.data = gf_rand::get<char*>(), .size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ};\n\n    // Insert data into the database\n    rc = iwkv_put(db, &key, &value, IWKV_SYNC);\n    if (rc != 0) gf_bail();\n\n    // Prepare key for retrieval\n    IWKV_val oval;\n    rc = iwkv_get(db, &key, &oval);\n    if (rc != 0) gf_bail();\n\n    // Clean up\n    iwkv_val_dispose(&oval);\n    iwkv_db_destroy(&db);\n    iwkv_close(&kv);\n}"
+      },
+      {
+        "name": "iwkv_get_copy",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize a buffer for the value and size variable\n    char *vbuf = (char *)malloc(IWKV_MAX_KVSZ);\n    size_t vsz = 0;\n    if (!vbuf) gf_bail();\n\n    // Get a random value for the $key\n    iwkv_val key_val;\n    key_val.data = $key->data; // Use the pre-initialized $key\n    key_val.size = $key->size;\n    key_val.compound = 0; // Assuming no compound $key is used\n\n    // Invoke the iwkv_get_copy function\n    iwrc rc = iwkv_get_copy($db, &key_val, vbuf, IWKV_MAX_KVSZ, &vsz);\n    if (rc != 0) gf_bail();\n\n    // You may not perform any operations beyond this unless specified, so clean up\n    free(vbuf);\n}"
+      },
+      {
+        "name": "iwkv_get_copy",
+        "variables": [],
+        "template": "// Code:\n{\n    IWDB db = NULL; // Updated to use IWDB instead of IWKV\n    struct iwkv_val key;\n    size_t vsz;\n    void* vbuf = malloc(IWKV_MAX_KVSZ);\n    if (!vbuf) gf_bail();\n    // Initialize key\n    key.data = gf_rand::get<void*>(); // Example random pointer assignment\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // Random size for key\n\n    iwrc rc = iwkv_get_copy(db, &key, vbuf, IWKV_MAX_KVSZ, &vsz);\n    if (rc) {\n        gf_bail();\n    }\n    // Clean-up\n    free(vbuf);\n}"
+      },
+      {
+        "name": "iwkv_db_set_meta",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Prepare a metadata buffer with random content\n    size_t metadata_size = gf_rand::get<size_t>() % 1024 + 1; // Size between 1 and 1024 bytes\n    void *metadata_buf = malloc(metadata_size);\n    if (!metadata_buf) gf_bail(); // Handle memory allocation failure\n\n    // Fill the metadata buffer with random data\n    for (size_t i = 0; i < metadata_size; i++) {\n        ((char*)metadata_buf)[i] = gf_rand::get<char>();\n    }\n\n    // Invoke the function to set metadata\n    iwrc rc = iwkv_db_set_meta($db, metadata_buf, metadata_size);\n    if (rc != 0) {\n        free(metadata_buf);\n        gf_bail(); // Handle the error case\n    }\n\n    // Cleanup\n    free(metadata_buf);\n}"
+      },
+      {
+        "name": "iwkv_db_get_meta",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Preparing the output variables\n    char *buffer = (char *)malloc(256);\n    if (!buffer) gf_bail();\n    size_t read_size = 0;\n\n    // Invoke the function with diverse values\n    iwrc result = iwkv_db_get_meta($db, buffer, 256, &read_size);\n\n    // Check for errors and handle accordingly\n    if (result != 0) {\n        free(buffer);\n        gf_bail();\n    }\n\n    // Use the read_size and buffer as necessary\n    // After processing, free the buffer\n    free(buffer);\n}"
+      },
+      {
+        "name": "iwkv_del",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_val key_to_delete;\n    key_to_delete.data = $key->data; // Use the existing $key variable\n    key_to_delete.size = $key->size;\n    key_to_delete.compound = $key->compound;\n\n    iwrc rc = iwkv_del($db, &key_to_delete, 0);\n    if (rc != 0) {\n        gf_bail();\n    }\n}"
+      },
+      {
+        "name": "iwkv_val_dispose",
+        "variables": [
+          {
+            "name": "$kval",
+            "dir": "del",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize random values for demonstration purposes\n    $kval = (struct iwkv_val *)malloc(sizeof(struct iwkv_val));\n    if (!$kval) gf_bail(); // bail if allocation fails\n    $kval->size = gf_rand::get<size_t>();\n    $kval->data = malloc($kval->size);\n    if (!$kval->data) {\n        free($kval);\n        gf_bail(); // bail if allocation fails\n    }\n\n    // Populate the value with random data\n    for (size_t i = 0; i < $kval->size; i++) {\n        ((char *)$kval->data)[i] = gf_rand::get<char>();\n    }\n\n    // Set additional properties to maximize diversity\n    $kval->compound = gf_rand::get<int64_t>();\n\n    // Always dispose of the value after usage\n    iwkv_val_dispose($kval);\n\n    // Clean up\n    free($kval->data);\n    free($kval);\n}"
+      },
+      {
+        "name": "iwkv_kv_dispose",
+        "variables": [
+          {
+            "name": "$key",
+            "dir": "del",
+            "typ": "struct iwkv_val *"
+          },
+          {
+            "name": "$val",
+            "dir": "del",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Prepare $key and value for disposal\n    struct iwkv_val *temp_key = $key;\n    struct iwkv_val *temp_val = $val;\n\n    // Optionally modify temp_key and temp_val for demonstration, maximizing diversity\n    temp_key->data = gf_rand::get<char*>(); // random data pointer\n    temp_key->size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // random size\n    temp_val->data = gf_rand::get<char*>(); // random data pointer\n    temp_val->size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // random size\n\n    // If the operation fails, bail out cleanly\n    if (!temp_key->data || !temp_val->data) {\n        gf_bail();\n    }\n\n    // Invoke the function to dispose of $key and value\n    iwkv_kv_dispose(temp_key, temp_val);\n}"
+      },
+      {
+        "name": "iwkv_kv_dispose",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv_val key;\n    struct iwkv_val val;\n    struct iwkv_val oldval;\n\n    // Database options initialization\n    IWKV_OPTS opts = {0};\n    opts.path = \"path_to_your_database_file.db\";\n    opts.random_seed = gf_rand::get<uint32_t>();\n\n    // Initialize the database handler\n    IWKV kv;\n    iwrc rc = iwkv_open(&opts, &kv);\n    if (rc != 0) gf_bail();\n\n    // Initialize key with random data\n    key.data = gf_rand::get<char*>();\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    key.compound = gf_rand::get<int64_t>();\n\n    // Initialize value with random data\n    val.data = gf_rand::get<char*>();\n    val.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    val.compound = gf_rand::get<int64_t>();\n\n    // Now we need a database handle to interact with the database\n    struct iwdb *db;\n    rc = iwkv_db(kv, 0, 0, &db);\n    if (rc != 0) gf_bail();\n\n    rc = iwkv_put(db, &key, &val, 0);\n    if (rc != 0) gf_bail();\n\n    // Perform operation with the existing key to test iwkv_kv_dispose\n    rc = iwkv_get(db, &key, &oldval);\n    if (rc != 0) gf_bail();\n\n    // Dispose of allocated memory for key and value\n    iwkv_kv_dispose(&key, &val);\n    iwkv_val_dispose(&oldval);\n\n    // Close the database properly\n    iwkv_db_destroy(&db);\n    iwkv_close(&kv);\n}"
+      },
+      {
+        "name": "iwkv_cursor_open",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          },
+          {
+            "name": "$cur",
+            "dir": "new",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_val new_key;\n    struct iwkv_val new_value;\n    \n    // Initialize the output cursor\n    iwrc rc = iwkv_cursor_open($db, &$cur, IWKV_CURSOR_BEFORE_FIRST, $key);\n    if (rc != 0) {\n        gf_bail();\n    }\n    \n    // Set new $key and value with diversity\n    new_key.data = gf_rand::get<char*>(); // Randomly allocate a $key\n    new_key.size = gf_rand::get<size_t>() % (IWKV_MAX_KVSZ - 1); // Random size for $key\n    \n    new_value.data = gf_rand::get<char*>(); // Randomly allocate a value\n    new_value.size = gf_rand::get<size_t>() % (IWKV_MAX_KVSZ - new_key.size); // Random size for value ensuring no overflow   \n    \n    // Clean up $key and value once used\n    iwkv_val_dispose(&new_key);\n    iwkv_val_dispose(&new_value);\n}"
+      },
+      {
+        "name": "iwkv_cursor_open",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          },
+          {
+            "name": "$cur",
+            "dir": "new",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$key",
+            "dir": "del",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_val key_temp;\n    struct iwkv_val val_temp;\n    key_temp.data = gf_rand::get<char*>();  // Randomly generate $key data\n    key_temp.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // Randomly set size within limits\n    key_temp.compound = gf_rand::get<int64_t>();  // Randomly generate compound $key\n\n    val_temp.data = gf_rand::get<char*>();  // Randomly generate value data\n    val_temp.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // Randomly set size within limits\n\n    iwrc rc = iwkv_cursor_open($db, &$cur, IWKV_CURSOR_EQ, &key_temp);\n    if (rc != 0) {\n        gf_bail(); // Handle the error case\n    }\n    iwkv_val_dispose(&key_temp); // Clean up temporary structures as needed\n    iwkv_val_dispose(&val_temp); // Clean up temporary structures as needed\n    \n}\n"
+      },
+      {
+        "name": "iwkv_cursor_to",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize a new iwkv_val structure to hold a $key\n    struct iwkv_val *key_val = new struct iwkv_val;\n    key_val->data = gf_rand::get<void*>(); // Get random data for $key\n    key_val->size = sizeof(key_val->data);\n    key_val->compound = 0;\n\n    // Initialize a new iwkv_val structure to hold a value\n    struct iwkv_val *value_val = new struct iwkv_val;\n    value_val->data = gf_rand::get<void*>(); // Get random data for value\n    value_val->size = sizeof(value_val->data);\n    value_val->compound = gf_rand::get<int64_t>(); // get random compound $key\n\n    // Call iwkv_cursor_to to perform the operation with the cursor and a specific operation mode\n    iwrc rc = iwkv_cursor_to($cur, IWKV_CURSOR_EQ);\n    if (rc != 0) { // Check if the cursor move operation failed\n        gf_bail();\n    }\n\n    // Clean up dynamically allocated structures\n    delete key_val;\n    delete value_val;\n}"
+      },
+      {
+        "name": "iwkv_cursor_to_key",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv_val key;\n    struct iwkv_val val;\n    key.data = malloc(10);\n    val.data = malloc(10);\n    if (!key.data || !val.data) gf_bail();\n    key.size = 10;\n    val.size = 10;\n    // Initialize key and val with random data\n    for (size_t i = 0; i < key.size; ++i) {\n        ((char*)key.data)[i] = gf_rand::get<char>();\n        ((char*)val.data)[i] = gf_rand::get<char>();\n    }\n\n    // Prepare database options and open the database\n    struct iwkv_opts db_opts = {\n        .path = \"mystore.db\",  // Example path, ensure this is correct\n        .random_seed = gf_rand::get<uint32_t>(), \n        .oflags = IWKV_TRUNC  // For opening the database in write mode\n    };\n\n    IWKV iwkv;\n    iwrc db_open_rc = iwkv_open(&db_opts, &iwkv);\n    if (db_open_rc != 0) gf_bail();\n\n    // Initialize database handle (DB) from iwkv handler\n    IWDB db;\n    iwrc db_init_rc = iwkv_db(iwkv, 0, 0, &db);\n    if (db_init_rc != 0) gf_bail();\n\n    // Randomly generate cursor operation, corrected to fit IWKV_cursor_op enum\n    int op_value = gf_rand::get<int8_t>() % 5 + 1; // Range: 1 to 5 for cursor operations\n    IWKV_cursor_op op = (IWKV_cursor_op)op_value;\n\n    // Initialize cursor\n    IWKV_cursor cursor;\n    iwrc rc = iwkv_cursor_open(db, &cursor, op, &key);\n    // Ensure cursor was opened successfully\n    if (rc != 0) gf_bail();\n\n    // Use the cursor to invoke the function iwkv_cursor_to_key\n    rc = iwkv_cursor_to_key(cursor, op, &key);\n    if (rc != 0) gf_bail();\n\n    // Clean up\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&val);\n    iwkv_cursor_close(&cursor);\n    iwkv_db_destroy(&db); // Correct function to destroy the database\n    iwkv_close(&iwkv); // Close the iwkv storage\n}"
+      },
+      {
+        "name": "iwkv_cursor_to_key",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize $key with a random size between 1 and IWKV_MAX_KVSZ\n    size_t keySize = gf_rand::get<size_t>() % IWKV_MAX_KVSZ + 1;\n    void* keyData = malloc(keySize);\n    if (keyData == NULL) gf_bail();\n\n    // Set $key data\n    $key->data = keyData;\n    $key->size = keySize;\n\n    // Invoke the cursor to $key operation\n    iwrc rc = iwkv_cursor_to_key($cur, IWKV_CURSOR_EQ, $key);\n    if (rc != 0) gf_bail();\n\n    // Clean up\n    iwkv_val_dispose($key);\n}"
+      },
+      {
+        "name": "iwkv_cursor_get",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$okey",
+            "dir": "new",
+            "typ": "struct iwkv_val *"
+          },
+          {
+            "name": "$oval",
+            "dir": "new",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize the output key and value pointers\n    $okey = (struct iwkv_val *)malloc(sizeof(struct iwkv_val));\n    if (!$okey) gf_bail();\n    $oval = (struct iwkv_val *)malloc(sizeof(struct iwkv_val));\n    if (!$oval) {\n        free($okey);\n        gf_bail();\n    }\n\n    // Generate diverse random values for key and value data\n    // For demonstration, we'll use char array with random lengths.\n    $okey->size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    $okey->data = malloc($okey->size);\n    if (!$okey->data) {\n        free($okey);\n        free($oval);\n        gf_bail();\n    }\n    $oval->size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    $oval->data = malloc($oval->size);\n    if (!$oval->data) {\n        free($okey->data);\n        free($okey);\n        free($oval);\n        gf_bail();\n    }\n\n    // Fill the key and value with random data\n    memset($okey->data, gf_rand::get<int>(), $okey->size);\n    memset($oval->data, gf_rand::get<int>(), $oval->size);\n\n    // Invoke the iwkv_cursor_get function\n    iwrc rc = iwkv_cursor_get($cur, $okey, $oval);\n    if (rc != 0) {\n        // Handle error if needed\n        free($okey->data);\n        free($oval->data);\n        free($okey);\n        free($oval);\n        gf_bail();\n    }\n}"
+      },
+      {
+        "name": "iwkv_cursor_get",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv_val key;\n    struct iwkv_val val;\n    iwrc rc;\n    iwkv_cursor *cursor;\n    struct iwdb *db;\n\n    // Assuming 'db' is initialized properly before this point. If not, initialize the database here:\n    // rc = iwkv_open(&opts, &db);\n    // if (rc) gf_bail();\n\n    // Initialize key and value with random data\n    key.data = gf_rand::get<char*>(); // Obtain a random key pointer\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // Random size within limits\n    key.compound = gf_rand::get<int64_t>(); // Random compound value\n\n    val.data = gf_rand::get<char*>(); // Obtain a random value pointer\n    val.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // Random size within limits\n\n    // Open cursor\n    rc = iwkv_cursor_open(db, &cursor, IWKV_CURSOR_EQ, &key);\n    if (rc) gf_bail();\n\n    // Retrieve key and value at current cursor position\n    struct iwkv_val okey;\n    struct iwkv_val oval;\n    rc = iwkv_cursor_get(cursor, &okey, &oval);\n    if (rc) {\n        iwkv_cursor_close(&cursor);\n        gf_bail();\n    }\n\n    // Cleanup resources after use\n    iwkv_val_dispose(&okey);\n    iwkv_val_dispose(&oval);\n    iwkv_cursor_close(&cursor);\n}"
+      },
+      {
+        "name": "iwkv_cursor_get",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$okey",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          },
+          {
+            "name": "$oval",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv *iwkv_instance;\n    struct iwkv_opts opts = {\n        .path = \"path/to/database.db\",   // Specify the path to your database file\n        .random_seed = 42,                // Random seed (example value)\n        .fmt_version = 0,                  // Use 0 for the latest version\n        .oflags = IWKV_RDONLY               // Open in read-only mode for example\n    };\n\n    iwrc rc = iwkv_open(&opts, &iwkv_instance);\n    if (rc != 0) gf_bail();\n\n    // Initialize the database handle\n    IWDB db;\n    rc = iwkv_db(iwkv_instance, /* dbid */ 0, /* flags */ 0, &db);\n    if (rc != 0 || db == NULL) gf_bail();\n\n    // Allocate memory dynamically for key and value; using IWKV_MAX_KVSZ from the header\n    $okey->data = malloc(IWKV_MAX_KVSZ);\n    if ($okey->data == NULL) gf_bail();\n    $okey->size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n\n    $oval->data = malloc(IWKV_MAX_KVSZ);\n    if ($oval->data == NULL) gf_bail();\n    $oval->size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n\n    // Invoke the cursor get function\n    rc = iwkv_cursor_get($cur, $okey, $oval);\n    if (rc != 0) gf_bail();\n\n    // Clean up\n    free($okey->data);\n    free($oval->data);\n    iwkv_cursor_close(&$cur);\n    iwkv_close(&iwkv_instance);\n}"
+      },
+      {
+        "name": "iwkv_cursor_val",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv_cursor *cursor;\n    struct iwkv_val key;\n    struct iwkv_val val;\n\n    // Assuming db is already initialized and opened\n    IWDB db;\n    // <... logic to initialize db ...>\n\n    // Initialize and open the cursor before using\n    iwrc rc = iwkv_cursor_open(db, &cursor, IWKV_CURSOR_BEFORE_FIRST, &key);\n    if (rc) {\n        gf_bail(); // Handle failure to open cursor\n    }\n\n    key.data = gf_rand::get<char*>();   // Get a random key in the format needed (pointer)\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;  // Random size less than max allowed\n    key.compound = gf_rand::get<int64_t>(); // Optional compound value\n\n    val.data = gf_rand::get<char*>();   // Get a random value in the format needed (pointer)\n    val.size = gf_rand::get<size_t>() % (IWKV_MAX_KVSZ - key.size); // Random value size, ensuring total size is valid\n\n    rc = iwkv_cursor_val(cursor, &val);\n    if (rc) {\n        gf_bail(); // Handle any errors that may occur\n    }\n\n    // Clean up resources\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&val);\n    iwkv_cursor_close(&cursor); // Close the cursor after use\n}"
+      },
+      {
+        "name": "iwkv_cursor_val",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$oval",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Randomly initialize key and value to maximize diversity\n    struct iwkv_val key;\n    struct iwkv_val value;\n\n    key.data = gf_rand::get<void*>(); // Random pointer for data\n    key.size = gf_rand::get<size_t>(); // Random size\n    key.compound = gf_rand::get<int64_t>(); // Random compound key\n\n    // Initialize $oval to use in iwkv_cursor_val\n    $oval->data = gf_rand::get<void*>(); // Random pointer for $oval data\n    $oval->size = gf_rand::get<size_t>(); // Random size for $oval\n    $oval->compound = gf_rand::get<int64_t>(); // Random compound value\n\n    // Now invoke the iwkv_cursor_val function\n    iwrc rc = iwkv_cursor_val($cur, $oval);\n    if (rc != 0) {\n        gf_bail(); // Exit on error\n    }\n\n    // Cleanup any dynamically allocated memory if necessary\n    iwkv_val_dispose(&key);\n    // Note: Do not dispose $oval here as it should be used by the caller \n}"
+      },
+      {
+        "name": "iwkv_cursor_val",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$oval",
+            "dir": "new",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initializing the output variable\n    $oval = (struct iwkv_val *)malloc(sizeof(struct iwkv_val));\n    if (!$oval) gf_bail(); // Ensure memory allocation was successful\n    // Create a random key-value pair\n    struct iwkv_val key;\n    key.size = sizeof(int);\n    int rand_key = gf_rand::get<int>();\n    key.data = &rand_key;\n\n    // Invoke the function to set the cursor position\n    iwrc rc = iwkv_cursor_val($cur, $oval);\n    if (rc != 0) gf_bail(); // Check for errors after function call\n    \n    // Populate the $oval with random data\n    $oval->size = gf_rand::get<size_t>() % 255;\n    $oval->data = malloc($oval->size);\n    if (!$oval->data) gf_bail(); // Ensure memory allocation was successful\n    // Generate random data for $oval\n    for (size_t i = 0; i < $oval->size; i++) {\n        ((char*)$oval->data)[i] = gf_rand::get<char>();\n    }\n}"
+      },
+      {
+        "name": "iwkv_cursor_copy_val",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_val key, val;\n    key.size = 32;\n    key.data = malloc(key.size);\n    if (!key.data) gf_bail(); // Check for memory allocation\n    // Fill key.data with random data using a loop or appropriate method\n    for (size_t i = 0; i < key.size; ++i) {\n        ((char*)key.data)[i] = gf_rand::get<char>(); // Assuming get returns a random character\n    }\n\n    val.size = 128;\n    val.data = malloc(val.size);\n    if (!val.data) gf_bail(); // Check for memory allocation\n    // Fill val.data with random data using a loop or appropriate method\n    for (size_t i = 0; i < val.size; ++i) {\n        ((char*)val.data)[i] = gf_rand::get<char>(); // Assuming get returns a random character\n    }\n\n    iwrc rc = iwkv_cursor_set($cur, &val, 0);\n    if (rc != 0) gf_bail(); // Check for errors when setting cursor value\n\n    size_t buf_size = 256;\n    void *vbuf = malloc(buf_size);\n    if (!vbuf) gf_bail(); // Ensure memory is allocated\n\n    size_t vsz;\n    rc = iwkv_cursor_copy_val($cur, vbuf, buf_size, &vsz);\n    if (rc != 0) gf_bail(); // Check for errors during value copying\n\n    // Cleanup\n    free(vbuf);\n    free(key.data);\n    free(val.data);\n}"
+      },
+      {
+        "name": "iwkv_cursor_key",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$okey",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_val $okey;\n    $okey.data = gf_rand::get<char*>(); // Generating random data for the key\n    $okey.size = gf_rand::get<size_t>() % (IWKV_MAX_KVSZ + 1); // Ensuring size is within limit\n    $okey.compound = gf_rand::get<int64_t>(); // Random compound part\n\n    iwrc rc = iwkv_cursor_key($cur, &$okey);\n    if (rc != 0) gf_bail(); // Bail out on error\n    iwkv_val_dispose(&$okey); // Clean up after use\n}"
+      },
+      {
+        "name": "iwkv_cursor_key",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$okey",
+            "dir": "new",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Create a key-value pair to be used with iwkv_cursor_key\n    struct iwkv_val key;\n    key.data = gf_rand::get<char*>() ; // Generate random data for the key\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ; // Random key size within limits\n    key.compound = 0; // Optional compound part can be set as needed\n\n    // Initialize the output variable\n    $okey = new iwkv_val();\n    if (!$okey) gf_bail(); // Ensure $okey was created successfully\n\n    // Call the iwkv_cursor_key function\n    iwrc rc = iwkv_cursor_key($cur, $okey);\n    if (rc != 0) gf_bail(); // Handle potential error from cursor key\n\n    // Clean up any allocated resources\n    delete[] static_cast<char*>(key.data);\n}"
+      },
+      {
+        "name": "iwkv_cursor_copy_key",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Step 1: Define and initialize the database object (db)\n    struct iwkv* kv_store = NULL;\n    struct iwkv_opts opts = {.path = \"mystore.db\"};\n    iwrc rc = iwkv_open(&opts, &kv_store);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // Step 2: Initialize the database with a unique identifier\n    struct iwdb* db = NULL;\n    uint32_t dbid;\n    rc = iwkv_new_db(kv_store, 0, &dbid, &db);\n    if (rc != 0) {\n        iwkv_close(&kv_store);\n        gf_bail();\n    }\n\n    // Initialize key and value containers\n    IWKV_val key = {.data = gf_rand::get<char*>(), .size = gf_rand::get<size_t>()};\n    IWKV_val val = {.data = gf_rand::get<char*>(), .size = gf_rand::get<size_t>()};\n\n    // Randomly set the compound part if needed\n    int64_t compound = gf_rand::get<int64_t>();\n\n    // Perform an operation to put the key and value into the database\n    iwrc put_rc = iwkv_put(db, &key, &val, IWKV_NO_OVERWRITE);\n    if (put_rc != 0) {\n        iwkv_db_destroy(&db);\n        iwkv_close(&kv_store);\n        gf_bail();\n    }\n\n    // Open a cursor to operate on the database\n    struct iwkv_cursor* $cur;\n    iwrc cursor_rc = iwkv_cursor_open(db, &$cur, IWKV_CURSOR_EQ, &key);\n    if (cursor_rc != 0) {\n        iwkv_db_destroy(&db);\n        iwkv_close(&kv_store);\n        gf_bail();\n    }\n\n    // Cleanup\n    iwkv_cursor_close(&$cur);\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&val);\n    iwkv_db_destroy(&db);\n    iwkv_close(&kv_store);\n}"
+      },
+      {
+        "name": "iwkv_cursor_is_matched_key",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$key",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Initialize cursor with the existing cursor object.\n    iwkv_cursor *writeCur = $cur;\n\n    // Create random values for the $key, which are diverse to maximize testing conditions.\n    $key->data = gf_rand::get<char*>(); // Get random data\n    $key->size = gf_rand::get<size_t>(); // Get random size\n    $key->compound = gf_rand::get<int64_t>(); // Get a random compound value\n\n    // Prepare a boolean flag to receive the cursor match result.\n    bool isMatched;\n    int64_t compoundPart;\n\n    // Invoke the matching $key check function.\n    iwrc rc = iwkv_cursor_is_matched_key(writeCur, $key, &isMatched, &compoundPart);\n    if (rc != 0) gf_bail();\n}"
+      },
+      {
+        "name": "iwkv_cursor_is_matched_key",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv_val key;\n    struct iwkv_val val;\n    bool is_matched;\n    int64_t compound_value;\n\n    // Initialize key with random data\n    key.data = gf_rand::get<int8_t*>(); // Random pointer data for the key\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    key.compound = gf_rand::get<int64_t>();\n\n    // Initialize val with random data\n    val.data = gf_rand::get<int8_t*>(); // Random pointer data for the value\n    val.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    val.compound = gf_rand::get<int64_t>();\n\n    // Setup database options for opening the database\n    struct iwkv_opts opts;\n    opts.path = \"mydatabase.db\"; // Path to your database file\n    opts.random_seed = gf_rand::get<uint32_t>(); // Generate a random seed\n    opts.fmt_version = 0; // Default version\n    opts.oflags = 0; // Default open flags\n\n    IWKV db;\n    iwrc open_rc = iwkv_open(&opts, &db);\n    if (open_rc != 0) gf_bail(); // Error handling if opening the database fails\n\n    // Setup for the database structure needed for cursor opening\n    struct iwdb *db_handler;\n    iwrc db_rc = iwkv_db(db, 0, 0, &db_handler); // Getting the database handler reference\n    if (db_rc != 0) gf_bail(); // Error handling if getting db fails\n\n    // Placeholder for cursor initialization\n    struct iwkv_cursor *cursor;\n\n    // Open cursor with the correct database handler\n    iwrc cursor_rc = iwkv_cursor_open(db_handler, &cursor, IWKV_CURSOR_EQ, &key);\n    if (cursor_rc != 0) gf_bail(); // Error handling if cursor opening fails\n\n    // Now invoke iwkv_cursor_is_matched_key function\n    iwrc match_rc = iwkv_cursor_is_matched_key(cursor, &key, &is_matched, &compound_value);\n    if (match_rc != 0) gf_bail(); // Error handling for match key\n\n    // Perform necessary cleanup\n    iwkv_cursor_close(&cursor);\n    iwkv_close(&db);\n}"
+      },
+      {
+        "name": "iwkv_cursor_set",
+        "variables": [],
+        "template": "// Code:\n{\n    struct iwkv *iwkv;\n    IWDB db;\n    iwrc rc;\n\n    // Assuming `iwkv` has already been opened successfully\n    // Open the database with appropriate options before using it\n    struct iwkv_opts opts = {\n        .path = \"mystore.db\",\n          // Other options can be set here as necessary\n    };\n    rc = iwkv_open(&opts, &iwkv);\n    if (rc != 0) {\n        gf_bail(); // Handle error case gracefully\n    }\n\n    // Obtain the database handle\n    uint32_t dbid = 0; // Example id, needs to be determined based on your application logic\n    rc = iwkv_db(iwkv, dbid, 0, &db);\n    if (rc != 0) {\n        gf_bail(); // Handle error case gracefully\n    }\n\n    struct iwkv_cursor *cur;\n    rc = iwkv_cursor_open(db, &cur, IWKV_CURSOR_BEFORE_FIRST, NULL);  // Open cursor to start position\n    if (rc != 0) {\n        gf_bail(); // Handle error case gracefully\n    }\n\n    struct iwkv_val key = {\n        .data = gf_rand::get<char*>(),  // Replace with a random key generation logic\n        .size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ,  // Size must be less than the maximum limit\n        .compound = 0  // Assuming no compound key for simplicity\n    };\n    struct iwkv_val value = {\n        .data = gf_rand::get<char*>(),  // Replace with a random value generation logic\n        .size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ,  // Size should also respect the limit\n        .compound = 0  // Assuming no compound value for simplicity\n    };\n    iwkv_opflags flags = (iwkv_opflags)(gf_rand::get<uint8_t>() % 0x12); // Randomly select between no overwrite and sync options\n    rc = iwkv_cursor_set(cur, &value, flags);\n    if (rc != 0) {\n        gf_bail(); // Handle error case gracefully\n    }\n\n    iwkv_cursor_close(&cur);  // Close cursor when done\n    iwkv_close(&iwkv);  // Close the database when you're done\n}"
+      },
+      {
+        "name": "iwkv_cursor_set",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          },
+          {
+            "name": "$val",
+            "dir": "*",
+            "typ": "struct iwkv_val *"
+          }
+        ],
+        "template": "// Code:\n{\n    iwkv_val key;\n    iwkv_val $val;\n\n    // Initialize key with random data\n    key.data = gf_rand::get<void*>();\n    key.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    key.compound = gf_rand::get<int64_t>();\n\n    // Initialize $val with random data\n    $val.data = gf_rand::get<void*>();\n    $val.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n    $val.compound = gf_rand::get<int64_t>();\n\n    iwkv_opflags opflags = (iwkv_opflags)(\n        ((gf_rand::get<int>() % 2) == 0) ? IWKV_NO_OVERWRITE : 0 | \n        ((gf_rand::get<int>() % 2) == 0) ? IWKV_SYNC : 0 | \n        ((gf_rand::get<int>() % 2) == 0) ? IWKV_VAL_INCREMENT : 0\n    );\n\n    iwrc result = iwkv_cursor_set($cur, &$val, opflags);\n    if (result != IW_OK) gf_bail();\n\n    iwkv_val_dispose(&$val);\n}"
+      },
+      {
+        "name": "iwkv_cursor_seth",
+        "variables": [],
+        "template": "// Code:\n{\n    // Output variable initializations\n    struct iwkv_cursor *cursor;\n    iwrc rc;\n    struct iwkv_val key;\n    struct iwkv_val value;\n\n    // Initialize key and value with diverse random data\n    key.data = gf_rand::get<char*>();  // Assuming this will return a random string\n    key.size = gf_rand::get<size_t>() % 255; // Random size for key (1 to 255)\n    value.data = gf_rand::get<char*>();  // Assuming this will return a random string\n    value.size = gf_rand::get<size_t>() % 255; // Random size for value (1 to 255)\n\n    // Prepare operation flag\n    iwkv_opflags opflags = static_cast<iwkv_opflags>(gf_rand::get<uint8_t>() % 0x10); // Random flags \n\n    // Assuming 'db' is a pre-initialized database handler\n    struct iwdb *db;\n    // You need to add code that initializes 'db' before this point\n\n    // Open a cursor\n    rc = iwkv_cursor_open(db, &cursor, IWKV_CURSOR_EQ, &key);\n    if (rc < 0) {\n        gf_bail();\n    }\n\n    // Set the cursor position with a value\n    rc = iwkv_cursor_seth(cursor, &value, opflags, nullptr, nullptr);\n    if (rc < 0) {\n        gf_bail();\n    }\n\n    // Clean up\n    iwkv_cursor_close(&cursor);\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&value);\n}"
+      },
+      {
+        "name": "iwkv_cursor_close",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "del",
+            "typ": "struct iwkv_cursor *"
+          }
+        ],
+        "template": "// Code:\n{\n    // Assuming the cursor is already opened and we want to manipulate and close it\n    struct iwkv_val key = {.data = gf_rand::get<void*>(), .size = gf_rand::get<size_t>()};\n    struct iwkv_val value = {.data = gf_rand::get<void*>(), .size = gf_rand::get<size_t>()};\n\n    iwrc rc = iwkv_cursor_set($cur, &value, IWKV_SYNC);\n    if (rc != 0) {\n        gf_bail();\n    }\n    rc = iwkv_cursor_del($cur, 0);\n    if (rc != 0) {\n        gf_bail();\n    }\n    iwkv_cursor_close(&$cur);\n}"
+      },
+      {
+        "name": "iwkv_cursor_close",
+        "variables": [
+          {
+            "name": "$cur",
+            "dir": "*",
+            "typ": "struct iwkv_cursor *"
+          }
+        ],
+        "template": "// Code:\n{\n    struct iwkv_val key;\n    struct iwkv_val value;\n    iwrc rc;\n    int randomKey = gf_rand::get<int>(); // Example key initialization, consider unique values\n    double randomValue = gf_rand::get<double>(); // Example value initialization for diversity\n\n    key.data = malloc(sizeof(int)); // Allocating memory for key data\n    if (!key.data) gf_bail(); // Check for successful memory allocation\n    memcpy(key.data, &randomKey, sizeof(int)); // Storing the random key\n    key.size = sizeof(int);\n\n    value.data = malloc(sizeof(double)); // Allocating memory for value data\n    if (!value.data) gf_bail(); // Check for successful memory allocation\n    memcpy(value.data, &randomValue, sizeof(double)); // Storing the random value\n    value.size = sizeof(double);\n\n    rc = iwkv_cursor_set($cur, &value, 0);\n    if (rc) gf_bail(); // Check if cursor set operation succeeded\n\n    // Closing the cursor\n    iwkv_cursor_close(&$cur);\n\n    // Free allocated memory\n    free(key.data);\n    free(value.data);\n}"
+      },
+      {
+        "name": "iwkv_online_backup",
+        "variables": [
+          {
+            "name": "$iwkv",
+            "dir": "*",
+            "typ": "struct iwkv *"
+          }
+        ],
+        "template": "// Code:\n{\n    uint64_t ts;\n    const char *target_file = \"backup_image.db\";\n\n    // Invoke online backup\n    iwrc rc = iwkv_online_backup($iwkv, &ts, target_file);\n    if (rc != 0) {\n        gf_bail();\n    }\n}"
+      },
+      {
+        "name": "iwkv_online_backup",
+        "variables": [],
+        "template": "// Code:\n{\n    // Initialize required variables for the online backup operation\n    uint64_t ts = 0;\n    const char *backup_file = \"backup_image.db\";\n    struct iwkv *iwkv_instance;\n    struct iwkv_opts opts = {\n        .path = \"storage.db\",\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_RDONLY\n    };\n\n    // Open the database\n    iwrc rc = iwkv_open(&opts, &iwkv_instance);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // Call the iwkv_online_backup function\n    rc = iwkv_online_backup(iwkv_instance, &ts, backup_file);\n\n    // Check for errors\n    if (rc != 0) {\n        iwkv_close(&iwkv_instance);\n        gf_bail();\n    }\n\n    // Close the opened database after backup is done\n    iwkv_close(&iwkv_instance);\n}"
+      },
+      {
+        "name": "iwkv_state",
+        "variables": [],
+        "template": "// code:\n{\n    struct iwkv *kv;\n    IWKV_OPTS opts = {\n        .path = \"database.db\",\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_TRUNC,\n        .file_lock_fail_fast = false,\n        .wal = {.enabled = true}\n    };\n\n    iwrc rc = iwkv_open(&opts, &kv);\n    if (rc != 0) gf_bail();\n\n    // Initializing key and value for insertion\n    IWKV_val key;\n    char key_data[32];\n    key.data = key_data;\n    key.size = snprintf(key_data, sizeof(key_data), \"key_%u\", gf_rand::get<uint32_t>());\n    key.compound = 0;\n\n    IWKV_val val;\n    char val_data[64];\n    val.data = val_data;\n    val.size = snprintf(val_data, sizeof(val_data), \"value_%u\", gf_rand::get<uint32_t>());\n    val.compound = 0;\n\n    // Get the database object for inserting\n    struct iwdb *db;\n    rc = iwkv_db(kv, 0, 0, &db);\n    if (rc != 0) gf_bail();\n\n    // Insert record into DB\n    rc = iwkv_put(db, &key, &val, 0);\n    if (rc != 0) gf_bail();\n\n    // Get current state of the database\n    IWFS_FSM_STATE state;\n    rc = iwkv_state(kv, &state);\n    if (rc != 0) gf_bail();\n\n    // Clean up\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&val);\n    iwkv_close(&kv);\n}"
+      },
+      {
+        "name": "iwkvd_db",
+        "variables": [],
+        "template": "// Code:\n{\n    // Assume the function iwkv_init() must be called first to initialize the library\n    iwrc rc = iwkv_init();\n    if (rc) gf_bail();\n\n    // Initialize database options and open the database\n    struct iwkv_opts opts = {\n        .path = \"mydatabase.db\",\n        .random_seed = gf_rand::get<uint32_t>(),\n        .fmt_version = 0,\n        .oflags = IWKV_RDONLY,  // Change to read-only for example\n        .file_lock_fail_fast = false,\n        .wal = {\n            .enabled = true,\n        }\n    };\n\n    IWKV iwkv;\n    rc = iwkv_open(&opts, &iwkv);\n    if (rc) gf_bail();\n\n    // Initialize database\n    IWDB db;\n    uint32_t dbid;\n    rc = iwkv_new_db(iwkv, IWDB_REALNUM_KEYS | IWDB_VNUM64_KEYS, &dbid, &db);\n    if (rc) gf_bail();\n\n    // Prepare to call iwkvd_db by creating a file pointer\n    FILE *file = fopen(\"log.txt\", \"w\");\n    if (!file) gf_bail();\n\n    // Call iwkvd_db to log the database state with various printing flags for diversity\n    iwkvd_db(file, db, IWKVD_PRINT_NO_LEVEVELS | IWKVD_PRINT_VALS, 0);\n\n    // Cleanup\n    fclose(file);\n    iwkv_db_destroy(&db);\n    iwkv_close(&iwkv);\n}"
+      },
+      {
+        "name": "iwkvd_db",
+        "variables": [
+          {
+            "name": "$db",
+            "dir": "*",
+            "typ": "struct iwdb *"
+          }
+        ],
+        "template": "// Code:\n{\n    FILE *f = stdout; // Output to stdout for visibility\n    struct iwkv *iwkv_handle;\n    iwrc init_rc = iwkv_init();\n    if (init_rc != 0) gf_bail(); // Ensure initialization is successful\n\n    struct iwkv_opts opts = {\n        .path = \"mystore.$db\", // Set path for the database\n        .oflags = 0,\n        .random_seed = 0 // Use default random seed\n    };\n\n    iwrc open_rc = iwkv_open(&opts, &iwkv_handle);\n    if (open_rc != 0) gf_bail(); // Check for successful DB opening\n\n    uint32_t dbid;\n    iwdb_flags_t db_flags = IWDB_REALNUM_KEYS | IWDB_VNUM64_KEYS; // Maximal diversity in flags\n    struct iwdb *db_ptr;\n    iwrc new_db_rc = iwkv_new_db(iwkv_handle, db_flags, &dbid, &db_ptr);\n    if (new_db_rc != 0) gf_bail(); // Check for successful DB creation\n\n    int flags = IWKVD_PRINT_NO_LEVEVELS | IWKVD_PRINT_VALS;\n    int plvl = 0;\n\n    iwkvd_db(f, db_ptr, flags, plvl); // Invoke the function\n\n    iwkv_db_destroy(&db_ptr); // Cleanup the database\n    iwkv_close(&iwkv_handle); // Close the main IWKV handle\n}"
+      }
+    ]
+  }

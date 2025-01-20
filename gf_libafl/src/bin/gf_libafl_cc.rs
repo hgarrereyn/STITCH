@@ -3,7 +3,7 @@ use std::env;
 use libafl_cc::{ClangWrapper, CompilerWrapper, ToolWrapper, LLVMPasses};
 
 pub fn main() {
-    let args: Vec<String> = env::args().collect();
+    let mut args: Vec<String> = env::args().collect();
     if args.len() > 1 {
         let mut dir = env::current_exe().unwrap();
         let wrapper_name = dir.file_name().unwrap().to_str().unwrap();
@@ -16,20 +16,20 @@ pub fn main() {
 
         dir.pop();
 
+        // Must be always present, even without --libafl
+        args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
+
         let mut cc = ClangWrapper::new();
         if let Some(code) = cc
             .cpp(is_cpp)
             // silence the compiler wrapper output, needed for some configure scripts.
             .silence(true)
+            // add arguments only if --libafl or --libafl-no-link are present
+            .need_libafl_arg(true)
             .parse_args(&args)
             .expect("Failed to parse the command line")
-            .add_arg("-g") 
-            .add_arg("-fsanitize-coverage=edge,no-prune,trace-pc-guard")
-            .add_arg("-fsanitize-coverage=trace-cmp")
-            .add_arg("-fsanitize-coverage=pc-table")
-            .add_pass(LLVMPasses::CmpLogRtn)
-            .add_pass(LLVMPasses::CmpLogInstructions)
             .link_staticlib(&dir, "gf_libafl")
+            .add_pass(LLVMPasses::CmpLogRtn)
             .run()
             .expect("Failed to run the wrapped compiler")
         {

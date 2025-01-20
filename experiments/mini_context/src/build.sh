@@ -1,3 +1,3 @@
-gf_synth fuzz.json -o fuzz.cpp -s fuzz.schema
+gf_synth fuzz2.json -o fuzz2.cpp -s fuzz2.schema
 
-gf_libafl_cxx -std=c++17 -o fuzz fuzz.cpp
+gf_libafl_cxx --libafl -std=c++17 -o fuzz2 fuzz2.cpp

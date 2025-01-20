@@ -14,12 +14,14 @@ pub type SchemaRef = (usize, usize, bool);
 #[derive(Debug)]
 pub struct SchemaCache {
     pub nodes: HashMap<SchemaRef, TypeNode>,
+    pub enabled_endpoints: Vec<usize>,
 }
 
 impl SchemaCache {
     pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
+            enabled_endpoints: Vec::new(),
         }
     }
 
@@ -88,13 +90,65 @@ impl MutationContext {
         }
     }
 
-    pub fn compute(&self, max_depth: usize) {
+    pub fn compute(&self, max_depth: usize, bypass_validation: bool) {
+        let mut missing_constructors = HashSet::new();
+        let mut missing_destructors = HashSet::new();
+        
         for typ in self.schema.types.iter() {
-            self.get_type_node_enabled(typ.idx, max_depth, true);
-            self.get_type_node_enabled(typ.idx, max_depth, false);
+            if !(self.get_type_node_enabled(typ.idx, max_depth, true)) {
+                missing_destructors.insert(typ.idx);
+            }
+            if !(self.get_type_node_enabled(typ.idx, max_depth, false)) {
+                missing_constructors.insert(typ.idx);
+            }
         }
 
-        println!("{:?}", self.cache.borrow().nodes);
+        if missing_constructors.is_empty() && missing_destructors.is_empty() {
+            return;
+        }
+
+        for x in self.schema.types.iter() {
+            if missing_constructors.contains(&x.idx) {
+                eprintln!("Missing constructor for type {}", x.name);
+            }
+            if missing_destructors.contains(&x.idx) {
+                eprintln!("Missing destructor for type {}", x.name);
+            }
+        }
+
+        if !bypass_validation {
+            panic!("Missing constructors or destructors");
+        }
+
+        let mut disabled_endpoints = HashSet::new();
+
+        for endpoint in self.schema.endpoints.iter() {
+            for x in endpoint.inputs.iter() {
+                if missing_constructors.contains(x) || missing_destructors.contains(x) {
+                    disabled_endpoints.insert(endpoint.idx);
+                }
+            }
+            for x in endpoint.outputs.iter() {
+                if missing_constructors.contains(x) || missing_destructors.contains(x) {
+                    disabled_endpoints.insert(endpoint.idx);
+                }
+            }
+        }
+
+        for endpoint in self.schema.endpoints.iter() {
+            if !disabled_endpoints.contains(&endpoint.idx) {
+                self.cache.borrow_mut().enabled_endpoints.push(endpoint.idx);
+            }
+        }
+
+        let enabled = self.cache.borrow_mut().enabled_endpoints.len();
+        let total = self.schema.endpoints.len();
+
+        eprintln!("Enabled endpoints: {}/{}", enabled, total);
+
+        if enabled == 0 {
+            panic!("No enabled endpoints");
+        }
     }
     
     fn get_type_node_enabled(&self, idx: usize, depth: usize, forward: bool) -> bool {
@@ -275,7 +329,18 @@ impl MutationContext {
 
     fn apply_type_node(&self, graph: &mut Graph, free_edges: &mut Vec<EdgeRef>, edge: EdgeRef, typ_node: &TypeNode) {
         // Sample a random endpoint.
-        let endpoint = typ_node.children.choose(&mut *self.rng.borrow_mut()).unwrap();
+        let endpoint = typ_node.children.choose(&mut *self.rng.borrow_mut());
+        let endpoint = if let Some(endpoint) = endpoint {
+            endpoint
+        } else {
+            println!("Type node: {:?}", typ_node);
+            println!("Edge: {:?}", edge);
+            println!("Cache: {:?}", self.cache.borrow());
+            println!("Schema: {:?}", self.schema);
+            println!("Free edges: {:?}", free_edges);
+            graph.pprint();
+            panic!("Missing endpoint in type node");
+        };
 
         let node = graph.add_node(
             endpoint.idx, 
@@ -321,7 +386,9 @@ impl MutationContext {
             nodes: Vec::new(),
         };
 
-        let endpoint = self.schema.endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
+        let cache = self.cache.borrow();
+        let endpoint_idx = cache.enabled_endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
+        let endpoint = &self.schema.endpoints[*endpoint_idx];
         let _ = graph.add_node(endpoint.idx, 0, endpoint.inputs.len(), endpoint.outputs.len(), endpoint.context_size.unwrap());
 
         self.complete(&mut graph);
@@ -331,6 +398,10 @@ impl MutationContext {
     }
 
     pub fn mutate_random(&self, graph: &mut Graph) {
+        if graph.nodes.len() == 0 {
+            *graph = self.generate();
+            return;
+        }
         let choice = self.rng.borrow_mut().gen_range(0..2);
         match choice {
             0 => self.mutate_delete_one(graph),
@@ -340,6 +411,11 @@ impl MutationContext {
     }
 
     pub fn mutate_delete_one(&self, graph: &mut Graph) {
+        if graph.nodes.len() == 0 {
+            *graph = self.generate();
+            return;
+        }
+
         let node = self.rng.borrow_mut().gen_range(0..graph.nodes.len());
 
         graph.unlink_all(node);
@@ -352,6 +428,11 @@ impl MutationContext {
     }
 
     pub fn mutate_isolate_component(&self, graph: &mut Graph) {
+        if graph.nodes.len() == 0 {
+            *graph = self.generate();
+            return;
+        }
+
         let node = self.rng.borrow_mut().gen_range(0..graph.nodes.len());
 
         let mut keep = HashSet::new();
@@ -416,7 +497,7 @@ mod tests {
 
         let schema: Schema = serde_json::from_str(raw_schema).unwrap();
         let ctx = MutationContext::new(schema);
-        ctx.compute(3);
+        ctx.compute(3, false);
         ctx
     }
 

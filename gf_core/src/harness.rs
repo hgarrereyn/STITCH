@@ -1,4 +1,3 @@
-
 use core::panic;
 use std::ffi::c_void;
 
@@ -9,6 +8,8 @@ use super::graph::NodeRefType;
 
 extern "C" {
     fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, shim_size_ptr: &mut *const c_void, num_shims: &mut usize);
+
+    fn GRAPHFUZZ_INVOKE_SHIM(shim: *const c_void, in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8, bailed: &mut usize);
 }
 
 
@@ -57,8 +58,14 @@ impl Harness {
                 }).collect::<Vec<_>>();
             let out_ref = slots[node.index].as_ptr();
 
+            // (self.exec_shims[node.typ])(in_ref.as_ptr(), out_ref, node.context.as_ptr());
+
+            let mut m = 0;
             unsafe {
-                (self.exec_shims[node.typ])(in_ref.as_ptr(), out_ref, node.context.as_ptr());
+                GRAPHFUZZ_INVOKE_SHIM(self.exec_shims[node.typ] as *const c_void, in_ref.as_ptr(), out_ref, node.context.as_ptr(), &mut m);
+            }
+            if m != 0 {
+                return;
             }
         }
     }

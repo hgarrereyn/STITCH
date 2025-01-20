@@ -1,0 +1,38 @@
+{
+  "endpoints": [
+    {
+      "name": "Foo()",
+      "variables": [
+        { "name": "$res", "typ": "Foo*", "dir": "new" }
+      ],
+      "template": "$res = new Foo();"
+    },
+    {
+      "name": "Foo::write(char val)",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" },
+        { "name": "$val", "typ": "char" }
+      ],
+      "template": "$self->write($val);"
+    },
+    {
+      "name": "Foo::check()",
+      "variables": [
+        { "name": "$self", "typ": "Foo*" }
+      ],
+      "template": "$self->check();"
+    },
+    {
+      "name": "~Foo()",
+      "variables": [
+        { "name": "$self", "typ": "Foo*", "dir": "del" }
+      ],
+      "template": "delete $self;"
+    }
+  ],
+  "headers": [
+    {
+      "CppHeader": "lib.h"
+    }
+  ]
+}

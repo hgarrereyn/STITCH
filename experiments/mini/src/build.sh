@@ -1,1 +1,1 @@
-gf_libafl_cxx -std=c++17 -o fuzz fuzz.cpp
+gf_libafl_cxx --libafl -std=c++17 -o fuzz2 fuzz2.cpp

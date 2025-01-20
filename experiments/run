@@ -3,13 +3,21 @@ import argparse
 from pathlib import Path
 import subprocess
 from typing import List
+import os
+
+api_keys = [
+    'OPENAI_API_KEY',
+]
 
 def run(args):
     subprocess.run(['./build', args.experiment])
+    # pass any environment variables that are set
+    env = {k: v for k, v in os.environ.items() if k in api_keys}
+    pkeys = [f'-e{k}={v}' for k, v in env.items()]
     if args.detach:
-        subprocess.run(['docker', 'run', '--privileged', '-it', '-p', f'{args.port}:{args.port}', '-d', '--rm', f'gfafl_{args.experiment}', '/bin/bash'])
+        subprocess.run(['docker', 'run', '--privileged', '-it'] + pkeys + ['-p', f'{args.port}:{args.port}', '-d', '--rm', f'gfafl_{args.experiment}', '/bin/bash'])
     else:
-        subprocess.run(['docker', 'run', '--privileged', '-it', '-p', f'{args.port}:{args.port}', '--rm', f'gfafl_{args.experiment}', '/bin/bash'])
+        subprocess.run(['docker', 'run', '--privileged', '-it'] + pkeys + ['-p', f'{args.port}:{args.port}', '--rm', f'gfafl_{args.experiment}', '/bin/bash'])
 
 def get_choices() -> List[str]:
     return [x.stem for x in Path('.').iterdir() if x.is_dir()]

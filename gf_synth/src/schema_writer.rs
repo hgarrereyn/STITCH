@@ -1,14 +1,14 @@
 use gf_core::schema::{Endpoint, Schema, Type};
 
-use crate::spec::Spec;
+use crate::inner_spec::InnerSpec;
 
 
 pub struct SchemaWriter<'a> {
-    spec: &'a Spec
+    spec: &'a InnerSpec
 }
 
 impl<'a> SchemaWriter<'a> {
-    pub fn new(spec: &Spec) -> SchemaWriter {
+    pub fn new(spec: &InnerSpec) -> SchemaWriter {
         SchemaWriter { spec }
     }
 

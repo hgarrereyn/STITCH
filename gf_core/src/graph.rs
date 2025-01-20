@@ -282,6 +282,9 @@ impl Graph {
     }
 
     pub fn sanitize(&mut self) {
+        if self.nodes.len() == 0 {
+            return;
+        }
         self.shift_levels();
     }
 

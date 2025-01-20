@@ -1,14 +1,15 @@
-use crate::spec::{EndpointSpec, HeaderSpec, Spec};
+use crate::{inner_spec::{InnerEndpointSpec, InnerSpec}, spec::{HeaderSpec, Config}};
 
 static HELPER_CODE: &str = include_str!("helper.h");
 
 pub struct HarnessWriter<'a> {
-    spec: &'a Spec
+    spec: &'a InnerSpec,
+    config: &'a Config,
 }
 
 impl<'a> HarnessWriter<'a> {
-    pub fn new(spec: &Spec) -> HarnessWriter {
-        HarnessWriter { spec }
+    pub fn new(spec: &'a InnerSpec, config: &'a Config) -> HarnessWriter<'a> {
+        HarnessWriter { spec, config }
     }
 
     pub fn write_harness(&self) -> String {
@@ -18,8 +19,9 @@ impl<'a> HarnessWriter<'a> {
         code.push_str("#include <cstdio>\n");
         code.push_str("#include <cstdlib>\n");
         code.push_str("#include <cstdint>\n");
+        code.push_str("#include <cstring>\n");
 
-        self.emit_headers(&mut code, &self.spec.headers);
+        self.emit_headers(&mut code, &self.config.headers);
 
         self.emit_helpers(&mut code);
 
@@ -40,20 +42,38 @@ impl<'a> HarnessWriter<'a> {
         code
     }
 
-    fn emit_exec_endpoint(&self, code: &mut String, idx: usize, endpoint: &EndpointSpec) {
+    fn emit_exec_endpoint(&self, code: &mut String, idx: usize, endpoint: &InnerEndpointSpec) {
         let shim_name = format!("exec_shim_{}", idx);
         
         // Replace template variables with references.
         let mut template = endpoint.template.clone();
-        for (i, input) in endpoint.inputs.iter().enumerate().rev() {
-            let typ = &self.spec.types[*input].name;
-            template = template.replace(&format!("$i{}", i), &format!("(({} *)in_ref[{}])", typ, i));
+        for (i, _input) in endpoint.inputs.iter().enumerate().rev() {
+            template = template.replace(&format!("$i{}", i), &format!("__in_{}", i));
         }
         for (i, _output) in endpoint.outputs.iter().enumerate().rev() {
-            template = template.replace(&format!("$o{}", i), &format!("out_ref[{}]", i));
+            template = template.replace(&format!("$o{}", i), &format!("__out_{}", i));
         }
         for (i, _arg) in endpoint.args.iter().enumerate().rev() {
             template = template.replace(&format!("$a{}", i), &format!("__arg_{}", i));
+        }
+
+        // Space for new var instantiations.
+        let mut out_instantiations = String::new();
+        for (i, output) in endpoint.outputs.iter().enumerate() {
+            let typ = &self.spec.types[*output].name;
+            out_instantiations.push_str(&format!("{} __out_{};\n", typ, i));
+        }
+
+        let mut in_instantiations = String::new();
+        for (i, input) in endpoint.inputs.iter().enumerate() {
+            let typ = &self.spec.types[*input].name;
+            in_instantiations.push_str(&format!("{} __in_{};\n", typ, i));
+            in_instantiations.push_str(&format!("get_input(in_ref[{}], &__in_{});\n", i, i));
+        }
+
+        let mut out_copy = String::new();
+        for (i, _output) in endpoint.outputs.iter().enumerate() {
+            out_copy.push_str(&format!("set_output(&out_ref[{}], &__out_{});\n", i, i));
         }
 
         // Instantiate arguments.
@@ -66,22 +86,25 @@ impl<'a> HarnessWriter<'a> {
         }
 
         code.push_str(&format!("extern \"C\" void {}(void **in_ref, void **out_ref, char *context) {{\n", shim_name));
+        code.push_str(&out_instantiations);
+        code.push_str(&in_instantiations);
         code.push_str(&arg_instantiations);
         code.push_str("// ----- TEMPLATE CODE -----\n");
         code.push_str(&format!("{}\n", template));
         code.push_str("// -------------------------\n");
+        code.push_str(&out_copy);
         code.push_str("}\n\n");
     }
 
     // The write endpoint is like the exec endpoint except invoking it prints equivalent code to stdout instead of executing it.
-    fn emit_write_endpoint(&self, code: &mut String, idx: usize, endpoint: &EndpointSpec) {
+    fn emit_write_endpoint(&self, code: &mut String, idx: usize, endpoint: &InnerEndpointSpec) {
         let shim_name = format!("write_shim_{}", idx);
 
         // Space for output variables.
         let mut variable_definitions = String::new();
         for (i, output) in endpoint.outputs.iter().enumerate() {
             let typ = &self.spec.types[*output].name;
-            variable_definitions.push_str(&format!("printf(\"{} *var_%td;\\n\", (intptr_t)out_ref[{}]);\n", typ, i));
+            variable_definitions.push_str(&format!("printf(\"{} var_%td;\\n\", (intptr_t)out_ref[{}]);\n", typ, i));
         }
 
         let mut template = printf_escape(&endpoint.template);
@@ -98,17 +121,16 @@ impl<'a> HarnessWriter<'a> {
         }
 
         let mut template_args = String::new();
-        let args = endpoint.inputs.iter().map(|x| {
-            format!("(intptr_t)in_ref[{}]", x)
-        }).chain(endpoint.outputs.iter().map(|x| {
-            format!("(intptr_t)out_ref[{}]", x)
+        let args = endpoint.inputs.iter().enumerate().map(|(i, _)| {
+            format!("(intptr_t)in_ref[{}]", i)
+        }).chain(endpoint.outputs.iter().enumerate().map(|(i, _)| {
+            format!("(intptr_t)out_ref[{}]", i)
         })).collect::<Vec<_>>();
         template_args.push_str(&args.join(", "));
 
         // Instantiate arguments.
         let mut arg_instantiations = String::new();
         for (i, arg) in endpoint.args.iter().enumerate() {
-            // arg_instantiations.push_str(&format!("auto __arg_{} = deserialize_from_bytes<{}>(context);\n", i, arg));
             arg_instantiations.push_str(&format!("using __arg_{}_type = {};\n", i, arg));
             arg_instantiations.push_str(&format!("__arg_{}_type __arg_{};\n", i, i));
             arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, context, sizeof({}));\n", i, arg));
@@ -127,13 +149,17 @@ impl<'a> HarnessWriter<'a> {
         code.push_str(&variable_definitions);
         code.push_str(&format!("printf(\"{{ // start {}\\n\");\n", endpoint.name));
         code.push_str(&print_arg_instantiations);
-        code.push_str(&format!("printf(\"{}\\n\", {});\n", template, template_args));
+        if template_args.is_empty() {
+            code.push_str(&format!("printf(\"{}\\n\");\n", template));
+        } else {
+            code.push_str(&format!("printf(\"{}\\n\", {});\n", template, template_args));
+        }
         code.push_str(&format!("printf(\"}} // end {}\\n\");\n", endpoint.name));
         code.push_str("// -------------------------\n");
         code.push_str("}\n\n");
     }
 
-    fn emit_context_size_info(&self, code: &mut String, idx: usize, endpoint: &EndpointSpec) {
+    fn emit_context_size_info(&self, code: &mut String, idx: usize, endpoint: &InnerEndpointSpec) {
         let context_size = if endpoint.args.len() > 0 {
             endpoint.args.iter().map(|x| {
                 format!("sizeof({})", x)

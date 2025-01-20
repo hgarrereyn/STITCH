@@ -16,6 +16,7 @@ COPY rust-toolchain.toml /src/rust-toolchain.toml
 COPY /gf_core /src/gf_core
 COPY /gf_libafl /src/gf_libafl
 COPY /gf_synth /src/gf_synth
+COPY /agf /src/agf
 
 ENV LIBAFL_EDGES_MAP_SIZE=400000
 
@@ -37,3 +38,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
 RUN cd /src/gf_libafl && \
     mkdir -p target/release/build && \
     cp -r /src/tmp/libafl_cc-* target/release/build/
+
+RUN cd /src/agf && \
+    pip install -r requirements.txt && \
+    pip install -e .

@@ -37,9 +37,6 @@ fn test_add() {
                 template: "delete $i0;".to_string()
             }
         ],
-        headers: vec![
-            HeaderSpec::CppHeader("lib.h".to_string())
-        ]
     };
 
     let writer = HarnessWriter::new(&spec);

@@ -32,6 +32,9 @@ pub struct Options {
     #[arg(short, long)]
     pub input: Option<String>,
 
+    #[arg(short, long, default_value = "false")]
+    pub bypass_validation: bool,
+
     #[arg(short, long)]
     pub execute: Option<String>,
 
@@ -90,7 +93,7 @@ pub extern "C" fn libafl_main() {
     } else if res.write.is_some() {
         write_one(res, gf_harness);
     } else if res.minimize.is_some() {
-        minimizer::minimize(res.minimize.unwrap(), res.minimize_cycles, gf_harness, res.full_write, schema);
+        minimizer::minimize(res.minimize.unwrap(), res.minimize_cycles, gf_harness, res.full_write, schema, res.bypass_validation);
     } else {
         println!("Either input and out directories or execute command must be provided.");
         return;
@@ -133,7 +136,8 @@ fn run_fuzzer(res: Options, gf_harness: Harness, schema: Schema, obs: StdMapObse
     );
 
     fuzzer::fuzz(
-        gf_harness, schema, obs, out_dir, crashes, &in_dir, tokens, &logfile, timeout
+        gf_harness, schema, obs, out_dir, crashes, &in_dir, tokens,
+        &logfile, timeout, res.bypass_validation
     ).unwrap();
 }
 
