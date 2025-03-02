@@ -5,3 +5,6 @@ gf_synth/target/
 **/.DS_Store
 **/*.egg-info
 **/__pycache__
+**/*.rag
+**/.env
+**/node_modules

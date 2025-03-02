@@ -4,6 +4,7 @@ from . import gen
 from . import loop
 from . import builder
 from . import llm2
+from . import server
 
 
 def main():
@@ -14,6 +15,7 @@ def main():
     loop.register(subparsers)
     builder.register(subparsers)
     llm2.register(subparsers)
+    server.register(subparsers)
     args = parser.parse_args()
     if hasattr(args, 'func'):
         args.func(args)

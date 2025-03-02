@@ -155,6 +155,7 @@ impl<'a> HarnessWriter<'a> {
             code.push_str(&format!("printf(\"{}\\n\", {});\n", template, template_args));
         }
         code.push_str(&format!("printf(\"}} // end {}\\n\");\n", endpoint.name));
+        code.push_str("fflush(stdout);\n");
         code.push_str("// -------------------------\n");
         code.push_str("}\n\n");
     }
@@ -170,7 +171,38 @@ impl<'a> HarnessWriter<'a> {
         code.push_str(&format!("const unsigned int shim_size_{} = {};\n", idx, context_size));
     }
 
+    fn emit_write_init_shim(&self, code: &mut String) {
+        code.push_str("extern \"C\" void write_init_shim(void) {\n");
+        code.push_str("    // Print builtin headers\n");
+        code.push_str("    printf(\"#include <cstdio>\\n\");\n");
+        code.push_str("    printf(\"#include <cstdlib>\\n\");\n");
+        code.push_str("    printf(\"#include <cstdint>\\n\");\n");
+        code.push_str("    printf(\"#include <cstring>\\n\\n\");\n");
+        
+        code.push_str("    // Print config headers\n");
+        for header in &self.config.headers {
+            match header {
+                HeaderSpec::CHeader(h) => {
+                    let formatted = format_header(h);
+                    code.push_str(&format!("    printf(\"extern \\\"C\\\" {{\\n    {} \\n}}\\n\");\n", printf_escape(&formatted)));
+                }
+                HeaderSpec::CppHeader(h) => {
+                    let formatted = format_header(h);
+                    code.push_str(&format!("    printf(\"{}\\n\");\n", printf_escape(&formatted)));
+                }
+            }
+        }
+
+        code.push_str("    // gf_util.h\n");
+        code.push_str("    printf(\"#include \\\"gf_util.h\\\"\\n\");\n");
+        code.push_str("    printf(\"\\n\");\n");
+        code.push_str("    fflush(stdout);\n");
+        code.push_str("}\n\n");
+    }
+
     fn emit_linkage_info(&self, code: &mut String) {
+        self.emit_write_init_shim(code);
+
         code.push_str("extern \"C\" {\n");
         code.push_str("    void (*GRAPHFUZZ_EXEC_SHIMS[])(void **, void **, char *) = {\n");
         for (idx, _endpoint) in self.spec.endpoints.iter().enumerate() {
@@ -193,11 +225,12 @@ impl<'a> HarnessWriter<'a> {
         code.push_str("    const unsigned int GRAPHFUZZ_SHIMS_COUNT = ");
         code.push_str(&format!("{};\n\n", self.spec.endpoints.len()));
 
-        code.push_str("    void GRAPHFUZZ_TARGET_INFO(void **exec_shim_ptr, void **write_shim_ptr, unsigned int **shim_size_ptr, unsigned int *shim_count) {\n");
+        code.push_str("    void GRAPHFUZZ_TARGET_INFO(void **exec_shim_ptr, void **write_shim_ptr, unsigned int **shim_size_ptr, unsigned int *shim_count, void **write_init_shim_ptr) {\n");
         code.push_str("        *exec_shim_ptr = GRAPHFUZZ_EXEC_SHIMS;\n");
         code.push_str("        *write_shim_ptr = GRAPHFUZZ_WRITE_SHIMS;\n");
         code.push_str("        *shim_size_ptr = GRAPHFUZZ_SHIM_SIZES;\n");
         code.push_str("        *shim_count = GRAPHFUZZ_SHIMS_COUNT;\n");
+        code.push_str("        *write_init_shim_ptr = (void*)&write_init_shim;\n");
         code.push_str("    }\n");
         code.push_str("}\n");
     }
@@ -206,7 +239,9 @@ impl<'a> HarnessWriter<'a> {
         for header in headers {
             match header {
                 HeaderSpec::CHeader(header) => {
-                    code.push_str(&format!("extern \"C\" {{ {} }}\n", format_header(header)));
+                    code.push_str("extern \"C\" {\n");
+                    code.push_str(&format!("    {}\n", format_header(header)));
+                    code.push_str("}\n");
                 }
                 HeaderSpec::CppHeader(header) => {
                     code.push_str(&format!("{}\n", format_header(header)));

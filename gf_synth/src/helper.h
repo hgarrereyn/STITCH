@@ -66,16 +66,6 @@ std::string generate_declaration(const std::string& var_name, const T& value) {
     return type_name + " " + var_name + " = " + generate_initializer(value) + ";";
 }
 
-void *gf_malloc(size_t size) {
-    return malloc(size);
-}
-
-void gf_free(void *ptr) {
-    if (ptr) {
-        free(ptr);
-    }
-}
-
 template <typename T>
 void get_input(void *input, T *value) {
     if (sizeof(T) <= sizeof(void *)) {
@@ -83,7 +73,7 @@ void get_input(void *input, T *value) {
     } else {
         T *ptr = (T *)input;
         std::memcpy(value, ptr, sizeof(T));
-        gf_free(ptr);
+        free(ptr);
     }
 }
 
@@ -92,10 +82,30 @@ void set_output(void **output, T *value) {
     if (sizeof(T) <= sizeof(void *)) {
         std::memcpy(output, value, sizeof(T));
     } else {
-        T *ptr = (T *)gf_malloc(sizeof(T));
+        T *ptr = (T *)malloc(sizeof(T));
         std::memcpy(ptr, value, sizeof(T));
         *output = ptr;
     }
+}
+
+// Keep track of allocated pointers
+std::vector<void *> gf_allocations;
+
+static size_t MAX_MALLOC = 0x8000;
+
+void gf_bail();
+
+void *gf_malloc(size_t size) {
+    if (size > MAX_MALLOC) {
+        gf_bail();
+    }
+    void *ptr = malloc(size);
+    gf_allocations.push_back(ptr);
+    return ptr;
+}
+
+void gf_free(void *ptr) {
+    // Ignore
 }
 
 // Thread-local jump buffer for bail mechanism
@@ -110,6 +120,16 @@ extern "C" {
         *bailed = 0;
         ((void (*)(void *, void *, void *))shim)(in, out, context);
     }
+
+    void GRAPHFUZZ_PRE_INIT() {
+        gf_allocations.clear();
+    }
+
+    void GRAPHFUZZ_POST_INIT() {
+        for (void *ptr : gf_allocations) {
+            free(ptr);
+        }
+    }
 }
 
 // Invoked from user code inside shims
@@ -123,6 +143,11 @@ namespace gf_rand {
         static thread_local std::random_device rd;
         static thread_local std::mt19937 gen(rd());
         return gen;
+    }
+
+    // Set seed for the random number generator
+    inline void seed(unsigned int s) {
+        get_generator().seed(s);
     }
 
     // Primary template for get<T>()
@@ -171,5 +196,13 @@ namespace gf_rand {
             }
             return value;
         }
+    }
+
+    std::string get_string(size_t len) {
+        std::string str;
+        for (size_t i = 0; i < len; ++i) {
+            str += get<char>();
+        }
+        return str;
     }
 }

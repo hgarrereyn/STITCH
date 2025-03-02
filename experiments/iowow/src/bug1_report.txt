@@ -1,0 +1,64 @@
+Explanation:
+The observed crashes stem from incorrect resource management in the API usage rather than inherent bugs in the library. The crashes were due to attempting to access deallocated memory after closing the associated `IWKV` database, which indicates improper sequencing and dependency management in the use of the `iwkv` API functions.
+
+Test Case:
+int main() {
+    // Call api_good() for successful execution
+    correct_usage();
+    // Call incorrect_usage() to show it fails due to crashing
+    // incorrect_usage(); // Uncommenting this will show misuse
+    return 0;
+}
+
+How to ensure API conformity:
+To ensure correct usage of the `iwkv` API, follow these guidelines: Always destroy or release any database objects (e.g., `IWDB`) before closing their associated parent objects (e.g., `IWKV`). Additionally, ensure that you do not attempt to use any database or storage objects after they have been closed or destroyed. This ensures that resource pointers do not reference deallocated memory.
+
+API Good:
+// Example of correct API usage
+#include "iowow/iwkv.h"
+
+void correct_usage() {
+    IWKV var_0;
+    struct iwkv_opts options;
+    options.path = "my_db.db";
+    iwrc rc = iwkv_open(&options, &var_0);
+    if (rc != 0) { /* Handle error */ }
+
+    IWDB var_2;
+    rc = iwkv_db(var_0, 0, 0, &var_2);
+    if (rc != 0 || var_2 == NULL) {
+        iwkv_close(&var_0);
+        return;
+    }
+
+    // Use the database
+
+    // Destroy the database before closing IWKV
+    iwkv_db_destroy(&var_2);
+    iwkv_close(&var_0); // Now it's safe to close IWKV
+}
+
+API Bad:
+// Example of incorrect API usage
+#include "iowow/iwkv.h"
+
+void incorrect_usage() {
+    IWKV var_0;
+    struct iwkv_opts options;
+    options.path = "my_db.db";
+    iwrc rc = iwkv_open(&options, &var_0);
+    if (rc != 0) { /* Handle error */ }
+
+    IWDB var_2;
+    rc = iwkv_db(var_0, 0, 0, &var_2);
+    if (rc != 0 || var_2 == NULL) {
+        iwkv_close(&var_0);
+        return;
+    }
+
+    // Use the database
+
+    // Incorrectly close IWKV before destroying the database
+    iwkv_close(&var_0);
+    iwkv_db_destroy(&var_2); // This will lead to accessing freed memory
+}

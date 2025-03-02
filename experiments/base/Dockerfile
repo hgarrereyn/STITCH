@@ -6,11 +6,14 @@ RUN apt-get update && \
     apt-get -y install \
     clang make cmake git wget curl tar gdb vim \
     python3.11 python3-pip \
-    pkg-config libssl-dev
+    pkg-config libssl-dev \
+    protobuf-compiler libprotobuf-dev ninja-build
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+RUN cargo install casr
 
 COPY rust-toolchain.toml /src/rust-toolchain.toml
 COPY /gf_core /src/gf_core

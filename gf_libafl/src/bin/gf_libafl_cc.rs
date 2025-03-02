@@ -18,7 +18,11 @@ pub fn main() {
 
         // Must be always present, even without --libafl
         args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
-
+        args.push("-fsanitize=address".into());
+        args.push("-g".into());
+        args.push("-O0".into());
+        args.push("-fno-omit-frame-pointer".into());
+        
         let mut cc = ClangWrapper::new();
         if let Some(code) = cc
             .cpp(is_cpp)
@@ -29,6 +33,7 @@ pub fn main() {
             .parse_args(&args)
             .expect("Failed to parse the command line")
             .link_staticlib(&dir, "gf_libafl")
+            .link_libpython().unwrap()
             .add_pass(LLVMPasses::CmpLogRtn)
             .run()
             .expect("Failed to run the wrapped compiler")

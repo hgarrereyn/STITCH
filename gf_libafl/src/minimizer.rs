@@ -1,4 +1,5 @@
 use core::time;
+use std::rc::Rc;
 
 use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventRestarter, SimpleRestartingEventManager}, executors::{Executor, ExitKind, InProcessExecutor}, feedbacks::CrashFeedback, inputs::Input, monitors::SimpleMonitor, schedulers::QueueScheduler, state::{HasSolutions, StdState}, Error, StdFuzzer};
 use libafl_bolts::{rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::tuple_list};
@@ -7,12 +8,7 @@ use crate::components::graph_input::GraphInput;
 use gf_core::{harness::Harness, mutation::MutationContext, schema::Schema};
 
 
-pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bool, schema: Schema, bypass_validation: bool) {
-    let mctx = MutationContext::new(schema);
-    println!("Computing mutation context...");
-    mctx.compute(3, bypass_validation);
-    println!("Computed mutation context");
-
+pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness: Harness, full_write: bool, ctx: Rc<MutationContext>) {
     let inp = GraphInput::from_file(path).unwrap();
 
     let mut objective = CrashFeedback::new();
@@ -94,7 +90,7 @@ pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bo
 
     for _ in 0..cycles {
         let mut g = inp.graph.clone();
-        mctx.mutate_random(&mut g);
+        ctx.mutate_random(&mut g);
 
         if g.nodes.len() < thresh {
             let i2 = GraphInput {
@@ -108,4 +104,11 @@ pub fn minimize(path: String, cycles: usize, gf_harness: Harness, full_write: bo
     mgr.send_exiting().unwrap();
 
     gf_harness.write(&inp.graph);
+
+    if let Some(output) = output {
+        let inp = GraphInput {
+            graph: inp.graph,
+        };
+        inp.to_file(output);
+    }
 }

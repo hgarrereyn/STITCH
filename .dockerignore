@@ -1,3 +1,4 @@
 gf_core/target
+gf_core/interface/build
 gf_libafl/target
 gf_synth/target

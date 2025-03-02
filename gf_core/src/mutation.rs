@@ -1,7 +1,9 @@
-use std::{cell::RefCell, collections::{HashMap, HashSet}};
+use std::{cell::RefCell, collections::{HashMap, HashSet}, fs::File, path::Path, usize};
 
 use rand::{seq::IteratorRandom, Rng};
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use crate::schema::Schema;
 
@@ -11,8 +13,10 @@ use super::graph::{Graph, NodeRefType};
 // (type, depth, forward)
 pub type SchemaRef = (usize, usize, bool);
 
-#[derive(Debug)]
+#[serde_as]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SchemaCache {
+    #[serde_as(as = "Vec<(_,_)>")]
     pub nodes: HashMap<SchemaRef, TypeNode>,
     pub enabled_endpoints: Vec<usize>,
 }
@@ -28,9 +32,16 @@ impl SchemaCache {
     pub fn get_type_node(&self, typ: usize, depth: usize, forward: bool) -> Option<&TypeNode> {
         self.nodes.get(&(typ, depth, forward))
     }
+
+    pub fn smallest_depth(&self, typ: usize, forward: bool) -> Option<usize> {
+        self.nodes.iter()
+            .filter(|(key, node)| key.0 == typ && key.2 == forward && node.enabled)
+            .map(|(key, _)| key.1)
+            .min()
+    }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TypeNode {
     pub enabled: bool,
     pub idx: usize,
@@ -38,7 +49,7 @@ pub struct TypeNode {
     pub children: Vec<EndpointNode>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EndpointNode {
     pub enabled: bool,
     pub idx: usize,
@@ -48,7 +59,7 @@ pub struct EndpointNode {
     pub rev_children: Vec<SchemaRef>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EdgeRef {
     pub node_idx: usize,
     pub conn_idx: usize,
@@ -74,7 +85,7 @@ impl Default for MutationOptions {
 // Created at runtime and contains cached information useful for mutations.
 #[derive(Debug)]
 pub struct MutationContext {
-    schema: Schema,
+    pub schema: Schema,
     opts: MutationOptions,
     cache: RefCell<SchemaCache>,
     rng: RefCell<rand::rngs::ThreadRng>,
@@ -90,6 +101,20 @@ impl MutationContext {
         }
     }
 
+    pub fn save(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = File::create(path)?;
+        let cache = self.cache.borrow().clone();
+        serde_json::to_writer_pretty(&mut file, &cache)?;
+        Ok(())
+    }
+
+    pub fn load(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = File::open(path)?;
+        let cache: SchemaCache = serde_json::from_reader(&mut file)?;
+        self.cache.replace(cache);
+        Ok(())
+    }
+
     pub fn compute(&self, max_depth: usize, bypass_validation: bool) {
         let mut missing_constructors = HashSet::new();
         let mut missing_destructors = HashSet::new();
@@ -103,10 +128,6 @@ impl MutationContext {
             }
         }
 
-        if missing_constructors.is_empty() && missing_destructors.is_empty() {
-            return;
-        }
-
         for x in self.schema.types.iter() {
             if missing_constructors.contains(&x.idx) {
                 eprintln!("Missing constructor for type {}", x.name);
@@ -116,8 +137,10 @@ impl MutationContext {
             }
         }
 
-        if !bypass_validation {
-            panic!("Missing constructors or destructors");
+        if !missing_constructors.is_empty() || !missing_destructors.is_empty() {
+            if !bypass_validation {
+                panic!("Missing constructors or destructors");
+            }
         }
 
         let mut disabled_endpoints = HashSet::new();
@@ -256,7 +279,7 @@ impl MutationContext {
                             forward: false,
                             typ: self.schema.endpoints[node.typ].inputs[conn_idx],
                             node_level: node.layer,
-                            depth: 3,
+                            depth: usize::MAX,
                         });
                     },
                     NodeRefType::Connected(_) => {},
@@ -272,7 +295,7 @@ impl MutationContext {
                             forward: true,
                             typ: self.schema.endpoints[node.typ].outputs[conn_idx],
                             node_level: node.layer,
-                            depth: 3,
+                            depth: usize::MAX,
                         });
                     },
                     NodeRefType::Connected(_) => {},
@@ -323,7 +346,15 @@ impl MutationContext {
 
         // Otherwise, we need to sample from the schema.
         let cache = self.cache.borrow();
-        let typ_node = cache.get_type_node(edge.typ, edge.depth, edge.forward).unwrap();
+
+        // If depth is usize::MAX, use the smallest depth that is enabled.
+        let depth = if edge.depth == usize::MAX {
+            cache.smallest_depth(edge.typ, edge.forward).unwrap()
+        } else {
+            edge.depth
+        };
+
+        let typ_node = cache.get_type_node(edge.typ, depth, edge.forward).unwrap();
         self.apply_type_node(graph, free_edges, edge, typ_node);
     }
 
@@ -397,6 +428,10 @@ impl MutationContext {
         graph
     }
 
+    pub fn mutate_regenerate(&self, graph: &mut Graph) {
+        *graph = self.generate();
+    }
+
     pub fn mutate_random(&self, graph: &mut Graph) {
         if graph.nodes.len() == 0 {
             *graph = self.generate();
@@ -439,6 +474,102 @@ impl MutationContext {
         graph.visit(node, &mut keep);
         graph.collapse(&keep);
 
+        self.complete(graph);
+        graph.sanitize();
+    }
+
+    pub fn mutate_add_one(&self, graph: &mut Graph) {
+        if graph.nodes.len() == 0 {
+            *graph = self.generate();
+            return;
+        }
+
+        // Pick a random node
+        let node_idx = self.rng.borrow_mut().gen_range(0..graph.nodes.len());
+        let node = &graph.nodes[node_idx];
+
+        // Decide whether to pick from inputs or outputs
+        let is_input = if !node.in_ref.is_empty() && !node.out_ref.is_empty() {
+            self.rng.borrow_mut().gen_bool(0.5)
+        } else {
+            !node.in_ref.is_empty()
+        };
+
+        if (is_input && node.in_ref.is_empty()) || (!is_input && node.out_ref.is_empty()) {
+            // No valid connections to modify, try regenerating
+            self.mutate_regenerate(graph);
+            return;
+        }
+
+        // Pick a random connection
+        let conn_idx = if is_input {
+            self.rng.borrow_mut().gen_range(0..node.in_ref.len())
+        } else {
+            self.rng.borrow_mut().gen_range(0..node.out_ref.len())
+        };
+
+        // Get the type we need to match
+        let endpoint = &self.schema.endpoints[node.typ];
+        let typ = if is_input {
+            endpoint.inputs[conn_idx]
+        } else {
+            endpoint.outputs[conn_idx]
+        };
+
+        // Remove the existing connection if there is one
+        if is_input {
+            if let NodeRefType::Connected(_) = &graph.nodes[node_idx].in_ref[conn_idx] {
+                graph.unlink_backward(node_idx, conn_idx);
+            }
+        } else {
+            if let NodeRefType::Connected(_) = &graph.nodes[node_idx].out_ref[conn_idx] {
+                graph.unlink(node_idx, conn_idx);
+            }
+        }
+
+        // Find enabled endpoints with a matching input/output type
+        let cache = self.cache.borrow();
+        let enabled_endpoint_indices = &cache.enabled_endpoints;
+        
+        let endpoints = if is_input {
+            enabled_endpoint_indices.iter()
+                .map(|&idx| &self.schema.endpoints[idx])
+                .filter(|e| e.outputs.contains(&typ))
+                .collect::<Vec<_>>()
+        } else {
+            enabled_endpoint_indices.iter()
+                .map(|&idx| &self.schema.endpoints[idx])
+                .filter(|e| e.inputs.contains(&typ))
+                .collect::<Vec<_>>()
+        };
+
+        if endpoints.is_empty() {
+            self.mutate_regenerate(graph);
+            return;
+        }
+
+        // Pick a random endpoint
+        let endpoint = endpoints.choose(&mut *self.rng.borrow_mut()).unwrap();
+
+        // Add the new node
+        let new_node = graph.add_node(
+            endpoint.idx, 
+            graph.nodes[node_idx].layer + if is_input { -1 } else { 1 }, 
+            endpoint.inputs.len(), 
+            endpoint.outputs.len(), 
+            endpoint.context_size.unwrap()
+        );
+
+        // Link the new node
+        if is_input {
+            let new_conn_idx = endpoint.outputs.iter().enumerate().filter(|(_,x)| **x == typ).choose(&mut *self.rng.borrow_mut()).unwrap().0;
+            graph.link(new_node, new_conn_idx, node_idx, conn_idx);
+        } else {
+            let new_conn_idx = endpoint.inputs.iter().enumerate().filter(|(_,x)| **x == typ).choose(&mut *self.rng.borrow_mut()).unwrap().0;
+            graph.link(node_idx, conn_idx, new_node, new_conn_idx);
+        }
+
+        // Complete any remaining edges
         self.complete(graph);
         graph.sanitize();
     }

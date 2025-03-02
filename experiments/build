@@ -16,11 +16,15 @@ def run(args):
 
 def build_base(base):
     # Build base image in root folder context.
-    subprocess.run(['docker', 'build', '..', '-f', f'{base}/Dockerfile', '-t', f'gfafl_{base}'])
+    result = subprocess.run(['docker', 'build', '..', '-f', f'{base}/Dockerfile', '-t', f'gfafl_{base}'])
+    if result.returncode != 0:
+        raise RuntimeError(f'Failed to build base image {base}')
 
 def build_experiment(experiment):
     # Build experiment in subfolder root.
-    subprocess.run(['docker', 'build', f'./{experiment}', '-f', f'{experiment}/Dockerfile', '-t', f'gfafl_{experiment}'])
+    result = subprocess.run(['docker', 'build', f'./{experiment}', '-f', f'{experiment}/Dockerfile', '-t', f'gfafl_{experiment}'])
+    if result.returncode != 0:
+        raise RuntimeError(f'Failed to build experiment image {experiment}')
 
 def get_choices() -> List[str]:
     return [x.stem for x in Path('.').iterdir() if x.is_dir()]

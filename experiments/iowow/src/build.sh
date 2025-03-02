@@ -6,4 +6,4 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-gf_libafl_cxx -std=c++17 --libafl -o $1 $1.cpp -liowow
+gf_libafl_cxx -g -std=c++17 --libafl -o $1 $1.cpp -liowow

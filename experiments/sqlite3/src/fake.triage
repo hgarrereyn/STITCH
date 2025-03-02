@@ -1,0 +1,20 @@
+Explanation:
+The crash was caused by misuse of the API, specifically calling `sqlite3_close` before `sqlite3_finalize` can result in a crash.
+
+Test Case:
+Ensure you call `sqlite3_finalize` before `sqlite3_close`.
+
+How to ensure API conformity:
+Always ensure that you call `sqlite3_finalize` before `sqlite3_close`.
+
+API Good:
+sqlite3* db;
+sqlite3_open16(dbFilename, &db);
+sqlite3_finalize(db);
+sqlite3_close(db);
+
+API Bad:
+sqlite3* db;
+sqlite3_open16(dbFilename, &db);
+sqlite3_close(db);
+sqlite3_finalize(db); // Crash

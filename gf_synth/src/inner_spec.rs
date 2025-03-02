@@ -1,4 +1,5 @@
 
+use gf_core::schema::VariableMapping;
 use serde::{Deserialize, Serialize};
 
 
@@ -20,4 +21,6 @@ pub struct InnerEndpointSpec {
     pub outputs: Vec<usize>,
     pub args: Vec<String>,
     pub template: String,
+
+    pub mappings: Vec<VariableMapping>,
 }

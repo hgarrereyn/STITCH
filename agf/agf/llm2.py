@@ -3,33 +3,58 @@ from pathlib import Path
 import json
 import random
 from openai import OpenAI
+from pydantic import BaseModel
+import re
 
-from .spec import Objects, Stubs, Functions, Object, Templates, Stub, Template, TemplateError, Endpoint, Schema, Variable, ObjectArg
+from .spec import Objects, Stubs, Functions, Stub, Template, TemplateError, Endpoint, Schema, ObjectArg, DetailedStub, DetailedTemplate
 from .tools.search import find_function_invocations
 from .builder import try_build
 
+class TraceMeta(BaseModel):
+    type: str
+    name: str
+    is_retry: bool
+
+class Tracer:
+    def __init__(self, logfile: str):
+        self.logfile = logfile
+        self.traces = []
+
+    def trace(self, messages: List[any], meta: TraceMeta):
+        self.traces.append({
+            "messages": messages,
+            "meta": meta.model_dump()
+        })
+        self.save()
+
+    def save(self):
+        with open(self.logfile, 'w') as f:
+            f.write(json.dumps(self.traces, indent=2))
+
 class LLM:
-    def __init__(self, model: str, max_retries: int = 3):
+    def __init__(self, model: str, max_retries: int = 3, logfile: Optional[str] = None):
         self.client = OpenAI()
         self.model = model
         self.max_retries = max_retries
+        self.tracer = None
+        if logfile is not None:
+            self.tracer = Tracer(logfile)
 
-    def query(self, messages: List[str], fmt):
+    def query(self, messages: List[any], fmt, meta=None):
         completion = self.client.beta.chat.completions.parse(
             model=self.model,
             messages=messages,
             response_format=fmt
         )
-        return completion.choices[0].message.parsed
-    
-    def query_multi(self, messages: List[str], fmt, n: int = 1):
-        completion = self.client.beta.chat.completions.parse(
-            model=self.model,
-            messages=messages,
-            response_format=fmt,
-            n=n
-        )
-        return [c.message.parsed for c in completion.choices]
+        res = completion.choices[0].message.parsed
+
+        if self.tracer is not None:
+            self.tracer.trace(
+                messages + [{"role": "assistant", "content": res.model_dump_json(indent=2)}],
+                meta
+            )
+
+        return res
 
     def prompt_objects(self, code: str) -> Objects:
         '''Generates a list of objects from the given code.'''
@@ -39,13 +64,15 @@ Given the following code, generate a list of all live-objects that exist beyond 
 
 For each object, assign a name and a canonical type.
 
+Include each object only once, do not include multiple variations of the same object.
+
 Prefer the type `struct foo *` over `struct foo`.
 '''.strip()
 
         s = self.query([
             {"role": "system", "content": task},
             {"role": "user", "content": '// code:\n' + code}
-        ], Objects)
+        ], Objects, meta=TraceMeta(type='objects', name='objects', is_retry=False))
 
         return s
     
@@ -59,97 +86,128 @@ Given the following code, generate a list of all public API functions in the cod
         s = self.query([
             {"role": "system", "content": task},
             {"role": "user", "content": '// code:\n' + code}
-        ], Functions)
+        ], Functions, meta=TraceMeta(type='functions', name='functions', is_retry=False))
 
         return s
     
-    def prompt_stubs(self, code: str, example_usage: str, function: str, objects: Objects, n: int = 5) -> Stubs:
+    def prompt_stubs(self, code: str, example_usage: str, function: str, objects: Objects) -> Stubs:
         '''Generates a list of stubs from the given code.'''
 
         task = f'''
-Given the following code, list of available objects, and example usage of the function `{function}`, generate a list of stubs for the function `{function}`.
+Given the following code, list of available objects, and example usage of the function `{function}`, describe the function signature for `{function}`.
 
-Each stub consists of a list of object arguments. Each object argument has a name, a type (which must match an object name), and a direction (`*`, `new`, or `del`).
-
-If the function produces a new object, the object direction should be `new`. If the function deletes an object (e.g. a destructor), the object direction should be `del`. All other cases should be `*`.
-
-Only list function arguments that have object types. Do not consider arguments that are primitive types (e.g. `int`, `float`, `bool`, `string`, etc.).
-
-Most functions have a single way to call them, therefore just one stub is needed. However, if the function is variadic (for example, optional arguments), generate a stub for each variant. For example if an argument is optional, generate a stub for when it is not provided and a stub for when it is provided.
-
-Refer to the documentation of the function and the example usage to determine the possible arguments.
-
-Ensure that each argument type matches the name of an object in the list of objects.
+Iterate over each argument (and the return value) and describe each argument's:
+- "name"
+- "type" C/C++ type
+- "base_type" the underlying object matching this type (must match an entry in the provided list of objects or "none" if none of the object types match)
+- "dir" which can be either:
+    - "new" if the argument is being created (i.e. an output of the function)
+    - "del" if the argument is being destructed (use the name of the function and docs to understand if this is the case) -- e.g. functions with words like "free" or "delete"
+    - "*" in all other cases
+- "is_optional" true if the argument can be null, false otherwise
 '''.strip()
 
-        res = self.query_multi([
+        res = self.query([
             {"role": "system", "content": task},
             {"role": "user", "content": '// code:\n' + code},
             {"role": "user", "content": '// objects:\n' + objects.model_dump_json(indent=2)},
             {"role": "user", "content": '// example usage:\n' + example_usage}
-        ], Stubs, n=n)
+        ], DetailedStub, meta=TraceMeta(type='stubs', name=function, is_retry=False))
 
-        stubs = Stubs(stubs=[s for r in res for s in r.stubs])
-        stubs.fixup(objects)
-        stubs.dedup()
+        res.fixup(objects)
+        stubs = res.expand_stubs()
 
         return stubs
 
-    def prompt_lifetime(self, code: str, object: Object, constructor: bool, history: List[Tuple[Template, TemplateError]] = []) -> Template:
-        task = f'''
-Complete the following code snippet to {'construct' if constructor else 'destruct'} the object `{object.name}` in a way that maximizes diversity of values.
-
-Ensure that you only emit code that is necessary to {'construct' if constructor else 'destruct'} the object.
-
-Prefer to use the library API to allocate/free memory. If there is no library API, use `gf_malloc` and `gf_free` instead.
-
-You may emit statements like:
-```
-T x = gf_rand::get<T>()
-```
-to retrieve random values for some arbitrary fixed-size type T.
-
-The input variables are pre-initialized to some value and you may reference them in your code. Do **not** redefine them.
-You are responsible for initializing all of the output variables.
-
-Do not add any other inputs or outputs. Any new objects constructed that are not listed as outputs should be deleted.
-
-Do not leave any logic unimplemented or "TODO". Make sure the code snippet is complete.
-
-If some operation fails cleanly, emit the statement `gf_bail();` to mark an error case that should not continue.
-```
-'''.strip()
-        
+    def prompt_lifetime(self, code: str, object: str, constructor: bool, history: List[Tuple[Template, TemplateError]] = []) -> Tuple[DetailedTemplate, Template]:
         if constructor:
-            task += f'''
-You must construct this object:
-```
-{object.canonical_type} obj;
+            task = f'''
+Complete the following function that constructs `{object}`.
+
+Use the library API to initialize the object if possible.
+Otherwise, you can directly manage memory with `gf_malloc`/`gf_free` (instead of `malloc`/`free`).
+
+You have access to the `gf_rand` api:
+```cpp
+// Retrieve a random value for a fixed-size type T
+T gf_rand::get<T>();
+
+// Retrieve a random std::string of length len
+std::string gf_rand::get_string(size_t len);
 ```
 
-Complete the following code snippet:
-```
-// Code:
-{{
-    /* complete the code here to construct obj */
+Use `gf_rand` to generate random values for any arguments that are not already initialized.
+
+Use `gf_bail()` to mark an error case that should not continue.
+
+Do not use the `return` statement anywhere. 
+
+Function signature:
+```cpp
+void construct_object(
+    {object} &__obj,
+) {{
+    // Your implementation here
+    // You must:
+    // 1. Initialize __obj
+    // 2. Clean up any temporary objects you create
+    // 3. Call gf_bail() if any operation fails
 }}
 ```
-'''.strip()
+
+Return an object with the following fields:
+- "function_name" the name of the function
+- "function_args" a list of arguments
+- "function_body" the body of the function, not including the function signature
+
+"function_args" must be: [
+    "{object} &__obj"
+]
+            '''.strip()
         else:
-            task += f'''
-You must destruct this object:
-```
-{object.canonical_type} obj = /* hidden */;
+            task = f'''
+Complete the following function that destructs `{object}`.
+
+Use the library API to destruct the object if possible.
+Otherwise, you can directly manage memory with `gf_malloc`/`gf_free` (instead of `malloc`/`free`).
+
+You have access to the `gf_rand` api:
+```cpp
+// Retrieve a random value for a fixed-size type T
+T gf_rand::get<T>();
+
+// Retrieve a random std::string of length len
+std::string gf_rand::get_string(size_t len);
 ```
 
-Complete the following code snippet:
-```
-// Code:
-{{
-    /* complete the code here to destruct obj */
+Use `gf_rand` to generate random values for any arguments that are not already initialized.
+
+Use `gf_bail()` to mark an error case that should not continue.
+
+Do not use the `return` statement anywhere. 
+
+Function signature:
+```cpp
+void destruct_object(
+    {object} &__obj, /* delete */
+) {{
+    // Your implementation here
+    // You must:
+    // 1. Destruct __obj
+    // 2. Clean up any temporary objects you create
+    // 3. Call gf_bail() if any operation fails
 }}
 ```
-'''.strip()
+
+Return an object with the following fields:
+- "function_name" the name of the function
+- "function_args" a list of arguments
+- "function_body" the body of the function, not including the function signature
+
+"function_args" must be: [
+    "{object} &__obj"
+]
+            '''.strip()
 
         messages = [    
             {"role": "system", "content": task},
@@ -158,53 +216,77 @@ Complete the following code snippet:
 
         for template, error in history:
             messages.append({"role": "assistant", "content": template.model_dump_json(indent=2)})
-            messages.append({"role": "user", "content": f'// Fix the error:\n{error}'})
+            messages.append({"role": "user", "content": f'// Fix the error:\n{error.error}'})
 
-        s = self.query(messages, Template)
+        orig = self.query(messages, DetailedTemplate, meta=TraceMeta(type='lifetime', name=f'{"construct" if constructor else "destruct"} {object}', is_retry=len(history) > 0))
+        extracted = Template(template=orig.function_body)
 
-        return s
+        return orig, extracted
     
-    def prompt_usage(self, code: str, example_usage: str, function: str, stub: Stub, objects: Objects, history: List[Tuple[Template, TemplateError]] = []) -> Template:
+    def prompt_usage(self, code: str, example_usage: str, function: str, stub: Stub, objects: Objects, history: List[Tuple[DetailedTemplate, TemplateError]] = []) -> Tuple[DetailedTemplate, Template]:
         '''Generates a usage example for the given function stub.'''
 
-        inputs = '\n'.join([f'{objects.find(o.typ).canonical_type} {o.name} = /* hidden */' for i, o in enumerate(stub.object_args) if o.dir != 'new'])
-        outputs = '\n'.join([f'{objects.find(o.typ).canonical_type} {o.name};' for i, o in enumerate(stub.object_args) if o.dir == 'new'])
+        sig_lines = []
+        function_args = []
+
+        inputs = [o for o in stub.object_args if o.dir != 'new']
+        outputs = [o for o in stub.object_args if o.dir == 'new']
+
+        if len(inputs) > 0:
+            sig_lines.append('    // Input parameters - these are already initialized, you must use them')
+            sig_lines += [f"    {o.typ} __{o.name}," + (" /* delete */" if o.dir == 'del' else "") for o in inputs]
+            function_args += [f"{o.typ} __{o.name}" for o in inputs]
+
+        if len(outputs) > 0:
+            sig_lines.append('    // Output parameters - you must initialize these')
+            sig_lines += [f"    {o.typ}& __{o.name}," for o in outputs]
+            function_args += [f"{o.typ}& __{o.name}" for o in outputs]
+        sig = ''
+        if len(sig_lines) > 0:
+            sig = '\n' + '\n'.join(sig_lines) + '\n'
+
+        function_args = ', '.join(map(lambda x: f'"{x}"', function_args))
 
         task = f'''
-Complete the following code snippet in a way that maximizes diversity of values and invokes the function `{function}`.
-Don't perform any extraneous operations that are not necessary to invoke the function.
+Complete the following function that invokes `{function}`. The function takes pre-initialized input parameters and must initialize all output parameters inside the body.
 
-You may emit statements like:
-```
-T x = gf_rand::get<T>()
-```
-to retrieve random values for some arbitrary fixed-size type T.
-
-The input variables are pre-initialized to some value and you may reference them in your code. Do **not** redefine them.
-You are responsible for initializing all of the output variables.
-
-Do not add any other inputs or outputs. Any new objects constructed that are not listed as outputs should be deleted.
-
-Do not leave any logic unimplemented or "TODO". Make sure the code snippet is complete.
-
-If some operation fails cleanly, emit the statement `gf_bail();` to mark an error case that should not continue.
-
-You have access to the following objects:
+You have access to the `gf_rand` api:
 ```cpp
-// Inputs:
-{inputs}
+// Retrieve a random value for a fixed-size type T
+T gf_rand::get<T>();
 
-// Outputs:
-{outputs}
+// Retrieve a random std::string of length len
+std::string gf_rand::get_string(size_t len);
 ```
 
-Complete the following code snippet:
+Use `gf_rand` to generate random values for any arguments that are not already initialized.
+
+Use `gf_bail()` to mark an error case that should not continue.
+
+Do not use the `return` statement anywhere. 
+
+Function signature:
 ```cpp
-// Code:
-{{
-    // ...
+void invoke_{function}({sig}) {{
+    // Your implementation here
+    // You must:
+    // 1. Validate input parameters
+    // 2. Call {function} with appropriate arguments
+    // 3. Initialize any output arguments
+    // 4. Clean up any temporary objects you create
+    // 5. Call gf_bail() if any operation fails
 }}
-```'''.strip()
+```
+
+Return an object with the following fields:
+- "function_name" the name of the function
+- "function_args" a list of arguments
+- "function_body" the implementation of the function, not including the function signature
+
+"function_args" must be: [
+    {function_args}
+]
+        '''.strip()
         
         messages = [
             {"role": "system", "content": task},
@@ -214,11 +296,12 @@ Complete the following code snippet:
 
         for template, error in history:
             messages.append({"role": "assistant", "content": template.model_dump_json(indent=2)})
-            messages.append({"role": "user", "content": f'// Fix the error:\n{error}'})
+            messages.append({"role": "user", "content": f'// Fix the error:\n{error.error}'})
 
-        s = self.query(messages, Template)
+        orig = self.query(messages, DetailedTemplate, meta=TraceMeta(type='usage', name=function, is_retry=len(history) > 0))
+        extracted = Template(template=orig.function_body)
 
-        return s
+        return orig, extracted
 
 
 def register(subparsers):
@@ -286,6 +369,7 @@ def register(subparsers):
     parser.add_argument('build_script', help='Path to build script')
     parser.add_argument('-o', '--output', help='Path to output file')
     parser.add_argument('-c', '--config', help='Path to config file')
+    parser.add_argument('-l', '--logfile', help='Path to logfile')
     parser.set_defaults(func=full_loop)
 
 def get_example_usage(codebase: Path, function: str, context_lines: int = 7) -> str:
@@ -363,8 +447,8 @@ def lifetime(args):
     objects = Objects.model_validate_json(open(args.objects).read())
     object = next(o for o in objects.objects if o.name == args.object)
     constructor = args.constructor
-    template = llm.prompt_lifetime(code, object, constructor)
-    print(template.template)
+    orig, extracted = llm.prompt_lifetime(code, object, constructor)
+    print(extracted.template)
 
 
 def usage(args):
@@ -375,10 +459,10 @@ def usage(args):
     objects = Objects.model_validate_json(open(args.objects).read())
     example_usage = get_example_usage(args.codebase, args.function)
 
-    usage = llm.prompt_usage(code, example_usage, args.function, stub, objects)
-    print(usage.template)
+    orig, extracted = llm.prompt_usage(code, example_usage, args.function, stub, objects)
+    print(extracted.template)
 
-    endpoint = stub.to_endpoint(args.function, usage.template, objects)
+    endpoint = stub.to_endpoint(args.function, extracted.template)
     print(endpoint)
 
     # Write the endpoint to a file
@@ -398,10 +482,16 @@ def usage_loop(args):
     for i in range(5):
         print(f'Attempt {i + 1}')
 
-        usage = llm.prompt_usage(code, example_usage, args.function, stub, objects, history=history)
-        print(usage.template)
+        orig, extracted = llm.prompt_usage(code, example_usage, args.function, stub, objects, history=history)
+        print(extracted.template)
 
-        endpoint = stub.to_endpoint(args.function, usage.template, objects)
+        # Sanity check the format
+        if re.match(r'^\s*void\s+\w+\s*\(', extracted.template):
+            err = 'Do not include the function signature in the function body'
+            history.append((orig, TemplateError(error=err)))
+            continue
+
+        endpoint = stub.to_endpoint(args.function, extracted.template)
         res = try_build(endpoint, args.build_script, config=args.config)
         
         if res is None:
@@ -413,18 +503,25 @@ def usage_loop(args):
             print('-' * 60)
             print(res.error)
             print('-' * 60)
-            history.append((usage, TemplateError(error=res.error)))
+            history.append((orig, TemplateError(error=res.error)))
 
 def _usage_loop(llm, code, function, stub, objects, example_usage, build_script, config, max_attempts: int = 5) -> Optional[Endpoint]:
     history = []
     for i in range(max_attempts):
         print(f'Attempt {i + 1}...', end=' ')
 
-        usage = llm.prompt_usage(code, example_usage, function, stub, objects, history=history)
-        print(usage.template)
-        endpoint = stub.to_endpoint(function, usage.template, objects)
+        orig, extracted = llm.prompt_usage(code, example_usage, function, stub, objects, history=history)
+        print(extracted.template)
+
+        # Sanity check the format
+        if re.match(r'^\s*void\s+\w+\s*\(', extracted.template):
+            err = 'Do not include the function signature in the function body'
+            history.append((orig, TemplateError(error=err)))
+            continue
+
+        endpoint = stub.to_endpoint(function, extracted.template)
         res = try_build(endpoint, build_script, config=config)
-        
+
         if res is None:
             print('Success!')
             return endpoint
@@ -433,22 +530,29 @@ def _usage_loop(llm, code, function, stub, objects, example_usage, build_script,
             print('-' * 60)
             print(res.error)
             print('-' * 60)
-            history.append((usage, TemplateError(error=res.error)))
+            history.append((orig, TemplateError(error=res.error)))
 
     return None
 
 def _lifetime_loop(llm, code, object, objects, constructor, build_script, config, max_attempts: int = 5) -> Optional[Endpoint]:
     
-    stub = Stub(object_args=[ObjectArg(name='obj', typ=object.name, dir='new' if constructor else 'del')])
-    stub_name = f'{"construct" if constructor else "destruct"}_{object.name}'
+    stub = Stub(object_args=[ObjectArg(name='obj', typ=object, dir='new' if constructor else 'del')])
+    stub_name = f'{"construct" if constructor else "destruct"}_{object}'
 
     history = []
     for i in range(max_attempts):
         print(f'Attempt {i + 1}...', end=' ')
 
-        template = llm.prompt_lifetime(code, object, constructor, history=history)
-        print(template.template)
-        endpoint = stub.to_endpoint(stub_name, template.template, objects)
+        orig, extracted = llm.prompt_lifetime(code, object, constructor, history=history)
+        print(extracted.template)
+
+        # Sanity check the format
+        if re.match(r'^\s*void\s+\w+\s*\(', extracted.template):
+            err = 'Do not include the function signature in the function body'
+            history.append((orig, TemplateError(error=err)))
+            continue
+
+        endpoint = stub.to_endpoint(stub_name, extracted.template)
         res = try_build(endpoint, build_script, config=config)
         
         if res is None:
@@ -459,7 +563,7 @@ def _lifetime_loop(llm, code, object, objects, constructor, build_script, config
             print('-' * 60)
             print(res.error)
             print('-' * 60)
-            history.append((template, TemplateError(error=res.error)))
+            history.append((orig, TemplateError(error=res.error)))
 
     return None
 
@@ -487,11 +591,13 @@ def full_loop(args):
     build_script = args.build_script
     config = args.config
 
-    llm = LLM('gpt-4o-mini')
+    llm = LLM('gpt-4o-mini', logfile=args.logfile)
     objects = llm.prompt_objects(code)
     functions = llm.prompt_functions(code, objects)
     
     print(f'{len(objects.objects)} objects')
+    for obj in objects.objects:
+        print(f'- "{obj}"')
     print(f'{len(functions.functions)} functions')
 
     fstubs = []
@@ -502,7 +608,7 @@ def full_loop(args):
         print(f' - {function} ({len(stubs.stubs)} stubs)')
         for stub in stubs.stubs:
             # print [(dir) type name, ...]
-            print(f'[{", ".join([f"({o.dir}) {objects.find(o.typ).canonical_type} {o.name}" for o in stub.object_args])}]')
+            print(f'[{", ".join([f"({o.dir}) {o.typ} {o.name}" for o in stub.object_args])}]')
             fstubs.append((function, stub))
 
 
@@ -520,17 +626,18 @@ def full_loop(args):
 
     for object in objects.objects:
         for constructor in [True, False]:
-            if (object.name, constructor) in auto_lifetimes:
-                print(f'Skipping {"constructor" if constructor else "destructor"} for {object.name} (auto-generated)')
+            if (object, constructor) in auto_lifetimes:
+                print(f'Skipping {"constructor" if constructor else "destructor"} for {object} (auto-generated)')
                 continue
 
-            print(f'Generating {"constructor" if constructor else "destructor"} for {object.name}...')
+            print(f'Generating {"constructor" if constructor else "destructor"} for {object}...')
             endpoint = _lifetime_loop(llm, code, object, objects, constructor, build_script, config)
             if endpoint is not None:
                 endpoints.append(endpoint)
 
     for function, stub in fstubs:
         print(f'Generating usage for {function}...')
+        example_usage = get_example_usage(codebase, function)
         endpoint = _usage_loop(llm, code, function, stub, objects, example_usage, build_script, config)
         if endpoint is not None:
             endpoints.append(endpoint)

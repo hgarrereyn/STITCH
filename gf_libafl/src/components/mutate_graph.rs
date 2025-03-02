@@ -40,3 +40,5 @@ macro_rules! create_graph_mutator {
 
 create_graph_mutator!(GraphMutateDeleteOne, mutate_delete_one);
 create_graph_mutator!(GraphMutateIsolateComponent, mutate_isolate_component);
+create_graph_mutator!(GraphMutateRegenerate, mutate_regenerate);
+create_graph_mutator!(GraphMutateAddOne, mutate_add_one);

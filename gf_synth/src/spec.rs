@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use gf_core::schema::VariableMapping;
 use thiserror::Error;
 use serde::{Deserialize, Serialize};
 use regex::Regex;
@@ -179,6 +180,8 @@ impl EndpointSpec {
         let mut outputs = vec![];
         let mut args = vec![];
 
+        let mut mappings = vec![];
+
         // replace all instances of "$name" with "[$name]" in the template
         let mut template = Regex::new(r"(\$[a-zA-Z0-9_]+)").unwrap().replace_all(&self.template, "[$1]").to_string();
 
@@ -192,6 +195,11 @@ impl EndpointSpec {
                         outputs.push(*idx);
                         template = template.replace(&format!("[{}]", v.name), &format!("$i{}", inputs.len() - 1));
                         post_template.push_str(&format!("$o{} = $i{};\n", outputs.len() - 1, inputs.len() - 1));
+                        mappings.push(VariableMapping {
+                            name: v.name.clone(),
+                            in_idx: Some(inputs.len() - 1),
+                            out_idx: Some(outputs.len() - 1),
+                        });
                     } else {
                         args.push(v.typ.clone());
                         template = template.replace(&format!("[{}]", v.name), &format!("$a{}", args.len() - 1));
@@ -201,6 +209,11 @@ impl EndpointSpec {
                     if let Some(idx) = types.get(&v.typ) {
                         outputs.push(*idx);
                         template = template.replace(&format!("[{}]", v.name), &format!("$o{}", outputs.len() - 1));
+                        mappings.push(VariableMapping {
+                            name: v.name.clone(),
+                            in_idx: None,
+                            out_idx: Some(outputs.len() - 1),
+                        });
                     } else {
                         // Ignore new arg types
                         // TODO: warning
@@ -212,6 +225,11 @@ impl EndpointSpec {
                     if let Some(idx) = types.get(&v.typ) {
                         inputs.push(*idx);
                         template = template.replace(&format!("[{}]", v.name), &format!("$i{}", inputs.len() - 1));
+                        mappings.push(VariableMapping {
+                            name: v.name.clone(),
+                            in_idx: Some(inputs.len() - 1),
+                            out_idx: None,
+                        });
                     } else {
                         // Ignore del arg types
                         // TODO: warning
@@ -231,6 +249,7 @@ impl EndpointSpec {
             outputs,
             args,
             template,
+            mappings,
         }
     }
 

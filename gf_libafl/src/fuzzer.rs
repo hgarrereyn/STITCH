@@ -2,14 +2,12 @@ use core::{cell::RefCell, time::Duration};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::{
-    fs::{File, OpenOptions},
-    io::{self, Write},
-    path::PathBuf,
-    process, rc::Rc,
+    borrow::BorrowMut, fs::{File, OpenOptions}, io::{self, Write}, path::PathBuf, process, rc::Rc, sync::Arc
 };
+use tempfile;
 
 use libafl::{
-    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{inprocess::InProcessExecutor, ExitKind}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
+    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{inprocess::InProcessExecutor, ExitKind, ForkserverExecutor, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
         havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
     }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::QueueScheduler, stages::{
         StdMutationalStage,
@@ -17,43 +15,32 @@ use libafl::{
     }, state::{HasCorpus, StdState}, Error, Evaluator, HasMetadata
 };
 use libafl_bolts::{
-    current_time,
-    rands::StdRand,
-    shmem::{ShMemProvider, StdShMemProvider},
-    tuples::{tuple_list, Merge},
+    current_time, rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::{tuple_list, Merge}, AsSlice, AsSliceMut
 };
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 use libafl_targets::autotokens;
 use libafl_targets::{
-    libfuzzer_initialize, CmpLogObserver,
+    libfuzzer_initialize, std_edges_map_observer, CmpLogObserver, EDGES_MAP_PTR, EDGES_MAP_DEFAULT_SIZE
 };
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateDeleteOne, GraphMutateIsolateComponent}};
-use gf_core::{harness::Harness, mutation::MutationContext, schema::Schema};
+use crate::components::{filter_reloader::FilterReloaderStage, filtered_mutator::FilteredMutator, graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate}, runtime_metadata::{MetadataLoggerStage, RuntimeMetadata}};
+use gf_core::{filter::FilterManager, harness::{Harness, InvokeResult}, mutation::MutationContext, schema::Schema};
 
 /// The actual fuzzer
 pub fn fuzz(
     gf_harness: Harness,
-    schema: Schema,
-    obs: StdMapObserver<u8,false>,
+    ctx: Rc<MutationContext>,
     corpus_dir: PathBuf,
     objective_dir: PathBuf,
     seed_dir: &PathBuf,
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
     timeout: Duration,
-    bypass_validation: bool,
+    filter_dir: Option<PathBuf>,
 ) -> Result<(), Error>
 {
-
-    let mctx = MutationContext::new(schema);
-    println!("Computing mutation context...");
-    mctx.compute(3, bypass_validation);
-    println!("Computed mutation context");
-    let ctx = Rc::new(mctx);
-    
     let log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     #[cfg(unix)]
@@ -77,21 +64,33 @@ pub fn fuzz(
     // This way, we are able to continue fuzzing afterwards.
     let mut shmem_provider = StdShMemProvider::new()?;
 
-    let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
-    {
-        // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
-        Ok(res) => res,
-        Err(err) => match err {
-            Error::ShuttingDown => {
-                return Ok(());
-            }
-            _ => {
-                panic!("Failed to setup the restarter: {err}");
-            }
-        },
-    };
+    let mut shmem;
+    unsafe{
+        shmem = shmem_provider.new_shmem(EDGES_MAP_DEFAULT_SIZE).unwrap();
+    }
+    let shmem_buf = shmem.as_slice_mut();
+    unsafe{
+        EDGES_MAP_PTR = shmem_buf.as_mut_ptr();
+    }
+    
+    let obs = unsafe { std_edges_map_observer("edges") };
 
-    // let mut mgr = SimpleEventManager::new(monitor);
+    // let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
+    // {
+    //     // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
+    //     Ok(res) => res,
+    //     Err(err) => match err {
+    //         Error::ShuttingDown => {
+    //             return Ok(());
+    //         }
+    //         _ => {
+    //             panic!("Failed to setup the restarter: {err}");
+    //         }
+    //     },
+    // };
+
+    let mut state = None;
+    let mut mgr = SimpleEventManager::new(monitor);
 
     // Create an observation channel using the coverage map
     // We don't use the hitcounts (see the Cargo.toml, we use pcguard_edges)
@@ -154,15 +153,30 @@ pub fn fuzz(
         5,
     )?;
 
-    let graph_mutator = StdMutationalStage::new(StdMOptMutator::new(
-        &mut state,
-        tuple_list!(
-            GraphMutateDeleteOne::new(ctx.clone()),
-            GraphMutateIsolateComponent::new(ctx.clone()),
+    let filter_dir = filter_dir.unwrap_or(PathBuf::from("."));
+    let filter_manager = Rc::new(RefCell::new(FilterManager::new(filter_dir.to_string_lossy().to_string()).unwrap()));
+    (*filter_manager).borrow_mut().reload(true);
+
+    let reloader = FilterReloaderStage::new(filter_manager.clone(), Duration::from_secs(10), true);
+
+    let graph_mutator = StdMutationalStage::new(
+        FilteredMutator::new(
+            filter_manager,
+            ctx.clone(),
+            StdMOptMutator::new(
+                &mut state,
+                tuple_list!(
+                    GraphMutateDeleteOne::new(ctx.clone()),
+                    GraphMutateIsolateComponent::new(ctx.clone()),
+                    GraphMutateRegenerate::new(ctx.clone()),
+                    GraphMutateAddOne::new(ctx.clone()),
+                ),
+                7,
+                5,
+            )?,
+            10
         ),
-        7,
-        5,
-    )?);
+    );
 
     let context_stage = StdMutationalStage::new(
         GraphMutateBytes::new(ctx.clone(), mutator),
@@ -183,33 +197,90 @@ pub fn fuzz(
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
+    let metadata = if let Ok(metadata) = state.metadata::<RuntimeMetadata>() {
+        println!("Loaded metadata from state");
+        metadata.clone()
+    } else {
+        println!("Creating new metadata");
+        RuntimeMetadata::new()
+    };
+
+    let local_metadata = Rc::new(RefCell::new(metadata));
+    let metadata_logger = MetadataLoggerStage::new(local_metadata.clone(), "metadata.json".to_string(), Duration::from_secs(10));
+
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &GraphInput| {
-        gf_harness.invoke(&input.graph);
+        // println!("Invoking harness");
+        // input.graph.pprint();
+
+        // Create a temporary directory for sandboxing
+        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        
+        // Change to the temporary directory
+        std::env::set_current_dir(&temp_dir.path()).expect("Failed to change to temporary directory");
+        
+        // Invoke the harness in the sandboxed environment
+        let res = gf_harness.invoke(&input.graph);
+        // println!("Harness returned {:?}", res);
+
+        // Change back to the original directory
+        std::env::set_current_dir(&original_dir).expect("Failed to change back to original directory");
+
+        match res {
+            InvokeResult::Bailed(bail_point) => {
+                // Update fuzzer metadata
+                (*local_metadata).borrow_mut().mark_failure(bail_point, &input.graph);
+            }
+            InvokeResult::Success => {
+                (*local_metadata).borrow_mut().mark_success(&input.graph);
+            }
+        };
+
         ExitKind::Ok
     };
 
     let mut tracing_harness = harness;
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    let mut executor = InProcessExecutor::with_timeout(
+    // let mut executor = InProcessExecutor::with_timeout(
+    //     &mut harness,
+    //     tuple_list!(edges_observer, time_observer),
+    //     &mut fuzzer,
+    //     &mut state,
+    //     &mut mgr,
+    //     timeout,
+    // )?;
+
+    let mut executor = InProcessForkExecutor::new(
         &mut harness,
         tuple_list!(edges_observer, time_observer),
         &mut fuzzer,
         &mut state,
         &mut mgr,
         timeout,
+        shmem_provider.clone()
     )?;
 
     // Setup a tracing stage in which we log comparisons
     let tracing = TracingStage::new(
-        InProcessExecutor::with_timeout(
+        // InProcessExecutor::with_timeout(
+        //     &mut tracing_harness,
+        //     tuple_list!(cmplog_observer),
+        //     &mut fuzzer,
+        //     &mut state,
+        //     &mut mgr,
+        //     timeout * 10,
+        // )?,
+
+        InProcessForkExecutor::new(
             &mut tracing_harness,
             tuple_list!(cmplog_observer),
             &mut fuzzer,
             &mut state,
             &mut mgr,
             timeout * 10,
+            shmem_provider
         )?,
         // Give it more time!
     );
@@ -217,7 +288,14 @@ pub fn fuzz(
     // The order of the stages matter!
     // let mut stages = tuple_list!(calibration, tracing, i2s, power);
 
-    let mut stages = tuple_list!(tracing, i2s, context_stage, graph_mutator);
+    let mut stages = tuple_list!(
+        metadata_logger,
+        reloader,
+        graph_mutator,
+        tracing,
+        i2s,
+        context_stage,
+    );
 
     // Read tokens
     if state.metadata_map().get::<Tokens>().is_none() {

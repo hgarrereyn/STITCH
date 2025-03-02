@@ -9,15 +9,47 @@ api_keys = [
     'OPENAI_API_KEY',
 ]
 
+def read_env_file() -> dict:
+    env_path = Path('.') / '.env'
+    if not env_path.exists():
+        return {}
+    
+    env_vars = {}
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                env_vars[key.strip()] = value.strip().strip("'").strip('"')
+    return env_vars
+
 def run(args):
-    subprocess.run(['./build', args.experiment])
+    # Build the experiment first
+    result = subprocess.run(['./build', args.experiment])
+    if result.returncode != 0:
+        raise RuntimeError(f'Failed to build {args.experiment}')
+
     # pass any environment variables that are set
     env = {k: v for k, v in os.environ.items() if k in api_keys}
+    # Add variables from .env file
+    env.update(read_env_file())
     pkeys = [f'-e{k}={v}' for k, v in env.items()]
+    
+    cmd = ['docker', 'run', '--network', 'multi', '--name', f'agf-experiment-{args.experiment}', '--privileged', '-it'] + pkeys + ['-p', f'{args.port}:{args.port}']
     if args.detach:
-        subprocess.run(['docker', 'run', '--privileged', '-it'] + pkeys + ['-p', f'{args.port}:{args.port}', '-d', '--rm', f'gfafl_{args.experiment}', '/bin/bash'])
-    else:
-        subprocess.run(['docker', 'run', '--privileged', '-it'] + pkeys + ['-p', f'{args.port}:{args.port}', '--rm', f'gfafl_{args.experiment}', '/bin/bash'])
+        cmd += ['-d']
+    if args.mount:
+        mount_path = Path('..') / args.mount
+        if not mount_path.exists():
+            raise RuntimeError(f'Mount path {mount_path} does not exist')
+        cmd += ['-v', f'{mount_path.absolute()}:/live/{args.mount}']
+    cmd += ['--rm', f'gfafl_{args.experiment}', '/bin/bash', '-c', f'agf serve {args.port} >/dev/null 2>&1 & /bin/bash']
+    
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        raise RuntimeError(f'Failed to run container for {args.experiment}')
 
 def get_choices() -> List[str]:
     return [x.stem for x in Path('.').iterdir() if x.is_dir()]
@@ -27,6 +59,7 @@ def main():
     parser.add_argument('experiment', choices=get_choices())
     parser.add_argument('--detach', '-d', action='store_true', default=False)
     parser.add_argument('--port', '-p', type=int, default=3000)
+    parser.add_argument('--mount', type=str, help='Mount a folder from parent directory into /live/<folder> in the container')
     args = parser.parse_args()
     run(args)
 

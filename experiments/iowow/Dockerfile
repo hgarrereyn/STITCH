@@ -7,7 +7,7 @@ RUN git clone https://github.com/Softmotions/iowow.git
 RUN cd /fuzz/iowow && \
     mkdir build && \
     cd build && \
-    CC=gf_libafl_cc CXX=gf_libafl_cxx cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    CC=gf_libafl_cc CXX=gf_libafl_cxx cmake .. -DCMAKE_BUILD_TYPE=Debug && \
     make && \
     make install
 

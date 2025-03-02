@@ -23,7 +23,9 @@ pub fn is_primitive_constructable(typ: &str, headers: &[HeaderSpec]) -> Result<b
     for header in headers {
         match header {
             HeaderSpec::CHeader(header) => {
-                code.push_str(&format!("extern \"C\" {{ {} }}\n", format_header(header)));
+                code.push_str("extern \"C\" {\n");
+                code.push_str(&format!("    {}\n", format_header(header)));
+                code.push_str("}\n");
             }
             HeaderSpec::CppHeader(header) => {
                 code.push_str(&format!("{}\n", format_header(header)));

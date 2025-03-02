@@ -42,6 +42,8 @@ impl<'a> SchemaWriter<'a> {
                 outputs,
                 idx: i,
                 context_size: None,
+                template: Some(endpoint.template.clone()),
+                mappings: endpoint.mappings.clone(),
             });
         }
 

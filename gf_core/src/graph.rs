@@ -1,8 +1,11 @@
+use std::collections::{HashMap, HashSet};
+use std::ffi::{CStr, CString};
 
-use std::collections::HashSet;
-
+use pyo3::ffi::c_str;
 use serde::{Serialize, Deserialize};
 use colored::Colorize;
+use pyo3::prelude::*;
+use pyo3::types::{PyDict, PyList};
 
 use super::schema::Schema;
 
@@ -295,4 +298,117 @@ impl Graph {
             node.layer -= min_level;
         }
     }
+
+    pub fn to_testcase_py_object<'py>(&self, py: Python<'py>, schema: &Schema) -> PyResult<PyObject> {
+        let graph = PyDict::new(py);
+
+        let order = self.topological_sort();
+        let mut id = 0;
+
+        // Map from (endpoint_idx, out_idx) to (type, id)
+        let mut storage: HashMap<(usize, usize), (String, usize)> = HashMap::new();
+
+        let py_endpoints = PyList::empty(py);
+
+        for node_idx in order {
+            let node = &self.nodes[node_idx];
+            let endpoint = &schema.endpoints[node.typ];
+            
+            let py_endpoint = PyDict::new(py);
+            py_endpoint.set_item("name", endpoint.name.clone())?;
+
+            let py_variables = PyList::empty(py);
+            for mapping in endpoint.mappings.iter() {
+                let (typ, id) = if let Some(in_idx) = mapping.in_idx {
+                    // Lookup the input variable
+                    let (node_idx, conn_idx) = match &node.in_ref[in_idx] {
+                        NodeRefType::Connected(ref node_ref) => (node_ref.node_idx, node_ref.conn_idx),
+                        NodeRefType::Disconnected => panic!("Input connection is disconnected at {}", node_idx),
+                    };
+
+                    storage.get(&(node_idx, conn_idx)).unwrap()
+                } else {
+                    // Instantiate a new variable
+                    let typ_idx = endpoint.outputs[mapping.out_idx.unwrap()];
+                    let typ = schema.types[typ_idx].name.clone();
+
+                    id += 1;
+                    &(typ, id)
+                };
+
+                // Set the variable info.
+                let py_variable = PyDict::new(py);
+                py_variable.set_item("type", typ)?;
+                py_variable.set_item("id", id)?;
+                py_variable.set_item("name", mapping.name.clone())?;
+                py_variables.append(py_variable)?;
+
+                // Update storage for output variables
+                if let Some(out_idx) = mapping.out_idx {
+                    storage.insert((node_idx, out_idx), (typ.clone(), *id));
+                }
+            }
+            py_endpoint.set_item("variables", py_variables)?;
+
+            py_endpoints.append(py_endpoint)?;
+        }
+
+        graph.set_item("endpoints", py_endpoints)?;
+
+        let graph = graph.into();
+        let testcase = build_testcase(py, &graph)?;
+        Ok(testcase)
+    }
+
+    pub fn to_py_str_repr<'py>(&self, py: Python<'py>, schema: &Schema) -> Result<String, PyErr> {
+        // Convert graph to Python testcase object
+        let testcase = self.to_testcase_py_object(py, schema)?;
+        
+        // Get repr of the testcase object
+        let repr = testcase.call_method0(py, "__repr__")?;
+        
+        // Convert Python string to Rust String
+        Ok(repr.extract::<String>(py)?)
+    }
+}
+
+fn build_testcase(py: Python<'_>, graph: &PyObject) -> PyResult<PyObject> {
+    let testcase_code = r#"
+from dataclasses import dataclass
+from typing import List, Dict
+
+@dataclass
+class Variable:
+    type: str
+    id: int
+
+@dataclass
+class Endpoint:
+    name: str
+    variables: Dict[str, Variable]
+
+@dataclass
+class Testcase:
+    endpoints: List[Endpoint]
+
+# Convert raw data to Testcase instance
+def build_testcase(graph):
+    endpoints = []
+    for endpoint in graph["endpoints"]:
+        variables = {}
+        for variable in endpoint["variables"]:
+            variables[variable["name"]] = Variable(type=variable["type"], id=variable["id"])
+        endpoints.append(Endpoint(name=endpoint["name"], variables=variables))
+    return Testcase(endpoints=endpoints)
+"#;
+
+    let fun: PyObject = PyModule::from_code(
+        py,
+        CString::new(testcase_code.as_bytes()).unwrap().as_c_str(),
+        c_str!("testcase_module"),
+        c_str!("testcase_module")
+    )?.getattr("build_testcase")?.into();
+
+    let testcase = fun.call1(py, (graph,))?;
+    Ok(testcase)
 }

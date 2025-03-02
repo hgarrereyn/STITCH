@@ -1,0 +1,774 @@
+{
+  "endpoints": [
+    {
+      "name": "construct_struct iwkv_wal_opts",
+      "variables": [
+        {
+          "name": "$obj",
+          "dir": "new",
+          "typ": "struct iwkv_wal_opts"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n// Code:\n{\n    struct iwkv_wal_opts $obj;\n    $obj.enabled = gf_rand::get<bool>();\n    $obj.check_crc_on_checkpoint = gf_rand::get<bool>();\n    $obj.savepoint_timeout_sec = gf_rand::get<uint32_t>();\n    $obj.checkpoint_timeout_sec = gf_rand::get<uint32_t>();\n    $obj.wal_buffer_sz = gf_rand::get<size_t>();\n    $obj.checkpoint_buffer_sz = gf_rand::get<uint64_t>();\n    $obj.wal_lock_interceptor = nullptr; // Assuming no function provided in this example\n    $obj.wal_lock_interceptor_opaque = nullptr; // Placeholder for opaque data\n}"
+    },
+    {
+      "name": "destruct_struct iwkv_wal_opts",
+      "variables": [
+        {
+          "name": "$obj",
+          "dir": "del",
+          "typ": "struct iwkv_wal_opts"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n// Code:\n{\n    if ($obj.wal_lock_interceptor_opaque) {\n        gf_free($obj.wal_lock_interceptor_opaque);\n    }\n\n    if ($obj.wal_lock_interceptor) {\n        $obj.wal_lock_interceptor(false, NULL);\n    }\n}"
+    },
+    {
+      "name": "construct_struct iwkv_opts",
+      "variables": [
+        {
+          "name": "$obj",
+          "dir": "new",
+          "typ": "struct iwkv_opts"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n// Code:\n{\n    static char db_path[256]; // Char array for path\n    snprintf(db_path, sizeof(db_path), \"%s\", gf_rand::get_string(10).c_str()); // Random path string\n    struct iwkv_opts $obj;\n    $obj.path = db_path;\n    $obj.random_seed = gf_rand::get<uint32_t>(); // Random seed\n    $obj.fmt_version = gf_rand::get<int32_t>(); // Random format version\n    $obj.oflags = gf_rand::get<uint8_t>(); // Random open flags\n    $obj.file_lock_fail_fast = gf_rand::get<bool>(); // Random file lock behavior\n    $obj.wal.enabled = gf_rand::get<bool>(); // WAL enabled\n    $obj.wal.check_crc_on_checkpoint = gf_rand::get<bool>(); // CRC check on checkpoint\n    $obj.wal.savepoint_timeout_sec = gf_rand::get<uint32_t>(); // Savepoint timeout\n    $obj.wal.checkpoint_timeout_sec = gf_rand::get<uint32_t>(); // Checkpoint timeout\n    $obj.wal.wal_buffer_sz = gf_rand::get<size_t>(); // WAL buffer size\n    $obj.wal.checkpoint_buffer_sz = gf_rand::get<uint64_t>(); // Checkpoint buffer size\n    $obj.wal.wal_lock_interceptor = NULL; // No interceptor\n    $obj.wal.wal_lock_interceptor_opaque = NULL; // No opaque data\n}"
+    },
+    {
+      "name": "destruct_struct iwkv_opts",
+      "variables": [
+        {
+          "name": "$obj",
+          "dir": "del",
+          "typ": "struct iwkv_opts"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n// Code:\n{\n    gf_free((void*)$obj.path);\n    $obj.path = NULL;\n    $obj.random_seed = gf_rand::get<uint32_t>();\n    $obj.fmt_version = gf_rand::get<int32_t>();\n    $obj.oflags = gf_rand::get<iwkv_openflags>();\n    $obj.file_lock_fail_fast = gf_rand::get<bool>();\n    $obj.wal.enabled = gf_rand::get<bool>();\n    $obj.wal.check_crc_on_checkpoint = gf_rand::get<bool>();\n    $obj.wal.savepoint_timeout_sec = gf_rand::get<uint32_t>();\n    $obj.wal.checkpoint_timeout_sec = gf_rand::get<uint32_t>();\n    $obj.wal.wal_buffer_sz = gf_rand::get<size_t>();\n    $obj.wal.checkpoint_buffer_sz = gf_rand::get<uint64_t>();\n    $obj.wal.wal_lock_interceptor = NULL;\n    $obj.wal.wal_lock_interceptor_opaque = NULL;\n}"
+    },
+    {
+      "name": "iwkv_init",
+      "variables": [
+        {
+          "name": "$opts",
+          "dir": "*",
+          "typ": "struct iwkv_opts"
+        },
+        {
+          "name": "$iwkvp",
+          "dir": "new",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$opts.path) {\n        gf_bail();\n    }\n    if ($opts.random_seed == 0) {\n        $opts.random_seed = gf_rand::get<uint32_t>();\n    }\n    if ($opts.fmt_version == 0) {\n        $opts.fmt_version = 1; // Default version\n    }\n    // Initialize WAL options if not provided\n    if (!$opts.wal.enabled) {\n        $opts.wal.enabled = false;\n        $opts.wal.check_crc_on_checkpoint = false;\n        $opts.wal.savepoint_timeout_sec = 10;\n        $opts.wal.checkpoint_timeout_sec = 300;\n        $opts.wal.wal_buffer_sz = 8 * 1024 * 1024; // 8MB\n        $opts.wal.checkpoint_buffer_sz = 1 * 1024 * 1024 * 1024; // 1GB\n        $opts.wal.wal_lock_interceptor = nullptr;\n        $opts.wal.wal_lock_interceptor_opaque = nullptr;\n    }\n    // Initialization\n    iwrc rc = iwkv_init();\n    if (rc) {\n        gf_bail();\n    }\n    // Open the database with provided options\n    rc = iwkv_open(&$opts, &$iwkvp);\n    if (rc) {\n        gf_bail();\n    }\n"
+    },
+    {
+      "name": "iwkv_open",
+      "variables": [
+        {
+          "name": "$opts",
+          "dir": "*",
+          "typ": "struct iwkv_opts"
+        },
+        {
+          "name": "$iwkvp",
+          "dir": "new",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$opts.path) {\n        gf_bail();\n    }\n    // Initialize random values if not set\n    if ($opts.random_seed == 0) {\n        $opts.random_seed = gf_rand::get<uint32_t>();\n    }\n    if ($opts.fmt_version == 0) {\n        $opts.fmt_version = gf_rand::get<int32_t>(); // Assume a random format is okay\n    }\n    // Initialize WAL options if defaults are not set\n    if (!$opts.wal.enabled) {\n        $opts.wal.enabled = false;\n    }\n    // Open the database\n    iwrc rc = iwkv_open(&$opts, &$iwkvp);\n    // Check for errors during opening\n    if (rc != 0) {\n        gf_bail();\n    }\n"
+    },
+    {
+      "name": "iwkv_db",
+      "variables": [
+        {
+          "name": "$iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$dbp",
+          "dir": "new",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$iwkv) {\n        gf_bail();\n    }\n\n    // Generate a random database id\n    uint32_t dbid = gf_rand::get<uint32_t>();\n\n    // Generate random flags, for the sake of example let's just pick REALNUM_KEYS\n    iwdb_flags_t flags = gf_rand::get<iwdb_flags_t>() | IWDB_REALNUM_KEYS;\n\n    // Call iwkv_db to get the database handler\n    iwrc rc = iwkv_db($iwkv, dbid, flags, &$dbp);\n    \n    // Check for errors in the call\n    if (rc != 0) {\n        gf_bail();\n    }\n"
+    },
+    {
+      "name": "iwkv_new_db",
+      "variables": [
+        {
+          "name": "$iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$dbp",
+          "dir": "new",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$iwkv) {\n        gf_bail();\n    }\n\n    // Initialize variables for new database creation\n    uint32_t dbid;\n    iwdb_flags_t dbflg = gf_rand::get<iwdb_flags_t>(); // Generate random flags for the database\n\n    // Call iwkv_new_db to create a new database\n    iwrc rc = iwkv_new_db($iwkv, dbflg, &dbid, &$dbp);\n    if (rc) {\n        gf_bail();\n    }\n\n    // Optionally, if the creation has additional requirements\n    // We can assign more initialization logic here, if needed.\n"
+    },
+    {
+      "name": "iwkv_db_destroy",
+      "variables": [
+        {
+          "name": "$dbp",
+          "dir": "del",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if ($dbp == NULL) {\n        gf_bail(); // Invalid input\n    }\n\n    // Call iwkv_db_destroy with appropriate arguments\n    iwrc result = iwkv_db_destroy(&$dbp);\n    if (result) {\n        gf_bail(); // Call to iwkv_db_destroy failed\n    }\n\n    // Initialize any output arguments (if applicable)\n    // Here, $dbp is effectively set to NULL after the call\n    // so there's nothing further to initialize for an output parameter.\n"
+    },
+    {
+      "name": "iwkv_sync",
+      "variables": [
+        {
+          "name": "$iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$iwkv) {\n        gf_bail();\n    }\n\n    // Initialize any necessary variables that will be used for syncing\n    iwfs_sync_flags sync_flags = gf_rand::get<iwfs_sync_flags>(); // Generate random sync flags\n\n    // Call the iwkv_sync function\n    iwrc rc = iwkv_sync($iwkv, sync_flags);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // Initialize any output arguments if necessary\n    // (Currently, it seems there are no specific output parameters to initialize)\n"
+    },
+    {
+      "name": "iwkv_close",
+      "variables": [
+        {
+          "name": "$iwkvp",
+          "dir": "del",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // 1. Validate input parameters\n    if (!$iwkvp) {\n        gf_bail();\n    }\n\n    // 2. Call iwkv_close with appropriate arguments\n    iwrc rc = iwkv_close(&$iwkvp);\n    if (rc) {\n        gf_bail();\n    }\n\n    // 3. Initialize any output arguments\n    // In this case, $iwkvp should be null after closing\n    $iwkvp = nullptr;\n\n    // 4. Clean up any temporary objects you create\n    // No temporary objects created, thus nothing to clean\n"
+    },
+    {
+      "name": "iwkv_put",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$db || $key.size == 0 || $key.data == NULL || $val.size == 0 || $val.data == NULL) {\n        gf_bail();\n    }\n\n    // Create opflags variable\n    iwkv_opflags opflags = 0;\n\n    // Call iwkv_put and check for errors\n    iwrc rc = iwkv_put($db, &$key, &$val, opflags);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // Initialize output parameters (if there were any needed)\n    // In this case, we are dealing with void returns so nothing more to do.\n    // If we had output params, we would initialize them here.\n"
+    },
+    {
+      "name": "iwkv_puth",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$db || $key.data == NULL || $key.size == 0 || $val.data == NULL || $val.size == 0) {\n        gf_bail();\n    }\n\n    // Initialize any temporary variables\n    iwkv_opflags opflags = 0; // Default to no special operations\n    IWKV_PUT_HANDLER ph = NULL; // No handler by default\n    void *phop = NULL; // Opaque handler data, can be NULL\n\n    // Call iwkv_puth with the initialized parameters\n    iwrc rc = iwkv_puth($db, &$key, &$val, opflags, ph, phop);\n    if (rc != 0) { // Check if the operation was successful\n        gf_bail();  // Handle error by aborting further execution\n    }\n\n    // No output parameters are used in this function as per the requirements, so we return directly\n"
+    },
+    {
+      "name": "iwkv_get",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$oval",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$db || $key.data == nullptr || $key.size == 0) {\n        gf_bail(); // Invalid input parameters\n    }\n\n    // Call iwkv_get to retrieve value for the given key\n    iwrc rc = iwkv_get($db, &$key, &$oval);\n\n    // Handle the return code from iwkv_get\n    if (rc == IWKV_ERROR_NOTFOUND) {\n        $oval.data = nullptr; // Key not found scenario\n        $oval.size = 0;\n    } else if (rc < 0) { // Check for any error (using < 0 to account for error codes)\n        gf_bail(); // Bail on any error\n    }\n\n    // Perform further initialization if $oval.data was not set\n    if ($oval.data == nullptr && $oval.size == 0) {\n        // Generate a random value to fill $oval if it wasn't initialized by iwkv_get\n        $oval.size = sizeof(int); // Example size for a random int\n        $oval.data = new int[sizeof(int)];\n        if (!$oval.data) {\n            gf_bail(); // Bail on memory allocation failure\n        }\n        *(static_cast<int*>($oval.data)) = gf_rand::get<int>(); // Create a random int\n    }\n"
+    },
+    {
+      "name": "iwkv_get_copy",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Step 1: Validate input parameters\n    if (!$db || $key.size > IWKV_MAX_KVSZ) {\n        gf_bail();\n    }\n\n    // Step 2: Prepare output variables\n    void *vbuf = nullptr;\n    size_t vbufsz = 0;\n    size_t actual_size = 0;\n\n    // Step 3: Generate a buffer size for output if it's not initialized\n    if (vbufsz == 0) {\n        vbufsz = gf_rand::get<size_t>(); // Generate a random size\n        vbuf = malloc(vbufsz);\n        if (!vbuf) {\n            gf_bail();\n        }\n    }\n\n    // Step 4: Call iwkv_get_copy\n    iwrc rc = iwkv_get_copy($db, &$key, vbuf, vbufsz, &actual_size);\n    if (rc != 0) {\n        free(vbuf);\n        gf_bail();\n    }\n\n    // Step 5: Initialize output arguments based on actual size\n    if (actual_size > 0) {\n        // Make use of vbuf as needed here\n        // If you need to process or store the data, do it here\n    }\n\n    // Step 6: Clean up\n    free(vbuf); // Free any allocated buffers\n"
+    },
+    {
+      "name": "iwkv_db_set_meta",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$db) {\n        gf_bail();\n    }\n\n    // Prepare metadata buffer\n    void *meta_buf = nullptr;\n    size_t meta_size = gf_rand::get<size_t>(); // Random size for metadata\n    meta_buf = malloc(meta_size);\n    if (!meta_buf) {\n        gf_bail();\n    }\n    \n    // Initialize metadata buffer with random data\n    for (size_t i = 0; i < meta_size; ++i) {\n        static_cast<uint8_t*>(meta_buf)[i] = static_cast<uint8_t>(gf_rand::get<uint8_t>());\n    }\n\n    // Call the set meta function\n    iwrc rc = iwkv_db_set_meta($db, meta_buf, meta_size);\n    if (rc != 0) {\n        free(meta_buf);\n        gf_bail();\n    }\n\n    // Cleanup\n    free(meta_buf);\n"
+    },
+    {
+      "name": "iwkv_db_get_meta",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$db) {\n        gf_bail(); // Invalid database handle\n    }\n\n    // Prepare buffer and output size variables\n    void* buf = nullptr;\n    size_t buf_size = gf_rand::get<size_t>(); // Random size for the buffer\n    size_t rsz = 0;\n\n    // Allocate memory for the buffer\n    buf = malloc(buf_size);\n    if (!buf) {\n        gf_bail(); // Memory allocation failure\n    }\n\n    // Call to iwkv_db_get_meta\n    iwrc result = iwkv_db_get_meta($db, buf, buf_size, &rsz);\n    if (result) {\n        free(buf);\n        gf_bail(); // Failed to get metadata\n    }\n\n    // Initialize output parameters\n    // Here you would normally process 'buf' based on its content\n    // For example, let's just randomize the first few bytes to show processing\n    for (size_t i = 0; i < rsz; ++i) {\n        ((char*)buf)[i] = gf_rand::get<char>(); // Randomize data for illustration\n    }\n    // Note: Normally we would do something meaningful with the output data.\n\n    // Cleanup\n    free(buf);\n"
+    },
+    {
+      "name": "iwkv_del",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if ($db == NULL) {\n        gf_bail();\n    }\n    \n    // Prepare operation flags\n    iwkv_opflags opflags = 0;  // Initialize to default\n    \n    // Call iwkv_del with appropriate arguments\n    iwrc rc = iwkv_del($db, &$key, opflags);\n    \n    // Handle potential errors from iwkv_del\n    if (rc != 0) {\n        // Error handling for different error codes returned by iwkv_del\n        if (rc == IWKV_ERROR_NOTFOUND) {\n            // Key does not exist, treat it as non-fatal or log if necessary\n        } else {\n            gf_bail(); // Invalid arguments or a different fatal error\n        }\n    }\n"
+    },
+    {
+      "name": "iwkv_val_dispose",
+      "variables": [
+        {
+          "name": "$kval",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameter\n    if ($kval.data == NULL && $kval.size == 0) {\n        gf_bail();\n    }\n\n    // Declare a pointer to the iwkv_val\n    iwkv_val *val = &$kval;\n\n    // If the data is not already initialized, fill it with random data\n    if (val->data == NULL) {\n        // Allocate memory for the data\n        val->data = new char[val->size];\n        if (val->data == NULL) {\n            gf_bail();\n        }\n        // Fill the allocated space with random bytes\n        for (size_t i = 0; i < val->size; ++i) {\n            reinterpret_cast<char*>(val->data)[i] = gf_rand::get<char>();\n        }\n    }\n\n    // Call the dispose method\n    iwkv_val_dispose(val);\n\n    // Clean up - clear the data by setting it to NULL after dispose\n    val->data = NULL;\n    val->size = 0;\n    val->compound = 0;\n"
+    },
+    {
+      "name": "iwkv_kv_dispose",
+      "variables": [
+        {
+          "name": "$key",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$val",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$key.data || !$val.data) {\n        gf_bail(); // Invalid input, either key or value is not initialized\n    }\n\n    // Call iwkv_kv_dispose to dispose the key and value\n    iwkv_kv_dispose(&$key, &$val);\n\n    // Initialize output parameters (none needed since everything is handled in dispose)\n    $key.data = nullptr; // Ensure we mark the key as disposed\n    $key.size = 0;\n    $key.compound = 0;\n\n    $val.data = nullptr; // Ensure we mark the value as disposed\n    $val.size = 0;\n    $val.compound = 0;\n"
+    },
+    {
+      "name": "iwkv_cursor_open",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$cur",
+          "dir": "new",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    \n    // Step 1: Validate input parameters\n    if (!$db) {\n        gf_bail(); // Database pointer is null\n    }\n    \n    // Step 2: Initialize default values for the cursor\n    // We need to initialize the cursor operation. Let's assume we want to start before the first record.\n    IWKV_cursor_op op = IWKV_CURSOR_BEFORE_FIRST;  \n    \n    // Step 3: Call iwkv_cursor_open with appropriate arguments\n    iwrc rc = iwkv_cursor_open($db, &$cur, op, nullptr);\n\n    // Step 4: Check the result and handle errors\n    if (rc != 0) {\n        $cur = nullptr;\n        gf_bail(); // An error occurred while opening the cursor\n    }\n"
+    },
+    {
+      "name": "iwkv_cursor_open",
+      "variables": [
+        {
+          "name": "$db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "$cur",
+          "dir": "new",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$db) {\n        gf_bail();\n    }\n\n    // Initialize cursor\n    iwrc rc;\n    // Generate a random operation for cursor positioning if necessary\n    IWKV_cursor_op op = gf_rand::get<IWKV_cursor_op>(); // Randomly choose cursor operation\n\n    // Initialize the cursor pointer to nullptr\n    $cur = nullptr;\n\n    // Call iwkv_cursor_open and check for errors\n    rc = iwkv_cursor_open($db, &$cur, op, &$key);\n    if (rc != 0) {\n        // In case of error, clean up and bail out\n        if ($cur != nullptr) {\n            iwkv_cursor_close(&$cur);\n        }\n        gf_bail();\n    }\n"
+    },
+    {
+      "name": "iwkv_cursor_to",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // Initialize the cursor operation with a random operation\n    IWKV_cursor_op op = gf_rand::get<IWKV_cursor_op>();\n\n    // Call iwkv_cursor_to with the cursor and operation\n    iwrc rc = iwkv_cursor_to($cur, op);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // If successful, no need to initialize output parameters as per instructions.\n"
+    },
+    {
+      "name": "iwkv_cursor_to_key",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameter\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // Initialize output parameters\n    struct iwkv_val key;\n    iwrc rc;\n\n    // Generate a random key length and value to use for key initialization\n    size_t keyLength = gf_rand::get<size_t>() % 256; // Random key size up to 256 bytes\n    key.data = malloc(keyLength);\n    if (key.data == NULL) {\n        gf_bail(); // Error handling for malloc failure\n    }\n    key.size = keyLength;\n    std::memcpy(key.data, gf_rand::get_string(keyLength).data(), keyLength);\n\n    // Set cursor operation - you can adjust the operation according to your needs\n    IWKV_cursor_op operation = gf_rand::get<IWKV_cursor_op>(); // Assuming this generates a random operation\n\n    // Call iwkv_cursor_to_key with initialized values\n    rc = iwkv_cursor_to_key($cur, operation, &key);\n    if (rc != 0) {\n        free(key.data); // Clean up the allocated key data\n        gf_bail(); // Handle the error, optionally log it\n    }\n\n    // Clean up any temporary objects\n    free(key.data);\n"
+    },
+    {
+      "name": "iwkv_cursor_to_key",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // Prepare output parameters\n    struct iwkv_val okey;\n    struct iwkv_val oval;\n    iwrc rc;\n\n    // Initialize any random values if needed (e.g. for temporary data structures)\n    // Here we would need to assign some random values if needed for key, typically not needed here directly.\n\n    // Call the iwkv_cursor_to_key function\n    rc = iwkv_cursor_to_key($cur, IWKV_CURSOR_EQ, &$key);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // Initialize output parameters if applicable after the function call\n    // In this case, it's not clear we have anything to fill out from iwkv_cursor_to_key\n    // But we will typically check the current key/oval values after cursor operations\n    iwkv_cursor_get($cur, &okey, &oval);\n\n    // Final check for successful data retrieval\n    if (okey.data == NULL || oval.data == NULL) {\n        gf_bail();\n    }\n\n    // Clean up any dynamic values if necessary (i.e., disposing of the retrieved values)\n    iwkv_val_dispose(&okey);\n    iwkv_val_dispose(&oval);\n"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate that the cursor is initialized\n    if ($cur == NULL) {\n        gf_bail();\n    }\n\n    // Initialize output key and value containers\n    IWKV_val key = {NULL, 0};\n    IWKV_val value = {NULL, 0};\n\n    // Call the iwkv_cursor_get function\n    iwrc result = iwkv_cursor_get($cur, &key, &value);\n    if (result != 0) {\n        // An error occurred, handle it\n        if (result == IWKV_ERROR_NOTFOUND) {\n            // Handle not found case if needed\n            gf_bail();\n        } else {\n            gf_bail();\n        }\n    }\n\n    // Assuming key and value are needed after the call\n    // We will generate random data for size only\n    if (key.data == NULL) {\n        key.size = gf_rand::get<size_t>();  // Random size\n        key.data = malloc(key.size);  // Allocate memory for data\n        if (key.data == NULL) gf_bail(); // Check for allocation failure\n    }\n    if (value.data == NULL) {\n        value.size = gf_rand::get<size_t>();  // Random size\n        value.data = malloc(value.size);  // Allocate memory for data\n        if (value.data == NULL) gf_bail(); // Check for allocation failure\n    }\n\n    // Use key and value as needed here\n    // Cleanup after use\n    iwkv_val_dispose(&key);\n    iwkv_val_dispose(&value);\n"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$okey",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) gf_bail();\n\n    // Initialize the $okey structure if it's not already initialized\n    if (!$okey.data) {\n        $okey.size = gf_rand::get<size_t>(); // Randomly initialize size\n        $okey.data = malloc($okey.size);\n        if (!$okey.data) gf_bail(); // Check for malloc failure\n        // Fill data with random bytes\n        for (size_t i = 0; i < $okey.size; ++i) {\n            ((char*)$okey.data)[i] = gf_rand::get<char>();\n        }\n    }\n\n    struct iwkv_val __oval = {0}; // Initialize oval\n    iwrc rc = iwkv_cursor_get($cur, &$okey, &__oval);\n\n    // Check for errors from iwkv_cursor_get\n    if (rc) {\n        free($okey.data); // Free allocated memory for okey if operation failed\n        gf_bail();\n    }\n\n    // Here you would handle __oval if needed\n    // For now, we can just dispose of it after using it\n    iwkv_val_dispose(&__oval);\n"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$oval",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // 1. Validate input parameters\n    if ($cur == nullptr) {\n        gf_bail();\n    }\n\n    // 2. Call iwkv_cursor_get and capture the result\n    iwrc rc = iwkv_cursor_get($cur, nullptr, &$oval);\n\n    // 3. Check the result and initialize output parameters\n    if (rc != 0) {\n        // Handle the error accordingly\n        if (rc == IWKV_ERROR_NOTFOUND) {\n            $oval.data = nullptr;\n            $oval.size = 0;\n            $oval.compound = 0;\n        } else {\n            // Unexpected error\n            gf_bail();\n        }\n    } else {\n        // If successful, ensure that $oval is initialized properly\n        if ($oval.data == nullptr) {\n            $oval.size = 0;\n        } else {\n            // Potentially some random initialization for the oval\n            $oval.size = gf_rand::get<size_t>(); // Random size initialization\n            $oval.data = malloc($oval.size); // Example of allocation, handle memory properly\n            if ($oval.data == nullptr) {\n                gf_bail();\n            }\n            // Fill $oval.data with random data\n            memset($oval.data, 0, $oval.size); // Randomize or actual needed data fill\n        }\n    }\n"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$okey",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$oval",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // Initialize output key and value if not already initialized\n    if ($okey.data == NULL) {\n        $okey.data = (void*)gf_rand::get_string(10).c_str(); // Random string for data; you can adjust length if necessary\n        $okey.size = strlen((const char *)$okey.data);\n    }\n    if ($oval.data == NULL) {\n        $oval.data = (void*)gf_rand::get_string(10).c_str(); // Random string for data; you can adjust length if necessary\n        $oval.size = strlen((const char *)$oval.data);\n    }\n\n    // Call the iwkv_cursor_get function\n    iwrc rc = iwkv_cursor_get($cur, &$okey, &$oval);\n    if (rc != 0) {\n        // Error case, clean up the output parameters and bail\n        iwkv_val_dispose(&$okey);\n        iwkv_val_dispose(&$oval);\n        gf_bail();\n    }\n"
+    },
+    {
+      "name": "iwkv_cursor_val",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$oval",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // 1. Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // 2. Retrieve value at current cursor position.\n    iwrc rc = iwkv_cursor_val($cur, &$oval);\n\n    // 3. Check if the call was successful\n    if (rc != 0) {\n        gf_bail(); // If the cursor operation fails, bail out immediately.\n    }\n\n    // 4. If $oval.data is not initialized (null), generate random content\n    if ($oval.data == NULL) {\n        // Generate a random size within a reasonable limit\n        $oval.size = gf_rand::get<size_t>() % IWKV_MAX_KVSZ;\n        $oval.data = new char[$oval.size]; // Allocating memory for the value data\n        if ($oval.data == nullptr) {\n            gf_bail(); // bail if memory allocation fails\n        }\n\n        // Fill with random values\n        char* dataPtr = static_cast<char*>($oval.data);\n        for (size_t i = 0; i < $oval.size; ++i) {\n            dataPtr[i] = gf_rand::get<char>();\n        }\n    }\n"
+    },
+    {
+      "name": "iwkv_cursor_copy_val",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // Pre-allocate buffer and size\n    size_t vbufsz = 128; // Arbitrary buffer size, can be adjusted\n    void* vbuf = malloc(vbufsz);\n    if (!vbuf) {\n        gf_bail();\n    }\n    size_t vsz = 0;\n\n    // Calling iwkv_cursor_copy_val\n    iwrc rc = iwkv_cursor_copy_val($cur, vbuf, vbufsz, &vsz);\n    if (rc != 0) {\n        free(vbuf);\n        gf_bail();\n    }\n\n    // Output parameters initialization as needed. The user must handle what to do with the vbuf and vsz\n    // Assuming we're simply storing the value.\n    // For example, storing them somewhere:\n    // store_value(vbuf, vsz);\n\n    // Clean up\n    free(vbuf);\n"
+    },
+    {
+      "name": "iwkv_cursor_key",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$okey",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail(); // invalid cursor\n    }\n\n    // Initialize the output parameters to a safe state\n    $okey.data = NULL; // initialize the data pointer\n    $okey.size = 0; // initialize the size to zero\n    $okey.compound = 0; // initialize compound to zero\n\n    // Call iwkv_cursor_key and check return value\n    iwrc rc = iwkv_cursor_key($cur, &$okey);\n    if (rc != IW_OK) {\n        gf_bail(); // error retrieving key\n    }\n\n    // Any additional cleanup if necessary\n    // No temporary objects were created in this function\n"
+    },
+    {
+      "name": "iwkv_cursor_copy_key",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n\n    // Allocate output parameters\n    void *kbuf = nullptr;\n    size_t kbufsz = 0;\n    size_t *ksz = new size_t;\n    int64_t *compound = new int64_t;\n\n    // Initialize random size for kbuf if not provided\n    if (kbufsz == 0) {\n        kbufsz = gf_rand::get<size_t>() % 1024;\n        kbuf = new char[kbufsz]; // Allocate kbuf size\n    }\n\n    // Call iwkv_cursor_copy_key with appropriate arguments\n    iwrc rc = iwkv_cursor_copy_key($cur, kbuf, kbufsz, ksz, compound);\n    if (rc != 0) {\n        delete[] kbuf; // Clean up memory\n        delete ksz;  \n        delete compound;\n        gf_bail();\n    }\n\n    // Clean up temporary objects created\n    // Assuming kbuf and other parameters will be handled outside, freeing allocated memory if necessary\n    delete[] kbuf;\n    delete ksz;\n    delete compound;\n"
+    },
+    {
+      "name": "iwkv_cursor_is_matched_key",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) gf_bail();\n\n    bool result;\n    int64_t compoundKey = 0;\n\n    // Call the cursor function\n    iwrc rc = iwkv_cursor_is_matched_key($cur, &$key, &result, &compoundKey);\n    if (rc != 0) gf_bail();\n\n    // Initialize output parameters\n    // Since this function does not have any output parameters directly\n    // initialized, we only ensure we handle the result correctly\n    // but based on standard behavior, result and compoundKey are already initialized.\n    // No further initialization needed in this context but could log or process:\n    // Process the result and compound key if needed,\n    // currently we're only concerned with the success of the operation.\n"
+    },
+    {
+      "name": "iwkv_cursor_set",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) gf_bail();\n    if ($val.data == NULL || $val.size == 0) gf_bail();\n\n    // Generate a random operation flag\n    iwkv_opflags opflags = gf_rand::get<iwkv_opflags>();\n\n    // Call iwkv_cursor_set with the appropriate arguments\n    iwrc rc = iwkv_cursor_set($cur, &$val, opflags);\n    if (rc != 0) gf_bail();\n\n    // Initialize output parameters if needed\n    // (additional logic can be added here if you need to retrieve key values)\n"
+    },
+    {
+      "name": "iwkv_cursor_seth",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if ($cur == NULL) {\n        gf_bail();\n    }\n    if ($val.data == NULL || $val.size == 0) {\n        gf_bail();\n    }\n\n    // Generate a random opflags value\n    iwkv_opflags opflags = gf_rand::get<uint8_t>(); // Use uint8_t instead of i8\n\n    // Prepare the val argument for the iwkv_cursor_seth call\n    struct iwkv_val val = $val;\n\n    // Call the iwkv_cursor_seth function\n    iwrc result = iwkv_cursor_seth($cur, &val, opflags, NULL, NULL);\n\n    // Check if the call was successful\n    if (result != 0) {\n        gf_bail();\n    }\n\n    // Initialize any output arguments here if needed\n    // Assuming we do not have output parameters defined in this context,\n    // so nothing further to do if the operation is successful.\n"
+    },
+    {
+      "name": "iwkv_cursor_del",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$cur) {\n        gf_bail();\n    }\n    \n    // Initialize output parameters\n    iwkv_opflags opflags = gf_rand::get<iwkv_opflags>();\n    \n    // Call iwkv_cursor_del with initialized parameters\n    iwrc rc = iwkv_cursor_del($cur, opflags);\n    if (rc != 0) {\n        gf_bail();\n    }\n    \n    // Additional initialization if needed\n    // Any temporary objects created should be cleaned up here as their scope ends.\n"
+    },
+    {
+      "name": "iwkv_cursor_close",
+      "variables": [
+        {
+          "name": "$cur",
+          "dir": "del",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Step 1: Validate input parameters\n    if (!$cur) {\n        gf_bail(); // Error: Invalid cursor\n    }\n\n    // Step 2: Call iwkv_cursor_close\n    iwrc rc = iwkv_cursor_close(&$cur);\n\n    // Step 3: Check the result of the close operation\n    if (rc != 0) {\n        gf_bail(); // Error closing cursor\n    }\n\n    // Step 4: Initialize any output arguments (none provided in signature)\n    // Cleanup has been managed by the iwkv_cursor_close function\n"
+    },
+    {
+      "name": "iwkv_online_backup",
+      "variables": [
+        {
+          "name": "$iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    if (!$iwkv) {\n        gf_bail(); // Invalid input parameter\n    }\n\n    uint64_t ts = 0;\n    std::string target_file = gf_rand::get_string(20);  // Generating a random filename\n\n    iwrc rc = iwkv_online_backup($iwkv, &ts, target_file.c_str());\n    if (rc != 0) {\n        gf_bail(); // Marking error if backup fails\n    }\n\n    // Output parameter `ts` is already initialized via pointer.\n    // The target_file is generated and used directly.\n"
+    },
+    {
+      "name": "iwkv_state",
+      "variables": [
+        {
+          "name": "$iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "$__seed",
+          "dir": "*",
+          "typ": "unsigned int"
+        }
+      ],
+      "template": "gf_rand::seed($__seed);\n\n    // Validate input parameters\n    if (!$iwkv) {\n        gf_bail();\n    }\n\n    // Output parameters\n    IWFS_FSM_STATE fsm_state;\n\n    // Call iwkv_state with appropriate arguments\n    iwrc rc = iwkv_state($iwkv, &fsm_state);\n    if (rc != 0) {\n        gf_bail();\n    }\n\n    // Initialize any output arguments\n    // Assuming fsm_state is a struct and we need to use it somehow or return\n    // a useful representation, which is typically handled in a real environment.\n    // Here we are just mimicking its initialization, normally you'd set actual fields.\n    // e.g., fsm_state.is_valid = true; // Or similar based on actual struct definition\n\n    // In a real application, do something with fsm_state, e.g., print it or log\n"
+    }
+  ]
+}
