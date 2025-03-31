@@ -13,24 +13,21 @@ from ..utils.spec import Schema
 from ..utils.colors import Colors
 from ..agents.triage_agent import run_triage_agent, TriageAgentResult
 from ..agents.patch_agent import run_patch_agent, PatchAgentResult
-from .crash_repro import try_generate_reproducer, CrashResult
+from .crash_repro import try_get_crash_result, CrashResult, ReproducedCrash, try_generate_reproducer
 from .queue_repro import check_queue_safe
-from ..agents.patch_endpoint_agent import EndpointFixAttempt
-from ..agents.patch_sequence_agent import FilterResult
+from ..agents.crash_analysis_agent import EndpointFixAttempt, EndpointFixAttempt
+from ..utils.info import ProjectInfo
+from ..agents.crash_analysis_agent import CrashAnalysisResult, run_crash_analysis_agent
+from ..agents.minimizer_agent import run_minimizer_agent
 
-from memory_profiler import profile
 
-TICK_ANALYSIS_LIMIT = 20
+TICK_ANALYSIS_LIMIT = 100
 
 @dataclass
 class Config:
-    codebase: str
-    rag: str
-    fuzzer_build: str
-    ext_build_script: str
-    build_script: str
+    info: ProjectInfo
+    model: str
     schema: str
-    config: str
     workdir: str
     bypass_validation: bool = False
 
@@ -41,13 +38,12 @@ class RunnerStage:
     schema_data: str
     filter_data: List[str]
     _fuzzer_process: Optional[subprocess.Popen] = None
-    _processed_crashes: set[Path] = None
-    _processed_queue: set[Path] = None
-    _crashes: List[CrashResult] = None
-    _safe_queue: List[Path] = None
 
-    _triage_results: Dict[str, TriageAgentResult] = None
-    _patch_results: Dict[str, PatchAgentResult] = None
+    _processed_crashes: set[Path] = None
+    _crashes: List[CrashResult] = None
+    _reproduced_crashes: List[ReproducedCrash] = None
+    _crash_analysis: Dict[str, CrashAnalysisResult] = None
+    _minimized_crashes: Dict[str, ReproducedCrash] = None
 
     def __init__(self, workdir: str, schema_data: str, filter_data: List[str]):
         self.workdir = Path(workdir)
@@ -56,11 +52,10 @@ class RunnerStage:
         self.filter_data = filter_data
         self._fuzzer_process = None
         self._processed_crashes = set()
-        self._processed_queue = set()
         self._crashes = []
-        self._safe_queue = []
-        self._triage_results = {}
-        self._patch_results = {}
+        self._reproduced_crashes = []
+        self._crash_analysis = {}
+        self._minimized_crashes = {}
 
         self.schema_path = self.workdir / "fuzzer.json"
         self.schema_path.write_text(self.schema_data)
@@ -92,7 +87,7 @@ class RunnerStage:
         self.safe_corpus_path.mkdir(parents=True, exist_ok=True)
 
     def build_fuzzer(self, cfg: Config):
-        subprocess.run([cfg.fuzzer_build, str(self.workdir / 'fuzzer')], check=True, capture_output=True)
+        subprocess.run([cfg.info.build_script_full, str(self.workdir / 'fuzzer')], check=True, capture_output=True)
 
     def start_fuzzer(self, bypass_validation: bool):
         print(f'{Colors.YELLOW}Starting fuzzer...{Colors.END}')
@@ -111,6 +106,30 @@ class RunnerStage:
             stdout=self._fuzzer_log,
             stderr=self._fuzzer_log
         )
+
+    def ensure_running(self, bypass_validation: bool):
+        # Loop until we see the fuzzer get past the "Loading corpus" stage
+        print(f'{Colors.YELLOW}Waiting for fuzzer to start...{Colors.END}')
+        retry_timer = 10
+        while True:
+            if self._fuzzer_process.poll() is not None:
+                print(f'{Colors.YELLOW}Fuzzer crashed, restarting...{Colors.END}')
+                self.stop_fuzzer()
+                self.start_fuzzer(bypass_validation)
+
+            log = open(self.workdir / "fuzzer.log", "rb").read()
+            if b'UserStats' in log:
+                break
+
+            print('.', end='', flush=True)
+            retry_timer -= 1
+            if retry_timer <= 0:
+                print(f'{Colors.RED}Force restarting fuzzer...{Colors.END}')
+                self.stop_fuzzer()
+                self.start_fuzzer(bypass_validation)
+                retry_timer = 10
+
+            time.sleep(1)
 
     def stop_fuzzer(self):
         print(f'{Colors.YELLOW}Stopping fuzzer...{Colors.END}')
@@ -133,8 +152,10 @@ class RunnerStage:
 
         def process_crash(crash_file: Path, crash_tmpdir: Path) -> Optional[CrashResult]:    
             # Try to reproduce the crash
-            res = try_generate_reproducer(Path(crash_tmpdir), str(self.fuzzer_path), cfg.ext_build_script, crash_file)
-            return res
+            res = try_get_crash_result(str(self.fuzzer_path.absolute()), crash_file.absolute())
+            if res is not None:
+                return res
+            return None
 
         found_new = False
         crash_files = list(self.crashes_path.glob("*"))
@@ -164,11 +185,11 @@ class RunnerStage:
                 result = future.result()
                 crash_file = future_to_crash[future]
                 if result:
-                    print(f"[{idx}/{total}][{Colors.GREEN}REPRO{Colors.END}] {result.crash_summary}")
+                    print(f"[{idx}/{total}][{Colors.GREEN}EXEC{Colors.END}] {crash_file.name} -- {result.crash_summary}")
                     self._crashes.append(result)
                     found_new = True
                 else:
-                    print(f"[{idx}/{total}][{Colors.RED}NO REPRO{Colors.END}] {crash_file.name}")
+                    print(f"[{idx}/{total}][{Colors.RED}NO EXEC{Colors.END}] {crash_file.name}")
                 idx += 1
 
         return found_new
@@ -180,7 +201,7 @@ class RunnerStage:
 
         def process_queue(queue_file: Path, queue_tmpdir: Path) -> Optional[CrashResult]:    
             # Try to reproduce the crash
-            res = check_queue_safe(Path(queue_tmpdir), str(self.fuzzer_path), cfg.ext_build_script, queue_file)
+            res = check_queue_safe(Path(queue_tmpdir), str(self.fuzzer_path), cfg.info.build_script_ext, queue_file)
             return res
 
         queue_files = list(self.queue_path.glob("*"))
@@ -234,21 +255,41 @@ class RunnerStage:
             with open(crash_folder / "description.txt", "w") as f:
                 f.write(crash_type)
 
-            if crash_type in self._triage_results:
-                with open(crash_folder / "triage.json", "w") as f:
-                    f.write(self._triage_results[crash_type].model_dump_json())
+            # if crash_type in self._triage_results:
+            #     with open(crash_folder / "triage.json", "w") as f:
+            #         f.write(self._triage_results[crash_type].model_dump_json())
 
-            if crash_type in self._patch_results:
-                with open(crash_folder / "patch.json", "w") as f:
-                    f.write(self._patch_results[crash_type].model_dump_json())
+            # if crash_type in self._patch_results:
+            #     with open(crash_folder / "patch.json", "w") as f:
+            #         f.write(self._patch_results[crash_type].model_dump_json())
+
+            if crash_type in self._crash_analysis:
+                with open(crash_folder / "analysis.json", "w") as f:
+                    f.write(self._crash_analysis[crash_type].model_dump_json())
+
+            if crash_type in self._minimized_crashes:
+                with open(crash_folder / "minimized.json", "w") as f:
+                    f.write(self._minimized_crashes[crash_type].model_dump_json())
+
+                with open(crash_folder / "minimized.cpp", "w") as f:
+                    f.write(self._minimized_crashes[crash_type].minimized_code)
+
+                with open(crash_folder / "minimized.report", "w") as f:
+                    f.write(self._minimized_crashes[crash_type].minimized_crash_report)
+
+                with open(crash_folder / "original.cpp", "w") as f:
+                    f.write(self._minimized_crashes[crash_type].external_code)
+
+                with open(crash_folder / "original.report", "w") as f:
+                    f.write(self._minimized_crashes[crash_type].crash_report)
 
             for crash in crashes:
                 name = crash.name.replace('.', '_')
-                with open(crash_folder / f"{name}.graph", "w") as f:
-                    f.write(crash.minimized_graph)
+                # with open(crash_folder / f"{name}.graph", "w") as f:
+                #     f.write(crash.minimized_graph)
 
-                with open(crash_folder / f"{name}.cpp", "w") as f:
-                    f.write(crash.external_code)
+                # with open(crash_folder / f"{name}.cpp", "w") as f:
+                #     f.write(crash.external_code)
 
                 with open(crash_folder / f"{name}.report", "w") as f:
                     f.write(crash.crash_report)
@@ -266,15 +307,15 @@ class RunnerStage:
 
         print(f'{Colors.YELLOW}TRIAGE{Colors.END}')
         found_new = self.update_triage(cfg)
-        print(f'{Colors.YELLOW}QUEUE{Colors.END}')
-        self.update_queue(cfg)
+        # print(f'{Colors.YELLOW}QUEUE{Colors.END}')
+        # self.update_queue(cfg)
         print(f'{Colors.YELLOW}SAVE{Colors.END}')
         self.save_results()
         return found_new
-    
+
     def save_results(self):
         self.save_crash_buckets()
-        self.save_safe_corpus()
+        # self.save_safe_corpus()
 
     def print_stats(self):
         print('-' * 40)
@@ -282,18 +323,59 @@ class RunnerStage:
         counts = [(k, len(v)) for k, v in by_type.items()]
         counts.sort(key=lambda x: x[1], reverse=True)
         for k, v in counts:
-            print(f'({Colors.GREEN}{v}{Colors.END}) {Colors.YELLOW}{k}{Colors.END}')
-            if k in self._triage_results:
-                print(f'  {Colors.GREEN}Triaged{Colors.END} {self._triage_results[k].explanation}')
-            else:
-                print(f'  {Colors.RED}Not triaged{Colors.END}')
+            hsh = hashlib.sha256(k.encode()).hexdigest()[:8]
+            print(f'{Colors.PURPLE}{hsh}{Colors.END} :: ({Colors.GREEN}{v}{Colors.END}) {Colors.YELLOW}{k}{Colors.END}')
+            # if k in self._triage_results:
+            #     print(f'  {Colors.GREEN}Triaged{Colors.END} {self._triage_results[k].explanation_of_bug}')
+            # else:
+            #     print(f'  {Colors.RED}Not triaged{Colors.END}')
 
-            if k in self._patch_results:
-                print(f'  {Colors.GREEN}Patched{Colors.END}')
-                self._patch_results[k].pprint()
+            # if k in self._patch_results:
+            #     print(f'  {Colors.GREEN}Patched{Colors.END}')
+            #     self._patch_results[k].pprint()
+            # else:
+            #     print(f'  {Colors.RED}Not patched{Colors.END}')
+
+            if k in self._crash_analysis:
+                print(f'  {Colors.GREEN}Crash analysis{Colors.END}')
+                self._crash_analysis[k].pprint()
             else:
-                print(f'  {Colors.RED}Not patched{Colors.END}')
+                print(f'  {Colors.RED}Not analyzed{Colors.END}')
+
+            if k in self._minimized_crashes:
+                print(f'  {Colors.GREEN}Minimized{Colors.END}')
+            else:
+                print(f'  {Colors.RED}Not minimized{Colors.END}')
         print('-' * 40)
+
+    def attempt_minimize(self, cfg: Config):
+        """Attempt to minimize crashes"""
+        for crash in self._crashes:
+            # Skip if we already have a minimized crash for this crash type
+            if crash.crash_summary in self._minimized_crashes:
+                continue
+
+            print(f'{Colors.YELLOW}Minimize {crash.name} ({crash.crash_summary}){Colors.END}')
+            
+            # Try to reproduce the crash
+            with tempfile.TemporaryDirectory() as tmpdir:
+                res = try_generate_reproducer(Path(tmpdir), str(self.fuzzer_path), cfg.info.build_script_ext, crash.filepath)
+                if res is None:
+                    print(f'{Colors.RED}Failed to generate reproducer for {crash.name}{Colors.END}')
+                    continue
+
+                # Run minimizer agent
+                code, report = run_minimizer_agent(
+                    cfg.info,
+                    cfg.model,
+                    str(res.external_code),
+                )
+
+                res.minimized_code = code
+                res.minimized_crash_report = report
+
+                self._minimized_crashes[crash.crash_summary] = res
+                self.save_results()
 
     def attempt_triage(self, cfg: Config):
         by_type = self.crashes_by_type()
@@ -315,13 +397,12 @@ class RunnerStage:
 
                 crash_cpp = Path(tmpdir) / "crash.cpp"
                 crash_cpp.write_text(by_type[k][0].external_code)
-                
+
                 res = run_triage_agent(
+                    cfg.info,
+                    cfg.model,
                     str(crash_cpp),
                     str(crash_report),
-                    cfg.codebase,
-                    cfg.rag,
-                    cfg.ext_build_script,
                 )
 
                 res.pprint()
@@ -342,8 +423,6 @@ class RunnerStage:
                 continue
 
             triage_analysis = self._triage_results[k]
-            if triage_analysis.is_bug:
-                continue
 
             print(f'{Colors.YELLOW}Patch {k} ({v} crashes){Colors.END}')
 
@@ -354,6 +433,9 @@ class RunnerStage:
                 examples_invalid = Path(tmpdir) / "examples_invalid"
                 examples_invalid.mkdir(parents=True, exist_ok=True)
 
+                crash_cpp = Path(tmpdir) / "crash.cpp"
+                crash_cpp.write_text(by_type[k][0].external_code)
+
                 for crash in by_type[k]:
                     with open(examples_invalid / crash.name, "w") as f:
                         f.write(crash.minimized_graph)
@@ -361,14 +443,15 @@ class RunnerStage:
                 testcase = Path(tmpdir) / by_type[k][0].name
 
                 res = run_patch_agent(
+                    cfg.info,
+                    cfg.model,
                     str(self.schema_path),
                     analysis=str(analysis_file),
                     testcase=str(testcase),
                     fuzzer=str(self.fuzzer_path),
                     ex_valid=str(self.safe_corpus_path),
                     ex_invalid=str(examples_invalid),
-                    build_script=cfg.build_script,
-                    config=cfg.config,
+                    minimized_crash=str(crash_cpp),
                 )
 
                 res.pprint()
@@ -378,6 +461,47 @@ class RunnerStage:
 
                 self._patch_results[k] = res
                 self.save_results()
+
+    def attempt_crash_analysis(self, cfg: Config, runner: 'Runner'):
+        by_type = self.crashes_by_type()
+        counts = [(k, len(v)) for k, v in by_type.items()]
+        counts.sort(key=lambda x: x[1], reverse=True)
+
+        for k, v in counts:
+            if k in self._crash_analysis:
+                continue
+
+            if v < 5:
+                # Need at least 5 crashes to run crash analysis
+                continue
+
+            history = []
+            for stage in runner.stages[:-1]:
+                if k in stage._crash_analysis:
+                    history.append(stage._crash_analysis[k])
+
+            print(f'{Colors.YELLOW}Crash analysis {k} ({v} crashes) ({len(history)} history){Colors.END}')
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                crash_report = Path(tmpdir) / "crash.report"
+                crash_report.write_text(by_type[k][0].crash_report)
+
+                crash_cpp = Path(tmpdir) / "crash.cpp"
+                crash_cpp.write_text(by_type[k][0].external_code)
+                
+                res = run_crash_analysis_agent(
+                    cfg.info,
+                    cfg.model,
+                    str(crash_cpp),
+                    str(crash_report),
+                    str(self.schema_path),
+                    history,
+                )
+
+                self._crash_analysis[k] = res
+                self.save_results()
+
+
 class Runner:
     def __init__(self, config: Config):
         self.cfg = config
@@ -407,23 +531,33 @@ class Runner:
 
             stage.build_fuzzer(self.cfg)
             stage.start_fuzzer(self.cfg.bypass_validation)
+            stage.ensure_running(self.cfg.bypass_validation)
 
             while True:
                 stage.update_tick(self.cfg)
                 
-                try:
-                    stage.attempt_triage(self.cfg)
-                    stage.attempt_patch(self.cfg)
-                except Exception as e:
-                    # Probably LLM error, wait and try again
-                    print(f'{Colors.RED}Error: {e}{Colors.END}')
-                    time.sleep(10)
+                # try:
+                    # stage.attempt_triage(self.cfg)
+                    # stage.attempt_patch(self.cfg)
+                    # stage.attempt_crash_analysis(self.cfg, self)
+                stage.attempt_minimize(self.cfg)
+                # except Exception as e:
+                #     # Probably LLM error, wait and try again
+                #     print(f'{Colors.RED}Error: {e}{Colors.END}')
+                #     time.sleep(10)
 
                 stage.save_results()
                 stage.print_stats()
 
-                if len(stage._patch_results) > 0:
-                    # Once we have patches, bail out and apply them
+                has_patches = False
+                if len(stage._crash_analysis) > 0:
+                    for result in stage._crash_analysis.values():
+                        if result.fix is not None and isinstance(result.fix.fix, EndpointFixAttempt):
+                            # Bail out and apply patches
+                            has_patches = True
+                            break
+
+                if has_patches:
                     break
 
                 time.sleep(1)
@@ -431,32 +565,38 @@ class Runner:
             stage.stop_fuzzer()
 
             print(f'{Colors.YELLOW}Applying patches...{Colors.END}')
-            for k, v in stage._patch_results.items():
-                print(f'{Colors.YELLOW}Applying patch for {k}...{Colors.END}')
-                match v.fix:
-                    case EndpointFixAttempt():
-                        print(f'{Colors.YELLOW}Patching endpoints {k}...{Colors.END}')
-                        for fix in v.fix.fixes:
-                            print(f'{Colors.YELLOW}Patching endpoint {fix.endpoint_name}...{Colors.END}')
-                            for endpoint in current_schema.endpoints:
-                                if endpoint.name == fix.endpoint_name:
-                                    endpoint.template = fix.new_template
-                                    break
-                    case FilterResult():
-                        print(f'{Colors.YELLOW}Patching filter {k}...{Colors.END}')
-                        current_filters.append(v.fix.filter_attempt.filter_function)
-                    case _:
-                        raise ValueError(f'Unknown patch type: {type(v.fix)}')
+            for result in stage._crash_analysis.values():
+                if result.fix is not None and isinstance(result.fix.fix, EndpointFixAttempt):
+                    for fix in result.fix.fix.fixes:
+                        print(f'{Colors.YELLOW}Patching endpoint {fix.endpoint_name}...{Colors.END}')
+                        for endpoint in current_schema.endpoints:
+                            if endpoint.name == fix.endpoint_name:
+                                endpoint.template = fix.new_template
+                                break
+
+            # for k, v in stage._patch_results.items():
+            #     print(f'{Colors.YELLOW}Applying patch for {k}...{Colors.END}')
+            #     match v.fix:
+            #         case EndpointFixAttempt():
+            #             print(f'{Colors.YELLOW}Patching endpoints {k}...{Colors.END}')
+            #             for fix in v.fix.fixes:
+            #                 print(f'{Colors.YELLOW}Patching endpoint {fix.endpoint_name}...{Colors.END}')
+            #                 for endpoint in current_schema.endpoints:
+            #                     if endpoint.name == fix.endpoint_name:
+            #                         endpoint.template = fix.new_template
+            #                         break
+            #         case FilterResult():
+            #             print(f'{Colors.YELLOW}Patching filter {k}...{Colors.END}')
+            #             current_filters.append(v.fix.filter_attempt.filter_function)
+            #         case _:
+            #             raise ValueError(f'Unknown patch type: {type(v.fix)}')
 
 def main(args):
+    info = ProjectInfo.model_validate_json(open(args.info).read())
     runner = Runner(Config(
+        info=info,
+        model=args.model,
         schema=args.schema,
-        config=args.config,
-        fuzzer_build=args.fuzzer_build,
-        ext_build_script=args.ext_build_script,
-        build_script=args.build_script,
-        codebase=args.codebase,
-        rag=args.rag,
         workdir=args.workdir,
         bypass_validation=args.bypass_validation
     ))
@@ -465,13 +605,9 @@ def main(args):
 
 def register(subparsers):
     parser = subparsers.add_parser('run', help='Run the fuzzer')
-    parser.add_argument('--schema', type=str, required=True)
-    parser.add_argument('--config', type=str, required=True)
-    parser.add_argument('--fuzzer-build', type=str, required=True, help='Script to build the fuzzer')
-    parser.add_argument('--ext-build-script', type=str, required=True, help='Script to build external reproducers')
-    parser.add_argument('--build-script', type=str, required=True, help='Script to build the fuzzer')
-    parser.add_argument('--codebase', type=str, required=True, help='Path to the codebase')
-    parser.add_argument('--rag', type=str, required=True, help='Path to the RAG')
+    parser.add_argument('--info', type=str, required=True, help='Path to the project info file')
+    parser.add_argument('--model', type=str, required=True, help='Model to use')
+    parser.add_argument('--schema', type=str, required=True, help='Path to the initial fuzzer schema')
     parser.add_argument('--workdir', type=str, required=True, help='Path to the working directory')
     parser.add_argument('--bypass-validation', action='store_true', help='Bypass validation of fuzzer schema')
     parser.set_defaults(func=main)

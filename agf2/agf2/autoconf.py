@@ -90,7 +90,7 @@ Examine the codebase systematically and report back headers that look like publi
 
 def main(args):
     tools = [list_directory, read_file, find_matching_regex]
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model="o3-mini")
     llm_with_tools = llm.bind_tools(tools)
     llm_structured = llm.with_structured_output(HeadersOutput)
 

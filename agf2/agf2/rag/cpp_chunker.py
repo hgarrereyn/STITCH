@@ -38,7 +38,8 @@ class CppChunker(Chunker):
         'preproc_elif',
         'declaration_list',
         'class_specifier',
-        'field_declaration_list'
+        'field_declaration_list',
+        'namespace_definition',
     ]
 
     IGNORE_TYPES = [
@@ -85,6 +86,24 @@ class CppChunker(Chunker):
         'storage_class_specifier',
         'primitive_type',
         'while_statement',
+        'using_declaration',
+        'base_class_clause',
+        'access_specifier',
+        ':',
+        'template_declaration',
+        'namespace',
+        'namespace_identifier',
+        'goto_statement',
+        'while',
+        'compound_literal_expression',
+        '*',
+        'else',
+        'case_statement',
+        'pointer_declarator',
+        'switch',
+        'case',
+        ',',
+        '-',
     ]
 
     HIERARCHY_TYPES = [
@@ -94,6 +113,7 @@ class CppChunker(Chunker):
         'preproc_if',
         'class_specifier',
         'linkage_specification',
+        'namespace_definition',
     ]
 
     HIERARCHY_IGNORE = [
@@ -122,8 +142,8 @@ class CppChunker(Chunker):
 
             if typ in self.CHUNK_TYPES:
                 self._add_chunk(child, parent, filename, chunks)
-            elif typ == 'comment':
-                self._add_comment(child, parent, filename, chunks)
+            # elif typ == 'comment':
+            #     self._add_comment(child, parent, filename, chunks)
 
             if typ in self.CONTAINER_TYPES:
                 self._generate_chunks(child, filename, chunks)

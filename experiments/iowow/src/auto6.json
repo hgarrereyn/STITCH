@@ -1,0 +1,566 @@
+{
+  "endpoints": [
+    {
+      "name": "iwkv_cursor_set",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();  \n}\n\n// Assuming we have access to the database structure through some API or helper functions \n// since iwkv_cursor is an incomplete type.\n\niwkv_opflags opflags = FUZZ_PARAM(iwkv_opflags);\n\niwrc rc = iwkv_cursor_seth(__cur, &__val, opflags, 0, 0);\nif (rc) {\n    FUZZ_BAIL();  \n}"
+    },
+    {
+      "name": "iwkv_put",
+      "variables": [
+        {
+          "name": "__db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "__key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "__val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "    // Validate input parameters\n    if (!__db) {\n        FUZZ_BAIL();\n    }\n    if (__key.size == 0 || !__key.data) {\n        FUZZ_BAIL();\n    }\n    if (__val.size == 0 || !__val.data) {\n        FUZZ_BAIL();\n    }\n\n    // Call iwkv_put with appropriate arguments\n    iwrc rc = iwkv_put(__db, &__key, &__val, 0);\n    if (rc != 0) {\n        FUZZ_BAIL();\n    }\n\n    // Initialization of output arguments can be done if needed\n    // (Not applicable here since the function doesn't have output params)\n\n    // Cleaning up any temporary objects if needed\n    // (No dynamic allocations were done that need cleanup in this context)\n"
+    },
+    {
+      "name": "iwkv_state",
+      "variables": [
+        {
+          "name": "__iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "    if (!__iwkv) {\n        FUZZ_BAIL();\n    }\n\n    IWFS_FSM_STATE *state = (IWFS_FSM_STATE *)gf_malloc(sizeof(IWFS_FSM_STATE));\n    if (!state) {\n        FUZZ_BAIL(); \n    }\n\n    iwrc rc = iwkv_state(__iwkv, state);\n    if (rc != 0) {\n        gf_free(state);\n        FUZZ_BAIL();\n    }\n\n    gf_free(state);"
+    },
+    {
+      "name": "iwkv_kv_dispose",
+      "variables": [
+        {
+          "name": "__key",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "__val",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (__key.data == NULL || __val.data == NULL) {\n        FUZZ_BAIL();\n    }\n\n    iwkv_kv_dispose(&__key, &__val);\n\n    // No temporary objects need to be created.\n    // Clean up is not applicable since iwkv_kv_dispose manages the disposal.\n"
+    },
+    {
+      "name": "iwkv_db_get_meta",
+      "variables": [
+        {
+          "name": "__db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        }
+      ],
+      "template": "if (!__db) {\n    FUZZ_BAIL(); // input database pointer is null\n}\n\nsize_t rsz;\nsize_t buffer_size = FUZZ_PARAM(size_t);\nvoid* buffer = gf_malloc(buffer_size);\nif (!buffer) {\n    FUZZ_BAIL(); // Memory allocation failed\n}\n\niwrc rc = iwkv_db_get_meta(__db, buffer, buffer_size, &rsz);\nif (rc != 0) {\n    gf_free(buffer);\n    FUZZ_BAIL(); // Failed to get meta data\n}\n\ngf_free(buffer);\n"
+    },
+    {
+      "name": "iwkv_cursor_open",
+      "variables": [
+        {
+          "name": "__db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "__curptr",
+          "dir": "new",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__db) {\n    FUZZ_BAIL();\n}\n\n__curptr = nullptr;\n\nenum iwkv_cursor_op op = IWKV_CURSOR_EQ;\n\niwrc rc = iwkv_cursor_open(__db, &__curptr, op, &__key);\nif (rc != 0) {\n    if (__curptr) {\n        iwkv_cursor_close(&__curptr);\n    }\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_open",
+      "variables": [
+        {
+          "name": "__opts",
+          "dir": "*",
+          "typ": "struct iwkv_opts"
+        },
+        {
+          "name": "__iwkvp",
+          "dir": "new",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "if (!__opts.path) { FUZZ_BAIL(); }\n\n    iwrc rc = iwkv_open(&__opts, &__iwkvp);\n    if (rc != 0) { FUZZ_BAIL(); }\n\n    if (!__iwkvp) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "iwkv_db_set_meta",
+      "variables": [
+        {
+          "name": "__db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        }
+      ],
+      "template": "if (!__db) {\n    FUZZ_BAIL();\n}\n\nsize_t sz = FUZZ_PARAM(size_t);\nvoid* buf = gf_malloc(sz);\nif (!buf) {\n    FUZZ_BAIL();\n}\n\nmemset(buf, 0, sz);\n\niwrc rc = iwkv_db_set_meta(__db, buf, sz);\nif (rc) {\n    gf_free(buf);\n    FUZZ_BAIL();\n}\n\ngf_free(buf);"
+    },
+    {
+      "name": "iwkv_cursor_seth",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\nstruct iwkv_val *val = (struct iwkv_val*) gf_malloc(sizeof(struct iwkv_val));\nif (!val) {\n    FUZZ_BAIL();\n}\n*val = __val;\n\n// Since we can't access __cur->lx.db due to incomplete type, we can only validate __cur\n// we skip the database context validation but ensure that __cur is non-null\n\niwkv_opflags opflags = FUZZ_PARAM(iwkv_opflags);\niwrc rc = iwkv_cursor_seth(__cur, val, opflags, nullptr, nullptr);\n\nif (rc != 0) {\n    gf_free(val);\n    FUZZ_BAIL();\n}\n\ngf_free(val);"
+    },
+    {
+      "name": "iwkv_val_dispose",
+      "variables": [],
+      "template": "    struct iwkv_val *val = (struct iwkv_val *)gf_malloc(sizeof(struct iwkv_val));\n    if (!val) {\n        FUZZ_BAIL(); // Memory allocation failed\n    }\n\n    val->size = FUZZ_PARAM(size_t);\n    val->data = (char *)gf_malloc(val->size);\n    if (!val->data) {\n        gf_free(val);\n        FUZZ_BAIL(); // Memory allocation failed\n    }\n\n    memcpy(val->data, FUZZ_PARAM_STR(val->size), val->size);\n\n    iwkv_val_dispose(val);\n"
+    },
+    {
+      "name": "iwkv_val_dispose",
+      "variables": [
+        {
+          "name": "__v",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (&__v == nullptr) {\n    FUZZ_BAIL(); // if __v is a null pointer\n}\n\niwkv_val_dispose(&__v);\n\n// No temporary objects needed since we are directly working with the provided __v."
+    },
+    {
+      "name": "iwkv_cursor_close",
+      "variables": [
+        {
+          "name": "__curp",
+          "dir": "del",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (__curp == NULL) {\n    FUZZ_BAIL(); // Invalid cursor pointer\n}\n\niwrc rc = iwkv_cursor_close(&__curp);\n\nif (rc != 0) {\n    FUZZ_BAIL(); // Error occurred while closing the cursor\n}"
+    },
+    {
+      "name": "iwkv_get_copy",
+      "variables": [
+        {
+          "name": "__db",
+          "dir": "*",
+          "typ": "struct iwdb*"
+        },
+        {
+          "name": "__key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__db || !__key.data || __key.size == 0) {\n        FUZZ_BAIL();\n    }\n\n    // Prepare a buffer to hold the value\n    size_t vbufsz = __key.size; // We assume no larger size needed for this example.\n    void *vbuf = gf_malloc(vbufsz);\n    if (!vbuf) {\n        FUZZ_BAIL();\n    }\n\n    size_t vsz = 0;\n    iwrc rc = iwkv_get_copy(__db, &__key, vbuf, vbufsz, &vsz);\n    if (rc != 0) { // If the function returns an error code\n        gf_free(vbuf); // Clean up the allocated buffer\n        FUZZ_BAIL();\n    }\n\n    // Here we could use 'vbuf' and 'vsz' as needed\n\n    // After using 'vbuf', we should free it\n    gf_free(vbuf);"
+    },
+    {
+      "name": "iwkv_cursor_to",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\n// Validate the existence of the database using an alternative method since we cannot access struct fields directly.\n// We may use the cursor's key retrieval ability as a validity check, assuming that it reflects if the cursor is valid.\nstruct iwkv_val key_val;\n\n// Try to retrieve the key from the cursor as a simple validation method.\nif (iwkv_cursor_key(__cur, &key_val) != 0) {\n    FUZZ_BAIL();\n}\n\nIWKV_cursor_op op = FUZZ_PARAM(IWKV_cursor_op);\n\niwrc result = iwkv_cursor_to(__cur, op);\nif (result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_online_backup",
+      "variables": [
+        {
+          "name": "__iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "if (!__iwkv) {\n    FUZZ_BAIL(); // If the input parameter is null, we bail out\n}\n\nuint64_t backup_ts = 0; // Variable to store the backup completion timestamp\nconst char *target_file = FUZZ_PARAM_STR(256); // Generate a random target file name\n\n// Call the library function to create an online backup\niwrc result = iwkv_online_backup(__iwkv, &backup_ts, target_file);\n\nif (result != 0) {\n    FUZZ_BAIL(); // If the backup operation fails, we bail out\n}"
+    },
+    {
+      "name": "iwkv_cursor_copy_val",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\nvoid *vbuf = gf_malloc(1024); // Arbitrary buffer size for demonstration\nif (!vbuf) {\n    FUZZ_BAIL();\n}\n\nsize_t vbufsz = 1024;\nsize_t vsz = 0;\n\niwrc rc = iwkv_cursor_copy_val(__cur, vbuf, vbufsz, &vsz);\nif (rc != 0) {\n    gf_free(vbuf); // Clean up\n    FUZZ_BAIL();\n}\n\ngf_free(vbuf);"
+    },
+    {
+      "name": "iwkv_sync",
+      "variables": [
+        {
+          "name": "__iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "if (__iwkv == NULL) {\n    FUZZ_BAIL();\n}\n\niwfs_sync_flags flags = FUZZ_PARAM(iwfs_sync_flags);\n\niwrc result = iwkv_sync(__iwkv, flags);\n\nif (result != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_db_destroy",
+      "variables": [
+        {
+          "name": "__dbp",
+          "dir": "del",
+          "typ": "struct iwdb*"
+        }
+      ],
+      "template": "if (!__dbp) {\n    FUZZ_BAIL();\n}\n\nstruct iwdb* db_pointer = __dbp;\niwrc rc;\nrc = iwkv_db_destroy(&db_pointer);\nif (rc != 0) {\n    FUZZ_BAIL();\n}\n__dbp = NULL;"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "{\n    // 1. Validate input parameters\n    if (!__cur) {\n        FUZZ_BAIL(); // Cursor must not be NULL\n    }\n\n    // Initialize output values\n    struct iwkv_val key_val = {0};\n    struct iwkv_val value_val = {0};\n\n    // 2. Call iwkv_cursor_get with appropriate arguments\n    iwrc rc = iwkv_cursor_get(__cur, &key_val, &value_val);\n    \n    // 3. Handle the result of iwkv_cursor_get\n    if (rc) {\n        if (rc == IW_ERROR_INVALID_ARGS) {\n            FUZZ_BAIL(); // Invalid arguments passed\n        } else if (rc == IWKV_ERROR_NOTFOUND) {\n            // Handle not found case if necessary, here we just bail\n            FUZZ_BAIL();\n        } else if (rc == IW_ERROR_ALLOC) {\n            FUZZ_BAIL(); // Memory allocation failure\n        } else {\n            // Handle any other errors appropriately\n            FUZZ_BAIL();\n        }\n    }\n\n    // 4. Clean up any temporary objects you create\n    // If key_val and value_val need to be freed they should be handled here, but in this \n    // context provided by the logic in iwkv_cursor_get, we assume memory is managed within that function.\n\n    // Return nothing; function ends\n}"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__okey",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\nstruct iwkv_val *oval = (struct iwkv_val *)gf_malloc(sizeof(struct iwkv_val));\nif (!oval) {\n    FUZZ_BAIL();\n}\n\niwrc result = iwkv_cursor_get(__cur, &__okey, oval);\nif (result != 0) {\n    gf_free(oval);\n    FUZZ_BAIL();\n}\n\ngf_free(oval);"
+    },
+    {
+      "name": "iwkv_cursor_get",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__oval",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n// Since we cannot access the internal structure, we will only check for __cur validity\nif (!__oval.data) {\n    FUZZ_BAIL();\n}\nstruct iwkv_val *okey = nullptr;\nstruct iwkv_val *oval = &__oval;\niwrc rc = iwkv_cursor_get(__cur, okey, oval);\nif (rc) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_new_db",
+      "variables": [
+        {
+          "name": "__iwkv",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "__dbp",
+          "dir": "new",
+          "typ": "struct iwdb*"
+        }
+      ],
+      "template": "if (!__iwkv) {\n    FUZZ_BAIL();\n}\n\nuint32_t dbid = FUZZ_PARAM(uint32_t);\niwdb_flags_t dbflg = FUZZ_PARAM(iwdb_flags_t);\n\n__dbp = nullptr;\n\niwrc rc = iwkv_new_db(__iwkv, dbflg, &dbid, &__dbp);\nif (rc) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_cursor_is_matched_key",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\nbool isMatched = false;\nint64_t compoundKey = 0;\n\niwrc rc = iwkv_cursor_is_matched_key(__cur, &__key, &isMatched, &compoundKey);\nif (rc != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_cursor_val",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\nstruct iwkv_val* oval = (struct iwkv_val*)gf_malloc(sizeof(struct iwkv_val));\nif (!oval) {\n    FUZZ_BAIL();\n}\n\noval->data = NULL;\noval->size = 0;\n\niwrc rc = iwkv_cursor_val(__cur, oval);\nif (rc != 0) {\n    gf_free(oval);\n    FUZZ_BAIL();\n}\n\nif (oval->data) {\n    iwkv_val_dispose(oval);\n}\n\ngf_free(oval);"
+    },
+    {
+      "name": "iwkv_cursor_val",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__oval",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\nstruct iwkv_val *oval_ptr = (struct iwkv_val *)gf_malloc(sizeof(struct iwkv_val));\nif (!oval_ptr) {\n    FUZZ_BAIL();\n}\n\niwrc rc = iwkv_cursor_val(__cur, oval_ptr);\nif (rc != 0) {\n    gf_free(oval_ptr);\n    FUZZ_BAIL();\n}\n\n__oval = *oval_ptr;\n\ngf_free(oval_ptr);"
+    },
+    {
+      "name": "iwkv_cursor_to_key",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL(); // Input parameter validation\n}\n\nIWKV_cursor_op op = FUZZ_PARAM(IWKV_cursor_op); // Random cursor operation\nconst struct iwkv_val* key = NULL; // This will be set up later\nstruct iwkv_val local_key;\n\n// Randomize key data\nsize_t key_len = FUZZ_PARAM(size_t); // Length for the key\nlocal_key.data = (void*)FUZZ_PARAM_STR(key_len); // Random key data\nlocal_key.size = key_len;\n\nkey = &local_key;\n\n// Call the iwkv_cursor_to_key function with the cursor and randomized key\niwrc rc = iwkv_cursor_to_key(__cur, op, key);\nif (rc != 0) {\n    FUZZ_BAIL(); // Handle error case\n}\n\n// Clean up temporarily allocated key data (if necessary)\ngf_free((void*)local_key.data);"
+    },
+    {
+      "name": "iwkv_cursor_to_key",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL(); // Invalid cursor\n}\n\n// Since we can't directly access members of iwkv_cursor or iwlctx, we will use library functions instead.\n\n// Placeholder values for operation, and we will assume these are defined elsewhere in the real code.\nIWKV_cursor_op op = IWKV_CURSOR_EQ;\n\n// Validate the provided key using an assumed function suitable for the library\niwrc rc = iwkv_cursor_to_key(__cur, op, &__key);\nif (rc != 0) {\n    FUZZ_BAIL(); // Cursor operation failed\n}\n\n// Additional clean-up or state initialization can be handled here\n"
+    },
+    {
+      "name": "iwkv_close",
+      "variables": [
+        {
+          "name": "__iwkvp",
+          "dir": "del",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "if (__iwkvp == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct iwkv* iwkv_to_close = __iwkvp;\n\niwrc result = iwkv_close(&iwkv_to_close);\n\nif (result != 0) {\n    FUZZ_BAIL();\n}\n\n__iwkvp = NULL;"
+    },
+    {
+      "name": "iwkv_init",
+      "variables": [],
+      "template": "    iwrc rc = iwkv_init();\n    if (rc) {\n        FUZZ_BAIL();\n    }"
+    },
+    {
+      "name": "iwkv_puth",
+      "variables": [
+        {
+          "name": "__db",
+          "dir": "*",
+          "typ": "struct iwkv*"
+        },
+        {
+          "name": "__key",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        },
+        {
+          "name": "__val",
+          "dir": "*",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "{\n    // Validate input parameters\n    if (!__db) {\n        FUZZ_BAIL();\n    }\n    \n    if (!__key.size || !__key.data) {\n        FUZZ_BAIL();\n    }\n    \n    if (!__val.size || !__val.data) {\n        FUZZ_BAIL();\n    }\n\n    // Handle dynamic memory for keys/vals if necessary\n    struct iwkv_val key;\n    struct iwkv_val val;\n\n    key.size = __key.size;\n    key.data = (__key.data != NULL) ? gf_malloc(key.size) : NULL;\n    if (key.data && memcpy(key.data, __key.data, key.size) == NULL) {\n        gf_free(key.data);\n        FUZZ_BAIL();\n    }\n    \n    val.size = __val.size;\n    val.data = (__val.data != NULL) ? gf_malloc(val.size) : NULL;\n    if (val.data && memcpy(val.data, __val.data, val.size) == NULL) {\n        gf_free(key.data);\n        gf_free(val.data);\n        FUZZ_BAIL();\n    }\n\n    // Prepare the iwdb from iwkv\n    struct iwdb* db = (struct iwdb*)__db; // Casting __db to iwdb*\n\n    // Call iwkv_puth with appropriate arguments, including flags and handlers.\n    iwrc rc = iwkv_puth(db, &key, &val, 0, NULL, NULL); // Adding default handler arguments\n    if (rc != 0) {\n        gf_free(key.data);\n        gf_free(val.data);\n        FUZZ_BAIL();\n    }\n\n    // Clean up\n    gf_free(key.data);\n    gf_free(val.data);\n}"
+    },
+    {
+      "name": "iwkv_cursor_del",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\n// Assume opflags can be generated without needing access to cursor internals.\n// Using a random fixed-size value for operation flags.\n iwkv_opflags opflags = FUZZ_PARAM(iwkv_opflags);\n\niwrc rc = iwkv_cursor_del(__cur, opflags);\nif (rc) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "iwkv_cursor_key",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "if (!__cur) {\n    FUZZ_BAIL();\n}\n\n// Use a temporary variable to avoid member access on incomplete type\nstruct iwkv_val key;\n\n// Here we assume that iwkv_cursor_key will validate cursor before using it\niwrc rc = iwkv_cursor_key(__cur, &key);\n\nif (rc) {\n    FUZZ_BAIL();\n}\n\n// printf(\"Fetched key: %.*s\\n\", (int)key.size, (char *)key.data);\n\n// iwkv_val_dispose(&key); // Uncomment if iwkv_val requires manual disposal\n"
+    },
+    {
+      "name": "iwkv_cursor_key",
+      "variables": [
+        {
+          "name": "__cur",
+          "dir": "*",
+          "typ": "struct iwkv_cursor*"
+        },
+        {
+          "name": "__okey",
+          "dir": "new",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "if (__cur == nullptr) {\n    FUZZ_BAIL();\n}\n\niwrc rc = iwkv_cursor_key(__cur, &__okey);\n\nif (rc != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new IWKV_WAL_OPTS",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "IWKV_WAL_OPTS"
+        }
+      ],
+      "template": "    object.enabled = FUZZ_PARAM(bool);\n    object.check_crc_on_checkpoint = FUZZ_PARAM(bool);\n    object.savepoint_timeout_sec = FUZZ_PARAM(uint32_t);\n    object.checkpoint_timeout_sec = FUZZ_PARAM(uint32_t);\n    object.wal_buffer_sz = FUZZ_PARAM(size_t);\n    object.checkpoint_buffer_sz = FUZZ_PARAM(uint64_t);\n    object.wal_lock_interceptor = nullptr; // Default to null, can be randomized if needed\n    object.wal_lock_interceptor_opaque = nullptr; // Default to null as well\n    \n    // For fuzzing randomly initialize wal_lock_interceptor with a function pointer if necessary\n    if (FUZZ_PARAM(bool)) {\n        // Assuming there is a way to define a simple interceptor function\n        // object.wal_lock_interceptor = my_interceptor_function; // Uncomment and define if applicable\n    }"
+    },
+    {
+      "name": "new struct iwkv_opts",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct iwkv_opts"
+        }
+      ],
+      "template": "    iwrc rc = iwkv_init();\n    if (rc != 0) { // Check if initialization failed\n        FUZZ_BAIL();\n    }\n\n    const char *path = FUZZ_PARAM_STR(32); // Random path for the database\n    memset(&object, 0, sizeof(object)); // Clear the object before use\n    object.path = path; // Assigning the path to object\n\n    struct iwkv *iwkv_handle = NULL;\n    rc = iwkv_open(&object, &iwkv_handle);\n    if (rc != 0) { // Check if opening the database failed\n        FUZZ_BAIL();\n    }\n\n    gf_free((void*)path);"
+    },
+    {
+      "name": "new struct iwkv_cursor*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct iwkv_cursor*"
+        }
+      ],
+      "template": "struct iwdb* db = (struct iwdb*)FUZZ_PARAM(uintptr_t); \nenum iwkv_cursor_op op = FUZZ_PARAM(enum iwkv_cursor_op);\nstruct iwkv_val key = FUZZ_PARAM(struct iwkv_val);\n\niwrc rc = iwkv_cursor_open(db, &object, op, &key);\n\nif (rc) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new struct iwkv_wal_opts",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct iwkv_wal_opts"
+        }
+      ],
+      "template": "object.enabled = false;  // Default: WAL disabled\nobject.check_crc_on_checkpoint = false; // Default: CRC checks disabled\nobject.savepoint_timeout_sec = 10; // Default: 10 seconds\nobject.checkpoint_timeout_sec = 300; // Default: 300 seconds\nobject.wal_buffer_sz = 8 * 1024 * 1024; // Default: 8MB buffer\nobject.checkpoint_buffer_sz = 1ULL * 1024 * 1024 * 1024; // Default: 1GB\nobject.wal_lock_interceptor = nullptr; // No lock interceptor by default\nobject.wal_lock_interceptor_opaque = nullptr; // No opaque data by default"
+    },
+    {
+      "name": "new struct iwkv*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "struct iwkv_opts opts = {\n    .path = FUZZ_PARAM_STR(20) // Generate a random path string of length 20\n};\n\niwrc rc = iwkv_open(&opts, &object);\nif (rc != 0) { // If the API call fails, bail out\n    FUZZ_BAIL();\n}\n\nif (!object) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "delete IWKV_WAL_OPTS",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "IWKV_WAL_OPTS"
+        }
+      ],
+      "template": "if (object.enabled) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "delete struct iwdb*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct iwdb*"
+        }
+      ],
+      "template": "if (object == nullptr) {\n    FUZZ_BAIL();\n}\nstruct iwdb* db_ptr = object;\niwrc rc = iwkv_db_destroy(&db_ptr);\nif (rc != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "delete IWKV_val",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "IWKV_val"
+        }
+      ],
+      "template": "iwkv_val_dispose(&object);\nif (object.data != NULL || object.size != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "delete struct iwkv_wal_opts",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct iwkv_wal_opts"
+        }
+      ],
+      "template": "if (object.wal_lock_interceptor_opaque != NULL) {\n    gf_free(object.wal_lock_interceptor_opaque);\n}\nFUZZ_BAIL();"
+    },
+    {
+      "name": "delete struct iwkv*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct iwkv*"
+        }
+      ],
+      "template": "if (!object) {\n    FUZZ_BAIL();\n}\n\n// Attempt to clean up the object using the library API\n// Note: We need to ensure that we have the correct type for destruction.\niwrc rc = iwkv_db_destroy((struct iwdb**)&object);\nif (rc != 0) {\n    FUZZ_BAIL();\n}\n\n// If the library API does not fully handle memory, or if additional cleanup is needed,\n// It would generally be handled here. However, we rely on the provided API to clean up entirely."
+    },
+    {
+      "name": "delete struct iwkv_val",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct iwkv_val"
+        }
+      ],
+      "template": "iwkv_val_dispose(&object);\n"
+    }
+  ]
+}

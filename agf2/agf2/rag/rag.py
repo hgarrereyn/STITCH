@@ -10,6 +10,8 @@ from .cpp_chunker import CppChunker
 from .text_chunker import TextChunker
 from .chunk import Chunk, Chunker
 from ..utils.colors import Colors
+import tiktoken
+import h5py
 
 
 @dataclass
@@ -53,9 +55,13 @@ CHUNKERS = [
 
 @dataclass
 class RAG:
-    chunks: List[Chunk]
+    # HDF5 file with two keys:
+    # - 'chunks': list of serialized chunks
+    # - 'embeddings': numpy array of embeddings
+    rag_file: h5py.File
 
-    def load_codebase(self, fpath: Path):
+    def _load_codebase(self, fpath: Path) -> List[Chunk]:
+        chunks = []
         for path in fpath.rglob('*'):
             if path.is_file():
                 for config in CHUNKERS:
@@ -63,19 +69,21 @@ class RAG:
                         if not any(path.match(pattern) for pattern in config.ignore_matching):
                             with open(path, 'r', encoding='utf-8') as file:
                                 content = file.read()
-                            self.chunks.extend(config.chunker.chunk(path, content))
+                            chunks.extend(config.chunker.chunk(path, content))
                         break
+        return chunks
 
-    def save(self, fpath: Path):
-        with open(fpath, 'wb') as f:
-            pickle.dump(self, f)
+    @staticmethod
+    def new(fpath: Path):
+        rag_file = h5py.File(fpath, 'w')
+        return RAG(rag_file=rag_file)
 
     @staticmethod
     def load(fpath: Path):
-        with open(fpath, 'rb') as f:
-            return pickle.load(f)
+        rag_file = h5py.File(fpath, 'r')
+        return RAG(rag_file=rag_file)
 
-    def batch_embed(self, batch_size: int = 100, model: str = "text-embedding-3-small") -> None:
+    def batch_embed(self, codebase_path: Path, batch_size: int = 100, model: str = "text-embedding-3-small") -> None:
         """
         Generate embeddings for all chunks in batches for better efficiency.
         
@@ -83,8 +91,19 @@ class RAG:
             batch_size: Number of chunks to process in each batch
             model: The model to use for embeddings
         """
-        # Filter chunks that don't have embeddings yet
-        chunks_to_embed = [chunk for chunk in self.chunks if chunk.embedding is None]
+        chunks = self._load_codebase(codebase_path)
+
+        # Filter out chunks that are too large to embed
+        chunks_to_embed = [chunk for chunk in chunks if len(tiktoken.get_encoding('cl100k_base').encode(chunk.text)) < 8192]
+       
+        # Embed one text to get the embedding dimension
+        response = openai.embeddings.create(
+            input=chunks_to_embed[0].text,
+            model=model
+        )
+        embedding_dim = len(response.data[0].embedding)
+       
+        embeddings = np.zeros((len(chunks_to_embed), embedding_dim))
         
         for i in tqdm(range(0, len(chunks_to_embed), batch_size), desc="Embedding chunks"):
             batch = chunks_to_embed[i:i + batch_size]
@@ -97,8 +116,13 @@ class RAG:
             )
             
             # Update chunks with their embeddings
-            for chunk, embedding_data in zip(batch, response.data):
-                chunk.embedding = embedding_data.embedding
+            for j, embedding_data in enumerate(response.data):
+                embeddings[i + j] = embedding_data.embedding
+
+        print("Saving embeddings and chunks to HDF5 file...")
+        self.rag_file['embeddings'] = embeddings
+        self.rag_file['chunks'] = [chunk.serialize() for chunk in chunks_to_embed]
+        print("Done!")
 
     def query(self, query_text: str, top_n: int = 5, model: str = "text-embedding-3-small") -> List[Tuple[Chunk, float]]:
         """
@@ -118,20 +142,14 @@ class RAG:
             model=model
         )
         query_embedding = np.array(response.data[0].embedding)
-        
-        # Calculate similarities with all chunks that have embeddings
-        similarities = []
-        for chunk in self.chunks:
-            if chunk.embedding is not None:
-                chunk_embedding = np.array(chunk.embedding)
-                similarity = np.dot(query_embedding, chunk_embedding) / (
-                    np.linalg.norm(query_embedding) * np.linalg.norm(chunk_embedding)
-                )
-                similarities.append((chunk, float(similarity)))
-        
-        # Sort by similarity and return top N
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        return similarities[:top_n]
+
+        # Calculate similarities with all chunks
+        similarities = np.dot(self.rag_file['embeddings'], query_embedding) / (
+            np.linalg.norm(self.rag_file['embeddings']) * np.linalg.norm(query_embedding)
+        )
+        # Sort by similarity and return top N chunks
+        sorted_indices = np.argsort(similarities)[::-1]
+        return [(Chunk.deserialize(self.rag_file['chunks'][i]), float(similarities[i])) for i in sorted_indices[:top_n]]
 
 
 def register(subparsers):
@@ -157,22 +175,20 @@ def register(subparsers):
 
 def embed_main(args):
     # Create new RAG instance and load codebase
-    rag = RAG(chunks=[])
-    rag.load_codebase(Path(args.codebase_path))
+    rag = RAG.new(Path(args.save_path))
     
     # Embed chunks
-    print(f"Embedding {len(rag.chunks)} chunks...")
-    rag.batch_embed(batch_size=args.batch_size, model=args.model)
+    rag.batch_embed(Path(args.codebase_path), batch_size=args.batch_size, model=args.model)
     
+    rag.rag_file.close()
     # Save RAG object
-    rag.save(Path(args.save_path))
     print(f"Saved embedded RAG to {args.save_path}")
 
 
 def query_main(args):
     # Load RAG object
     rag = RAG.load(Path(args.save_path))
-    
+
     # Perform query
     results = rag.query(args.query_text, top_n=args.top_n, model=args.model)
     

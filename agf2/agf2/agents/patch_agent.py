@@ -12,11 +12,10 @@ import subprocess
 import tempfile
 import random
 
-from ..utils.spec import Endpoint, Stub, DetailedTemplate
-from ..utils.builder import try_build
 from ..utils.search import get_example_usage
 from ..rag.rag import RAG
 from ..utils import repro
+from ..utils.info import ProjectInfo
 from ..utils.colors import Colors
 from .patch_sequence_agent import run_patch_sequence_agent, FilterResult
 from .patch_endpoint_agent import run_patch_endpoint_agent, EndpointFixAttempt
@@ -26,8 +25,7 @@ class PatchAgentAssessment(BaseModel):
     relevant_endpoints: List[str]
     relevant_code: List[str]
     explanation: str
-
-    cause: Literal['bad_code', 'bad_ordering']
+    fix_type: Literal['code', 'filter']
 
 class PatchAgentResult(BaseModel):
     fix: EndpointFixAttempt | FilterResult | None
@@ -39,15 +37,16 @@ class PatchAgentResult(BaseModel):
             self.fix.pprint()
 
 class PatchAgentState(BaseModel):
+    info: ProjectInfo
+    model: str
+
     schema: str  # The fuzzer schema
     analysis: str  # Analysis of the crash
     testcase: str  # The crashing testcase
     fuzzer: str  # The fuzzer
     ex_valid: str  # Path containing valid testcases
     ex_invalid: str  # Path containing invalid testcases
-    build_script: str  # The build script
-    config: str  # The fuzzer config
-
+    minimized_crash: str  # The minimized crash
     # Message history
     messages: Annotated[list, operator.add]
 
@@ -62,47 +61,30 @@ class PatchAgentState(BaseModel):
 
 
 ASSESSMENT_PROMPT = """
-You are an expect C/C++ programmer that can modify a fuzzer in order to avoid false positive crashes.
+You are an expect C/C++ programmer.
+
+Your task is to figure out how to modify a fuzzer to avoid false positive crashes.
 
 You will be provided with:
 - A fuzzer schema - describing the API functions that the fuzzer can call
-- An AI analysis of the crash - describing the false positive crash
+- A reproduced testcase - the testcase that is causing the crash
+- An analysis of the crash - describing the false positive crash
 
-Fuzzer test cases consist of a sequence of "endpoints" that are called in order.
-Each endpoint runs some C++ code (the "template").
-Inputs ($iN) and outputs ($oN) are variables that are passed between endpoints.
+There are two options to fix the crash:
+- Fix code in one or more endpoint templates
+- Implement a filter function that runs before the testcase is executed to determine if the testcase is valid
 
-Work step-by-step.
+Your first task is to determine which of the two options is the correct one.
 
+Work step-by-step:
 1. Identify the relevant endpoints in the fuzzer schema.
 2. Identify the relevant code inside endpoint templates (if applicable).
 3. Provide an explanation.
-4. Then assess whether the crash is caused by:
-    - "bad_code": code in one or more endpoint templates is incorrect
-    - "bad_ordering": the ordering of endpoints is incorrect or not restrictive enough
+4. Then emit one of the following fix types:
+    - "code": code in one or more endpoint templates is incorrect
+    - "filter": a filter function is needed to avoid false positives
 """.strip()
 
-
-def test_filter(fuzzer, filter_function, testcase) -> bool | str:
-    res = subprocess.run([
-        fuzzer,
-        '--test-filter', str(filter_function),
-        '--test-filter-input', str(testcase)
-    ], capture_output=True, text=True, check=True)
-    stdout = res.stdout.strip()
-    if stdout == '1':
-        return True
-    elif stdout == '0':
-        return False
-    else:
-        return res.stderr
-
-def py_repr(fuzzer, testcase) -> str:
-    res = subprocess.run([
-        fuzzer,
-        '--to-py-str-repr', testcase
-    ], capture_output=True, text=True, check=True)
-    return res.stdout.strip()
 
 def initialize_state(state: PatchAgentState):
     messages = []
@@ -127,7 +109,7 @@ def run_assessment(state: PatchAgentState) -> dict:
     """Run the assessment agent to determine the cause of the crash."""
     print('[*] Running assessment')
 
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model=state.model)
     structured_llm = llm.with_structured_output(PatchAgentAssessment)
 
     res = structured_llm.invoke(state.messages)
@@ -136,7 +118,7 @@ def run_assessment(state: PatchAgentState) -> dict:
     print(f"{Colors.YELLOW}Relevant Endpoints:{Colors.END} {res.relevant_endpoints}")
     for code in res.relevant_code:
         print(f"{Colors.YELLOW}Relevant Code:{Colors.END}\n{code}")
-    print(f"{Colors.YELLOW}Cause:{Colors.END} {res.cause}")
+    print(f"{Colors.YELLOW}Fix Type:{Colors.END} {res.fix_type}")
 
     return {
         "res": res,
@@ -148,7 +130,7 @@ def run_assessment(state: PatchAgentState) -> dict:
 
 def dispatch_fix(state: PatchAgentState) -> Literal['fix_endpoint', 'fix_sequence']:
     """Dispatch the fix to the appropriate agent."""
-    if state.res.cause == 'bad_code':
+    if state.res.fix_type == 'code':
         return 'fix_endpoint'
     else:
         return 'fix_sequence'
@@ -157,14 +139,13 @@ def fix_endpoint(state: PatchAgentState) -> dict:
     """Fix the endpoint."""
     print('[*] Fixing endpoint')
     res = run_patch_endpoint_agent(
+        info=state.info,
+        model=state.model,
         schema=state.schema,
         analysis=state.analysis,
         testcase=state.testcase,
+        minimized_crash=state.minimized_crash,
         fuzzer=state.fuzzer,
-        ex_valid=state.ex_valid,
-        ex_invalid=state.ex_invalid,
-        build_script=state.build_script,
-        config=state.config,
         messages=state.messages,
     )
 
@@ -176,6 +157,8 @@ def fix_sequence(state: PatchAgentState) -> dict:
     """Fix the sequence."""
     print('[*] Fixing sequence')
     res = run_patch_sequence_agent(
+        info=state.info,
+        model=state.model,
         schema=state.schema,
         analysis=state.analysis,
         testcase=state.testcase,
@@ -203,14 +186,16 @@ def build_patch_agent():
     workflow.add_edge('fix_endpoint', END)
     workflow.add_edge('fix_sequence', END)
 
-    workflow.set_entry_point('initialize_state')
+    workflow.set_entry_point('fix_endpoint')
     
     return workflow.compile()
 
 
-def run_patch_agent(schema: str, analysis: str, testcase: str, fuzzer: str, ex_valid: str, ex_invalid: str, build_script: str, config: str) -> PatchAgentResult:
+def run_patch_agent(info: ProjectInfo, model: str, schema: str, analysis: str, testcase: str, fuzzer: str, ex_valid: str, ex_invalid: str, minimized_crash: str) -> PatchAgentResult:
     """Run the patch agent to analyze and fix a bug."""
     state = PatchAgentState(
+        info=info,
+        model=model,
         schema=schema,
         analysis=analysis,
         testcase=testcase,
@@ -218,8 +203,7 @@ def run_patch_agent(schema: str, analysis: str, testcase: str, fuzzer: str, ex_v
         messages=[],
         ex_valid=str(Path(ex_valid).resolve()),
         ex_invalid=str(Path(ex_invalid).resolve()),
-        build_script=build_script,
-        config=config,
+        minimized_crash=str(Path(minimized_crash).resolve()),
     )
     graph = build_patch_agent()
     res = graph.invoke(state)
@@ -232,17 +216,18 @@ def main(args):
         cache = SQLiteCacheFixed(database_path=".cache.db")
         set_llm_cache(cache)
 
-    res: PatchAgentResult = run_patch_agent(args.schema, args.analysis, args.testcase, args.fuzzer, args.ex_valid, args.ex_invalid, args.build_script, args.config)
+    info = ProjectInfo.model_validate_json(open(args.info).read())
+    res: PatchAgentResult = run_patch_agent(info, args.model, args.schema, args.analysis, args.testcase, args.fuzzer, args.ex_valid, args.ex_invalid)
     res.pprint()
 
 def register(subparsers):
     parser = subparsers.add_parser('patch')
+    parser.add_argument('--info', type=str, required=True)
+    parser.add_argument('--model', type=str, required=True)
     parser.add_argument('--schema', type=str, required=True)
     parser.add_argument('--analysis', type=str, required=True)
     parser.add_argument('--testcase', type=str, required=True)
     parser.add_argument('--fuzzer', type=str, required=True)
-    parser.add_argument('--build-script', type=str, required=True)
-    parser.add_argument('--config', type=str, required=True)
 
     # Examples of valid and invalid testcases
     parser.add_argument('--ex-valid', type=str, required=True)

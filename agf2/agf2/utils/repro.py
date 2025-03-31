@@ -2,6 +2,8 @@ import tempfile
 import subprocess
 from pathlib import Path
 
+from ..runner.crash_repro import observe_crash
+
 
 def test_program(code: str, build_script: str) -> str:
     """Compile and run a test case demonstrating the bug. Returns the output of running the program."""
@@ -30,16 +32,12 @@ def test_program(code: str, build_script: str) -> str:
         
         # Try to run the program under casr-gdb
         binary_path = base_path  # The build script should create this
-        run_result = subprocess.run(
-            ['casr-san', '--stdout', '--', binary_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+        crash_report, crash_summary = observe_crash([binary_path])
         
-        print(f'>> run_result: {run_result.returncode} {run_result.stdout}')
+        print(f'>> crash_report: {crash_report}')
+        print(f'>> crash_summary: {crash_summary}')
         
-        if run_result.returncode == 0:
-            return f"Program crashed:\n{run_result.stdout}"
+        if crash_report is not None:
+            return f"Program crashed:\n{crash_report}"
         else:
-            return f"Program ran successfully"
+            return f"Program ran without crashing"

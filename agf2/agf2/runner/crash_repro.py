@@ -1,27 +1,30 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple
 import subprocess
 import json
 import tempfile
 import os
 import time
 import re
-from ..utils.colors import Colors
+from pydantic import BaseModel
 
-@dataclass
-class CrashResult:
+
+class CrashResult(BaseModel):
+    filepath: Path
+    name: str
+    crash_report: str
+    crash_summary: str
+
+
+class ReproducedCrash(BaseModel):
     name: str
     minimized_graph: str
     external_code: str
     crash_report: str
-
     crash_summary: str
-
-    def pprint(self):
-        print(f"\n{Colors.GREEN}Minimized Graph:{Colors.END}\n{self.minimized_graph}")
-        print(f"\n{Colors.BLUE}External Code:{Colors.END}\n{self.external_code}")
-        print(f"\n{Colors.RED}Crash Report:{Colors.END}\n{self.crash_report}")
+    minimized_code: Optional[str] = None
+    minimized_crash_report: Optional[str] = None
 
 
 def strip_summary(s: str) -> str:
@@ -33,9 +36,91 @@ def strip_summary(s: str) -> str:
     return pre + ' in ' + post
 
 
-def try_generate_reproducer(tmp_path: Path, fuzzer: str, ext_build: str, crash_file: Path) -> Optional[CrashResult]:
+def run_casr_san(cmd: List[str]) -> Optional[dict]:
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report = Path(tmpdir) / 'casr-san.json'
+            r = subprocess.run(
+                ['casr-san', '--output', report, '--', *cmd],
+                capture_output=True,
+                cwd=tmpdir,
+                timeout=5
+            )
+            if r.returncode == 0:
+                return json.load(open(report))
+            return None
+    except Exception as e:
+        return None
+
+def run_casr_gdb(cmd: List[str]) -> Optional[dict]:
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report = Path(tmpdir) / 'casr-gdb.txt'
+            r = subprocess.run(
+                ['casr-gdb', '--output', report, '--', *cmd],
+                capture_output=True,
+                cwd=tmpdir,
+                timeout=5
+            )
+            if r.returncode == 0:
+                return json.load(open(report))
+            return None
+    except Exception as e:
+        return None
+
+
+def observe_crash(cmd: List[str]) -> Optional[Tuple[str, str]]:
+    """Runs a command and returns the crash report and summary if a crash is observed.
+    Returns None otherwise."""
+    
+    typ_gdb = None
+    loc_gdb = None
+    report_gdb = run_casr_gdb(cmd)
+    if report_gdb is not None:
+        loc_gdb = report_gdb['CrashLine']
+        typ_gdb = report_gdb['CrashSeverity']['ShortDescription']
+    
+    typ_san = None
+    loc_san = None
+    report_san = run_casr_san(cmd)
+    if report_san is not None:
+        loc_san = report_san['CrashLine']
+        typ_san = report_san['CrashSeverity']['ShortDescription']
+
+    if loc_gdb is None and loc_san is None:
+        return None, None
+    
+    if loc_gdb is None:
+        return json.dumps(report_san), f'{typ_san} in {loc_san}'
+    elif loc_san is None:
+        return json.dumps(report_gdb), f'{typ_gdb} in {loc_gdb}'
+    else:
+        # We have both reports, use gdb_loc and san type unless type is AccessViolation
+        if typ_san != 'AccessViolation':
+            return json.dumps(report_san), f'{typ_san} in {loc_gdb}'
+        else:
+            return json.dumps(report_gdb), f'{typ_gdb} in {loc_gdb}'
+
+
+def try_get_crash_result(fuzzer: str, crash_file: Path) -> Optional[CrashResult]:
     """Attempts to generate a reproducer for a crash file.
     Returns CrashResult if successful, None otherwise."""
+    cmd = [fuzzer, '-e', str(crash_file)]
+    crash_report, crash_summary = observe_crash(cmd)
+    if crash_report is None:
+        return None
+
+    return CrashResult(
+        filepath=crash_file,
+        name=crash_file.name,
+        crash_report=crash_report,
+        crash_summary=crash_summary
+    )
+
+
+def try_generate_reproducer(tmp_path: Path, fuzzer: str, ext_build: str, crash_file: Path) -> Optional[ReproducedCrash]:
+    """Attempts to generate a reproducer for a crash file.
+    Returns ReproducedCrash if successful, None otherwise."""
     
     # Step 1: Minimize the crash
     minimized_file = tmp_path / "minimized"
@@ -73,37 +158,16 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, ext_build: str, crash_f
         return None
 
     # Run the binary and try to extract ASAN report
-    asan_report = ''
-    env = os.environ.copy()
-    env["ASAN_OPTIONS"] = f"log_path={tmp_path / 'asan_log.txt'}"
-    for _ in range(25):
-        try:
-            r = subprocess.run([
-                str(tmp_path / "reproducer")],
-                capture_output=True,
-                env=env,
-                timeout=1
-            )
-            if r.returncode == 1:
-                # ASAN detected a crash
-                # find the file matching the pattern "asan_log.txt.*"
-                log_path = next(tmp_path.glob("asan_log.txt.*"))
-                asan_report = log_path.read_text()
-                break
-        except subprocess.CalledProcessError as e:
-            print(f"Error running external reproducer: {e}")
+    crash_report, crash_summary = observe_crash([str((tmp_path / "reproducer").absolute())])
 
-    if asan_report == '':
-        print("Failed to reproduce crash with external reproducer")
+    if crash_report is None:
+        print("Failed to observe crash with external reproducer")
         return None
-    
-    crash_summary = asan_report.split("SUMMARY: ")[1].split("\n")[0].strip()
-    crash_summary = strip_summary(crash_summary)
 
-    return CrashResult(
+    return ReproducedCrash(
         name=crash_file.name,
         minimized_graph=minimized_file.read_text(),
         external_code=external_file.read_text(),
-        crash_report=asan_report,
+        crash_report=crash_report,
         crash_summary=crash_summary
     )

@@ -1,14 +1,16 @@
 
 // External GraphFuzz utilities
-
-#include <cstdlib>
 #include <cstdio>
-#include <cstring>
-#include <limits>
-#include <string>
 #include <type_traits>
+#include <string>
+#include <sstream>
 #include <random>
-
+#include <limits>
+#include <setjmp.h>
+#include <fstream>  // For file operations
+#include <vector>
+#include <unistd.h> // For close() on POSIX systems
+#include <cstring>  // For strcpy()
 
 void *gf_malloc(size_t size) {
     return malloc(size);
@@ -26,72 +28,49 @@ void gf_bail() {
     exit(99);
 }
 
-namespace gf_rand {
-    // Thread-local random number generator
-    inline std::mt19937& get_generator() {
-        static thread_local std::random_device rd;
-        static thread_local std::mt19937 gen(rd());
-        return gen;
-    }
 
-    // Set seed for the random number generator
-    inline void seed(unsigned int s) {
-        get_generator().seed(s);
-    }
-
-    // Primary template for get<T>()
-    template<typename T>
-    T get() {
+namespace gf_fuzz_param {
+    template <typename T>
+    T fuzz_param() {
         static_assert(std::is_standard_layout_v<T>, "Type must be standard layout");
-        static_assert(!std::is_pointer_v<T>, "Pointer types are not supported in gf_rand::get");
-        
-        if constexpr (std::is_same_v<T, bool>) {
-            std::uniform_int_distribution<int> dist(0, 1);
-            return dist(get_generator()) == 1;
-        }
-        else if constexpr (std::is_integral_v<T>) {
-            std::uniform_int_distribution<T> dist(
-                std::numeric_limits<T>::min(),
-                std::numeric_limits<T>::max()
-            );
-            return dist(get_generator());
-        }
-        else if constexpr (std::is_floating_point_v<T>) {
-            std::uniform_real_distribution<T> dist(
-                std::numeric_limits<T>::lowest(),
-                std::numeric_limits<T>::max()
-            );
-            return dist(get_generator());
-        }
-        else if constexpr (std::is_enum_v<T>) {
-            using underlying = typename std::underlying_type<T>::type;
-            return static_cast<T>(get<underlying>());
-        }
-        else if constexpr (std::is_array_v<T>) {
-            T arr;
-            using ElementType = std::remove_extent_t<T>;
-            constexpr std::size_t N = std::extent_v<T>;
-            for (std::size_t i = 0; i < N; ++i) {
-                arr[i] = get<ElementType>();
-            }
-            return arr;
-        }
-        else {
-            // For other types, generate random bytes
-            T value;
-            auto* bytes = reinterpret_cast<unsigned char*>(&value);
-            for (size_t i = 0; i < sizeof(T); ++i) {
-                bytes[i] = get<unsigned char>();
-            }
-            return value;
-        }
+        static_assert(!std::is_pointer_v<T>, "Pointer types are not supported in FUZZ_PARAM");
+        static_assert(!std::is_class_v<T>, "Struct/class types are not supported in FUZZ_PARAM");
     }
 
-    std::string get_string(size_t len) {
-        std::string str;
-        for (size_t i = 0; i < len; ++i) {
-            str += get<char>();
+    template <size_t N>
+    const char *fuzz_param_str() {}
+
+    template <size_t N>
+    const char *fuzz_param_file() {}
+
+    const char *write_to_temp_file(const char *data, size_t len) {
+        std::string filename;
+
+        // POSIX: Use mkstemp
+        char template_name[] = "/tmp/gfuzz_XXXXXX";
+        int fd = mkstemp(template_name);
+        if (fd == -1) {
+            gf_bail();
         }
-        return str;
+        close(fd);
+        filename = std::string(template_name);
+        
+        std::ofstream file(filename, std::ios::binary);
+        if (!file.is_open()) {
+            gf_bail();
+        }
+
+        file.write(data, len);
+        file.close();
+
+        char *result = (char *)gf_malloc(filename.size() + 1);
+        strcpy(result, filename.c_str());
+        return result;
     }
 }
+
+#define FUZZ_PARAM(T) gf_fuzz_param::fuzz_param<T>()
+#define FUZZ_PARAM_STR(N) gf_fuzz_param::fuzz_param_str<N>()
+#define FUZZ_PARAM_FILE(N) gf_fuzz_param::fuzz_param_file<N>()
+
+#define FUZZ_BAIL() gf_bail()

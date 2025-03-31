@@ -8,3 +8,5 @@ gf_synth/target/
 **/*.rag
 **/.env
 **/node_modules
+.vscode
+.ipynb_checkpoints

@@ -8,6 +8,53 @@ from .spec import Schema, Endpoint, Error
 from .colors import Colors
 
 
+def try_build_external(endpoint: Endpoint, build_script_external: str, config: str) -> Optional[Error]:
+    
+    config = json.loads(open(config).read())
+
+    code = ''
+    code += '#include <cstdio>\n'
+    code += '#include <cstdlib>\n'
+    code += '#include <cstdint>\n'
+    code += '#include <cstring>\n'
+
+    for header in config['headers']:
+        if 'CHeader' in header:
+            code += 'extern "C" {\n'
+            code += '#include "%s"\n' % header['CHeader']
+            code += '}\n'
+        elif 'CppHeader' in header:
+            code += '#include "%s"\n' % header['CppHeader']
+
+    code += '#include "gf_util.h"\n'
+
+    # Stub main
+    code += 'int main() { return 0; }\n'
+
+    # Endpoint
+    code += endpoint.to_function()
+
+    print('-' * 100)
+    print(code)
+    print('-' * 100)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f_code = '%s/code.cpp' % tmpdir
+        with open(f_code, 'w') as f:
+            f.write(code)
+
+        path = '%s/code' % tmpdir
+
+        res = subprocess.run([build_script_external, path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if res.returncode != 0:
+            return Error(
+                endpoint=endpoint,
+                err_type='compilation',
+                error=res.stderr.decode()
+            )
+        return None
+
+
 def try_build(endpoint: Endpoint, build_script, invalid_types=None, config=None, verbose: bool=False) -> Optional[Error]:
     with tempfile.TemporaryDirectory() as tmpdir:
         f_schema = '%s/schema.json' % tmpdir

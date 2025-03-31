@@ -1,5 +1,6 @@
 {
     "headers": [
         {"CppHeader": "iowow/iwkv.h"}
-    ]
+    ],
+    "include_paths": []
 }

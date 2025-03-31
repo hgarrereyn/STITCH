@@ -10,12 +10,14 @@ use crate::{check, inner_spec::{InnerEndpointSpec, InnerSpec, InnerTypeSpec}};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     pub headers: Vec<HeaderSpec>,
+    pub include_paths: Vec<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             headers: vec![],
+            include_paths: vec![],
         }
     }
 }
@@ -135,21 +137,26 @@ impl Spec {
         // Check one-by-one
         let mut object_types = HashSet::new();
 
+        // for typ in all_types {
+        //     print!("Checking \"{}\"... ", typ);
+        //     match check::is_primitive_constructable(&typ, &config) {
+        //         Ok(true) => {
+        //             println!("primitive");
+        //         },
+        //         Ok(false) => {
+        //             println!("object");
+        //             object_types.insert(typ);
+        //         },
+        //         Err(_) => {
+        //             println!("err");
+        //             object_types.insert(typ);
+        //         },
+        //     }
+        // }
+
+        // Treat all types as objects
         for typ in all_types {
-            print!("Checking \"{}\"... ", typ);
-            match check::is_primitive_constructable(&typ, &config.headers) {
-                Ok(true) => {
-                    println!("primitive");
-                },
-                Ok(false) => {
-                    println!("object");
-                    object_types.insert(typ);
-                },
-                Err(_) => {
-                    println!("err");
-                    object_types.insert(typ);
-                },
-            }
+            object_types.insert(typ);
         }
 
         object_types
@@ -182,9 +189,14 @@ impl EndpointSpec {
 
         let mut mappings = vec![];
 
-        // replace all instances of "$name" with "[$name]" in the template
-        let mut template = Regex::new(r"(\$[a-zA-Z0-9_]+)").unwrap().replace_all(&self.template, "[$1]").to_string();
+        // Replace all instances of a variable name surrounded by non-word characters with "@@name@@"
+        let mut template = self.template.clone();
+        for v in self.variables.iter() {
+            let re = Regex::new(&format!(r"(\b{}\b)", v.name)).unwrap();
+            template = re.replace_all(&template, &format!("@@{}@@", v.name)).to_string();
+        }
 
+        let mut pre_template = String::new();
         let mut post_template = String::new();
 
         for v in self.variables.iter() {
@@ -193,7 +205,7 @@ impl EndpointSpec {
                     if let Some(idx) = types.get(&v.typ) {
                         inputs.push(*idx);
                         outputs.push(*idx);
-                        template = template.replace(&format!("[{}]", v.name), &format!("$i{}", inputs.len() - 1));
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
                         post_template.push_str(&format!("$o{} = $i{};\n", outputs.len() - 1, inputs.len() - 1));
                         mappings.push(VariableMapping {
                             name: v.name.clone(),
@@ -202,13 +214,13 @@ impl EndpointSpec {
                         });
                     } else {
                         args.push(v.typ.clone());
-                        template = template.replace(&format!("[{}]", v.name), &format!("$a{}", args.len() - 1));
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
                     }
                 },
                 VariableDir::New => {
                     if let Some(idx) = types.get(&v.typ) {
                         outputs.push(*idx);
-                        template = template.replace(&format!("[{}]", v.name), &format!("$o{}", outputs.len() - 1));
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$o{}", outputs.len() - 1));
                         mappings.push(VariableMapping {
                             name: v.name.clone(),
                             in_idx: None,
@@ -218,13 +230,13 @@ impl EndpointSpec {
                         // Ignore new arg types
                         // TODO: warning
                         args.push(v.typ.clone());
-                        template = template.replace(&format!("[{}]", v.name), &format!("$a{}", args.len() - 1));
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
                     }
                 },
                 VariableDir::Del => {
                     if let Some(idx) = types.get(&v.typ) {
                         inputs.push(*idx);
-                        template = template.replace(&format!("[{}]", v.name), &format!("$i{}", inputs.len() - 1));
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
                         mappings.push(VariableMapping {
                             name: v.name.clone(),
                             in_idx: Some(inputs.len() - 1),
@@ -234,70 +246,99 @@ impl EndpointSpec {
                         // Ignore del arg types
                         // TODO: warning
                         args.push(v.typ.clone());
-                        template = template.replace(&format!("[{}]", v.name), &format!("$a{}", args.len() - 1));
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
                     }
                 },
             }
         }
 
-        template.push_str("\n");
-        template.push_str(&post_template);
+        {
+            // Find all instances of FUZZ_PARAM(<T>), and replace them with $a{i}
+            let fuzz_param_re = Regex::new(r"FUZZ_PARAM\(([^)]+)\)").unwrap();
+            let mut template_with_fuzz = template.clone();
+
+            // Find all instances of FUZZ_PARAM
+            let matches: Vec<_> = fuzz_param_re.find_iter(&template).collect();
+            for m in matches {
+                let cap = fuzz_param_re.captures(&template[m.start()..m.end()]).unwrap();
+                let param_type = cap.get(1).unwrap().as_str().trim().to_string();
+                
+                // Add to args
+                args.push(param_type);
+                
+                // Replace with the appropriate $a{i} reference
+                let replacement = format!("$a{}", args.len() - 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            }
+
+            // Use the updated template with FUZZ_PARAM replaced
+            template = template_with_fuzz;
+        }
+        {
+            // Find all instances of FUZZ_PARAM_STR(<N>) and replace them with (char *)$aN
+            let fuzz_param_str_re = Regex::new(r"FUZZ_PARAM_STR\((\d+)\)").unwrap();
+            let mut template_with_fuzz = template.clone();
+
+            let matches: Vec<_> = fuzz_param_str_re.find_iter(&template).collect();
+            for m in matches {
+                let cap = fuzz_param_str_re.captures(&template[m.start()..m.end()]).unwrap();
+                let len = cap.get(1).unwrap().as_str().trim().parse::<usize>().unwrap();
+
+                // Add to args
+                args.push(format!("char[{}]", len + 1));
+
+                // Null terminate the string
+                pre_template.push_str(&format!("$a{}[{}] = 0;\n", args.len() - 1, len));
+
+                // Replace with the appropriate $a{i} reference
+                let replacement = format!("((const char *)$a{})", args.len() - 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            }
+
+            // Use the updated template with FUZZ_PARAM_STR replaced
+            template = template_with_fuzz;
+        }
+        {
+            // Find all instances of FUZZ_PARAM_FILE(<N>) and replace them with gf_fuzz_param::write_to_temp_file($aN, N)
+            let fuzz_param_file_re = Regex::new(r"FUZZ_PARAM_FILE\((\d+)\)").unwrap();
+            let mut template_with_fuzz = template.clone();
+
+            let matches: Vec<_> = fuzz_param_file_re.find_iter(&template).collect();
+            for m in matches {
+                let cap = fuzz_param_file_re.captures(&template[m.start()..m.end()]).unwrap();
+                let len = cap.get(1).unwrap().as_str().trim().parse::<usize>().unwrap();
+
+                // Add to args
+                args.push(format!("char[{}]", len));
+
+                // Replace with the appropriate $a{i} reference
+                let replacement = format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len);
+                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            }
+
+            // Use the updated template with FUZZ_PARAM_FILE replaced
+            template = template_with_fuzz;
+        }
+
+        let mut full_template = String::new();
+        full_template.push_str(&pre_template);
+        full_template.push_str("\n");
+        full_template.push_str(&template);
+        full_template.push_str("\n");
+        full_template.push_str(&post_template);
 
         InnerEndpointSpec {
             name: self.name.clone(),
             inputs,
             outputs,
             args,
-            template,
+            template: full_template,
             mappings,
         }
     }
 
     pub fn validate(&self, banned_types: &[String]) -> Result<(), EndpointErrors> {
-        let t_vars = self.get_templated();
-        let r_vars = self.variables.iter().map(|v| v.name.as_str()).collect::<HashSet<_>>();
-
-        let mut errors = vec![];
-
-        for var in &r_vars {
-            if !t_vars.contains(var) {
-                errors.push(EndpointError::ExtraVar(var.to_string()));
-            }
-        }
-
-        for var in &t_vars {
-            if !r_vars.contains(var) {
-                errors.push(EndpointError::MissingVar(var.to_string()));
-            }
-        }
-
-        errors.sort();
-
-        // Validate valid types
-        for var in &self.variables {
-            if banned_types.contains(&var.typ) {
-                errors.push(EndpointError::InvalidType(var.typ.clone(), format!("Do not request '{}' as a variable type. Construct this variable inside the endpoint instead.", var.typ)));
-            } else if let Err(e) = is_valid_type(&var.typ) {
-                errors.push(e);
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(EndpointErrors {
-                name: self.name.clone(),
-                errors,
-            })
-        }
-    }
-
-    // Find instances of $<typ>N in the template.
-    fn get_templated(&self) -> HashSet<&str> {
-        let re = Regex::new(r"(\$\w+)").unwrap();
-        re.captures_iter(&self.template)
-            .map(|cap| cap.get(1).unwrap().as_str())
-            .collect()
+        Ok(())
     }
 }
 
@@ -430,58 +471,70 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_templated() {
-        let endpoint = EndpointSpec {
-            name: "test".to_string(),
-            variables: vec![],
-            template: "foo + $foo + $bar + $baz[123]".to_string(),
+    fn test_generate() {
+        let spec = Spec {
+            endpoints: vec![EndpointSpec {
+                name: "test".to_string(),
+                variables: vec![VariableSpec { name: "_foo".to_string(), typ: "int".to_string(), dir: VariableDir::InOut }],
+                template: "_foo += 1;".to_string(),
+            }],
         };
 
-        assert_eq!(endpoint.get_templated(), vec!["$foo", "$bar", "$baz"].iter().cloned().collect());
+        let inner_spec = spec.generate(&Config::default());
+        let tmpl = inner_spec.endpoints[0].template.clone();
+    
+        assert!(tmpl.contains("$a0 += 1;"));
     }
 
     #[test]
-    fn test_is_valid_type() {
-        // Basic types
-        assert!(is_valid_type("int").unwrap());
-        assert!(is_valid_type("char").unwrap());
-        assert!(is_valid_type("void").unwrap());
-        assert!(is_valid_type("size_t").unwrap());
-        
-        // Types with underscore
-        assert!(is_valid_type("my_type").unwrap());
-        assert!(is_valid_type("_hidden").unwrap());
-        
-        // Struct types
-        assert!(is_valid_type("struct foo").unwrap());
-        assert!(is_valid_type("struct my_struct").unwrap());
-        
-        // Pointer types
-        assert!(is_valid_type("int*").unwrap());
-        assert!(is_valid_type("char*").unwrap());
-        assert!(is_valid_type("struct foo*").unwrap());
-        
-        // Array types
-        assert!(is_valid_type("int[]").unwrap());
-        assert!(is_valid_type("char[]").unwrap());
-        assert!(is_valid_type("struct foo[]").unwrap());
+    fn test_generate_obj() {
+        let spec = Spec {
+            endpoints: vec![EndpointSpec {
+                name: "test".to_string(),
+                variables: vec![VariableSpec { name: "_foo".to_string(), typ: "void *".to_string(), dir: VariableDir::InOut }],
+                template: "void *foo = _foo;".to_string(),
+            }],
+        };
 
-        // Invalid types
-        assert!(matches!(
-            is_valid_type("123invalid"),
-            Err(EndpointError::InvalidType(_, _))
-        ));
-        assert!(matches!(
-            is_valid_type("invalid!"),
-            Err(EndpointError::InvalidType(_, _))
-        ));
-        assert!(matches!(
-            is_valid_type("struct 123foo"),
-            Err(EndpointError::InvalidType(_, _))
-        ));
-        assert!(matches!(
-            is_valid_type("*pointer"),
-            Err(EndpointError::InvalidType(_, _))
-        ));
+        let inner_spec = spec.generate(&Config::default());
+        let tmpl = inner_spec.endpoints[0].template.clone();
+
+        println!("{}", tmpl);
+
+        assert!(tmpl.contains("void *foo = $i0;"));
+        assert!(tmpl.contains("$o0 = $i0;"));
+    }
+
+    #[test]
+    fn test_generate_obj_new() {
+        let spec = Spec {
+            endpoints: vec![EndpointSpec {
+                name: "test".to_string(),
+                variables: vec![VariableSpec { name: "_foo".to_string(), typ: "void *".to_string(), dir: VariableDir::New }],
+                template: "_foo = new void *();".to_string(),
+            }],
+        };
+
+        let inner_spec = spec.generate(&Config::default());
+        let tmpl = inner_spec.endpoints[0].template.clone();
+
+        assert!(tmpl.contains("$o0 = new void *();"));
+    }
+
+    #[test]
+    fn test_generate_obj_del() {
+        let spec = Spec {
+            endpoints: vec![EndpointSpec {
+                name: "test".to_string(),
+                variables: vec![VariableSpec { name: "_foo".to_string(), typ: "void *".to_string(), dir: VariableDir::Del }],
+                template: "_foo = nullptr;".to_string(),
+            }],
+        };
+    
+        let inner_spec = spec.generate(&Config::default());
+        let tmpl = inner_spec.endpoints[0].template.clone();
+
+        assert!(tmpl.contains("$i0 = nullptr;"));
+        assert!(!tmpl.contains("$o0 = $i0;"));
     }
 }

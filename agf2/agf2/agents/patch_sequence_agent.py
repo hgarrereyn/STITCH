@@ -12,12 +12,11 @@ import subprocess
 import tempfile
 import random
 
-from ..utils.spec import Endpoint, Stub, DetailedTemplate
-from ..utils.builder import try_build
 from ..utils.search import get_example_usage
 from ..rag.rag import RAG
 from ..utils import repro
 from ..utils.colors import Colors
+from ..utils.info import ProjectInfo
 
 
 class FilterAttempt(BaseModel):
@@ -41,6 +40,8 @@ class FilterResult(BaseModel):
         print(f"{Colors.YELLOW}F1 Score:{Colors.END} {self.f1_score}")
 
 class PatchSequenceAgentState(BaseModel):
+    info: ProjectInfo
+    model: str
     schema: str  # The fuzzer schema
     analysis: str  # Analysis of the crash
     testcase: str  # The crashing testcase
@@ -119,7 +120,7 @@ def py_repr(fuzzer, testcase) -> str:
 
 
 def initialize_filter(state: PatchSequenceAgentState) -> dict:
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model=state.model)
     structured_llm = llm.with_structured_output(FilterAttempt)
 
     # Read valid and invalid testcases
@@ -167,7 +168,7 @@ invalid = [{', '.join(invalid_repr)}]
 def regenerate_filter(state: PatchSequenceAgentState) -> dict:
     """Regenerate the filter."""
     print('[*] Regenerating filter')
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model=state.model)
     structured_llm = llm.with_structured_output(FilterAttempt)
 
     if state.filter_error is not None:
@@ -355,8 +356,10 @@ def build_sequence_agent():
     
     return workflow.compile()
 
-def run_patch_sequence_agent(schema: str, analysis: str, testcase: str, fuzzer: str, ex_valid: str, ex_invalid: str) -> FilterResult:
+def run_patch_sequence_agent(info: ProjectInfo, model: str, schema: str, analysis: str, testcase: str, fuzzer: str, ex_valid: str, ex_invalid: str) -> FilterResult:
     state = PatchSequenceAgentState(
+        info=info,
+        model=model,
         schema=schema,
         analysis=analysis,
         testcase=testcase,

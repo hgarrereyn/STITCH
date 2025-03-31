@@ -147,14 +147,16 @@ impl<'a> HarnessWriter<'a> {
         code.push_str(&arg_instantiations);
         code.push_str("// ----- TEMPLATE CODE -----\n");
         code.push_str(&variable_definitions);
-        code.push_str(&format!("printf(\"{{ // start {}\\n\");\n", endpoint.name));
+        code.push_str(&format!("printf(\"/* ===== START [{}] ===== */\\n\");\n", endpoint.name));
+        code.push_str("printf(\"{\\n\");\n");
         code.push_str(&print_arg_instantiations);
         if template_args.is_empty() {
             code.push_str(&format!("printf(\"{}\\n\");\n", template));
         } else {
             code.push_str(&format!("printf(\"{}\\n\", {});\n", template, template_args));
         }
-        code.push_str(&format!("printf(\"}} // end {}\\n\");\n", endpoint.name));
+        code.push_str("printf(\"}\\n\");\n");
+        code.push_str(&format!("printf(\"/* ===== END [{}] ===== */\\n\");\n", endpoint.name));
         code.push_str("fflush(stdout);\n");
         code.push_str("// -------------------------\n");
         code.push_str("}\n\n");

@@ -12,18 +12,19 @@ import subprocess
 import tempfile
 import random
 
-from ..utils.spec import Schema, Endpoint, Stub, DetailedTemplate
-from ..utils.builder import try_build
+from ..utils.spec import Schema, Endpoint
+from ..utils.builder import try_build, try_build_external
 from ..utils.search import get_example_usage
 from ..rag.rag import RAG
 from ..utils import repro
 from ..utils.colors import Colors
+from ..utils.info import ProjectInfo
 
 
 class EndpointFix(BaseModel):
     endpoint_name: str
-    new_template: str
     explanation: str
+    new_template: str
 
 class EndpointFixAttempt(BaseModel):
     fixes: List[EndpointFix]
@@ -36,14 +37,13 @@ class EndpointFixAttempt(BaseModel):
             print(f"{Colors.YELLOW}Explanation:{Colors.END}\n{fix.explanation}")
 
 class PatchEndpointAgentState(BaseModel):
+    info: ProjectInfo
+    model: str
     schema: str  # The fuzzer schema
     analysis: str  # Analysis of the crash
     testcase: str  # The crashing testcase
     fuzzer: str  # The fuzzer
-    ex_valid: str  # Path containing valid testcases
-    ex_invalid: str  # Path containing invalid testcases
-    build_script: str  # The build script
-    config: str  # The fuzzer config
+    minimized_crash: str  # The minimized crash
 
     # Message history
     messages: Annotated[list, operator.add]
@@ -59,45 +59,74 @@ class PatchEndpointAgentState(BaseModel):
 
 
 FIX_ENDPOINT_PROMPT = """
-Now that you have identified the relevant endpoints, rewrite the template for each erroneous endpoint to avoid the crash.
+You are an expert C/C++ programmer.
+
+You are given a crashing test case consisting of instantiations of endpoint blocks, denoted by `===== START [endpoint_name] =====` and `===== END [endpoint_name] =====`.
+
+You are also given an analysis of why the test case is crashing.
+
+Your task is to rewrite the template for each erroneous endpoint to avoid the crash.
 
 Rewrite only parts of the template that are relevant to the crash.
 
 Return a list of fixes, each with the following fields:
 - endpoint_name: The name of the endpoint to fix
-- new_template: The new template for the endpoint
 - explanation: An explanation of the fix
+- new_template: The new template for the endpoint
 
-Inside each template, you have access to the `gf_rand` api:
+Your function will be used in a fuzzing environment, use the following macros to generate random values for any fuzzable arguments:
 ```cpp
-// Retrieve a random value for a fixed-size type T
-T gf_rand::get<T>();
+// Sets x to a random fixed-size value of type T
+T x = FUZZ_PARAM(T);
 
-// Retrieve a random std::string of length len
-std::string gf_rand::get_string(size_t len);
+// Sets x to a random const char * of length N (N must be a compile-time constant)
+const char *x = FUZZ_PARAM_STR(N);
+
+// Sets filename to a temporary file filled with N bytes of fuzzable data (N must be a compile-time constant)
+const char *filename = FUZZ_PARAM_FILE(N);
+
+// Marks an error case that should not continue
+FUZZ_BAIL();
 ```
 
-Notes:
-- Use `gf_rand` to generate random values for any fuzzable arguments (more randomness is better), but ensure values are within the expected range.
-- Use `gf_bail()` to mark an error case that should not continue.
-- Do not use the `return` statement anywhere.
+Important notes:
+- Do not throw exceptions or emit `return` statements. Instead, use `FUZZ_BAIL()` to mark an error case that should not continue (i.e. if the function returns an error code).
+- Use `gf_malloc`/`gf_free` to manage memory (if not using the library API).
+- Do not leave any TODOs or placeholders in the code.
+- Ensure that you use all provided arguments in the body of the function.
+- Avoid referencing struct fields which are hidden by the library API.
+- If the function requires a filename, use `FUZZ_PARAM_FILE(N)` to get a random filename.
 
 Do not leave any TODOs or placeholders in the code.
 
 Tips:
 - Keep the template concise and to the point
-- Avoid hardcoding values, prefer to use random values when possible (e.g. use `gf_rand::get<int>()` instead of `123`)
+- Avoid hardcoding values, prefer to use random values when possible (e.g. use `FUZZ_PARAM(int)` instead of `123`)
 """.strip()
 
 
 def initialize_endpoint(state: PatchEndpointAgentState) -> dict:
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model=state.model)
     structured_llm = llm.with_structured_output(EndpointFixAttempt)
 
-    m = [{
-        'role': 'user',
-        'content': FIX_ENDPOINT_PROMPT
-    }]
+    m = [
+        {
+            'role': 'system',
+            'content': FIX_ENDPOINT_PROMPT
+        },
+        {
+            'role': 'user',
+            'content': f"Analysis of the crash:\n{open(state.analysis).read()}"
+        },
+        {
+            'role': 'user',
+            'content': f"Crashing test case:\n{open(state.minimized_crash).read()}"
+        },
+        {
+            'role': 'user',
+            'content': f"Endpoint specifications:\n{open(state.schema).read()}"
+        },
+    ]
 
     res = structured_llm.invoke(state.messages + m)
     return {
@@ -110,7 +139,7 @@ def initialize_endpoint(state: PatchEndpointAgentState) -> dict:
 def regenerate_endpoint(state: PatchEndpointAgentState) -> dict:
     """Regenerate the endpoint."""
     print('[*] Regenerating endpoint')
-    llm = ChatOpenAI(model="gpt-4o-mini")
+    llm = ChatOpenAI(model=state.model)
     structured_llm = llm.with_structured_output(EndpointFixAttempt)
 
     res = structured_llm.invoke(state.messages)
@@ -149,7 +178,9 @@ def validate_endpoint(state: PatchEndpointAgentState) -> dict:
             variables=endpoint.variables,
             template=fix.new_template,
         )
-        res = try_build(test_endpoint, state.build_script, config=state.config)
+        # res = try_build(test_endpoint, state.info.build_script, config=state.info.config)
+        res = try_build_external(test_endpoint, state.info.build_script_ext, state.info.config)
+
         if res is None:
             print(f'{Colors.GREEN}Successfully built endpoint {fix.endpoint_name}{Colors.END}')
             # Copy the fix to valid_fix
@@ -218,16 +249,15 @@ def build_endpoint_agent():
     
     return workflow.compile()
 
-def run_patch_endpoint_agent(schema: str, analysis: str, testcase: str, fuzzer: str, ex_valid: str, ex_invalid: str, build_script: str, config: str, messages: list) -> EndpointFixAttempt:
+def run_patch_endpoint_agent(info: ProjectInfo, model: str, schema: str, analysis: str, testcase: str, fuzzer: str, minimized_crash: str, messages: list) -> EndpointFixAttempt:
     state = PatchEndpointAgentState(
+        info=info,
+        model=model,
         schema=schema,
         analysis=analysis,
         testcase=testcase,
+        minimized_crash=minimized_crash,
         fuzzer=fuzzer,
-        ex_valid=ex_valid,
-        ex_invalid=ex_invalid,
-        build_script=build_script,
-        config=config,
         messages=messages,
     )
     graph = build_endpoint_agent()

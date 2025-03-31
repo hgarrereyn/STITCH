@@ -7,7 +7,8 @@ RUN apt-get update && \
     clang make cmake git wget curl tar gdb vim \
     python3.11 python3-pip \
     pkg-config libssl-dev \
-    protobuf-compiler libprotobuf-dev ninja-build
+    protobuf-compiler libprotobuf-dev ninja-build \
+    universal-ctags
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 

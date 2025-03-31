@@ -1,0 +1,290 @@
+{
+  "endpoints": [
+    {
+      "name": "H5Fget_eoa_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\nhaddr_t *eoa = (haddr_t *)gf_malloc(sizeof(haddr_t));\nif (eoa == NULL) {\n    FUZZ_BAIL();\n}\n\nherr_t status = H5Fget_eoa(file_id, eoa);\nif (status < 0) {\n    gf_free(eoa);\n    FUZZ_BAIL();\n}\n\nhaddr_t end_of_addr = *eoa;\n\ngf_free(eoa);"
+    },
+    {
+      "name": "H5Fget_obj_ids_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); \nunsigned types = FUZZ_PARAM(unsigned); \nsize_t max_objs = FUZZ_PARAM(size_t); \nsize_t obj_id_count; \n\nhid_t* oid_list = (hid_t*)gf_malloc(max_objs * sizeof(hid_t));\nif (!oid_list) {\n    FUZZ_BAIL(); \n}\n\nobj_id_count = 0;\n\nherr_t ret = H5Fget_obj_ids(file_id, types, max_objs, oid_list);\nif (ret < 0) {\n    gf_free(oid_list); \n    FUZZ_BAIL(); \n}\n\ngf_free(oid_list);"
+    },
+    {
+      "name": "H5Fmount_v0",
+      "variables": [],
+      "template": "hid_t loc_id = FUZZ_PARAM(hid_t);      // ID of the location\nconst char *name = FUZZ_PARAM_STR(100); // Random filename of length 100\nhid_t child_id = FUZZ_PARAM(hid_t);    // ID of the child file to mount\nhid_t plist_id = FUZZ_PARAM(hid_t);    // Property list ID\n\n// Validate input parameters\nif (loc_id < 0 || child_id < 0 || plist_id < 0 || name == nullptr) {\n    FUZZ_BAIL();  // Input parameter validation failed\n}\n\n// Call H5Fmount with appropriate arguments\nherr_t status = H5Fmount(loc_id, name, child_id, plist_id);\n    \n// Check the status of the mount operation\nif (status < 0) {\n    FUZZ_BAIL();  // Mount operation failed\n}\n\n// Clean up temporarily held data if any (not applicable here since we used FUZZ_PARAM directly)\n// No additional cleanup is required since we're not allocating any additional memory\n"
+    },
+    {
+      "name": "H5Fget_mdc_size_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n    \n    size_t* max_size = (size_t*) gf_malloc(sizeof(size_t));\n    if (max_size == NULL) {\n        FUZZ_BAIL();\n    }\n    size_t* min_clean_size = (size_t*) gf_malloc(sizeof(size_t));\n    if (min_clean_size == NULL) {\n        gf_free(max_size);\n        FUZZ_BAIL();\n    }\n    size_t* cur_size = (size_t*) gf_malloc(sizeof(size_t));\n    if (cur_size == NULL) {\n        gf_free(max_size);\n        gf_free(min_clean_size);\n        FUZZ_BAIL();\n    }\n    int* cur_num_entries = (int*) gf_malloc(sizeof(int));\n    if (cur_num_entries == NULL) {\n        gf_free(max_size);\n        gf_free(min_clean_size);\n        gf_free(cur_size);\n        FUZZ_BAIL();\n    }\n\n    herr_t result = H5Fget_mdc_size(file_id, max_size, min_clean_size, cur_size, cur_num_entries);\n    \n    if (result < 0) {\n        gf_free(max_size);\n        gf_free(min_clean_size);\n        gf_free(cur_size);\n        gf_free(cur_num_entries);\n        FUZZ_BAIL();\n    }\n\n    gf_free(max_size);\n    gf_free(min_clean_size);\n    gf_free(cur_size);\n    gf_free(cur_num_entries);"
+    },
+    {
+      "name": "H5Fget_freespace_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\nhssize_t freespace;\n\nfreespace = H5Fget_freespace(file_id);\n\nif (freespace < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Fget_obj_count_v0",
+      "variables": [],
+      "template": "{    // Fuzz input parameters\n    hid_t file_id = FUZZ_PARAM(hid_t);  // Random file ID\n    unsigned types = FUZZ_PARAM(unsigned); // Random types parameter\n    ssize_t obj_count = -1; // Variable for storing object count\n\n    // Validate input parameters\n    if (0 == (types & H5F_OBJ_ALL)) {\n        FUZZ_BAIL(); // Invalid object type\n    }\n\n    // Call H5Fget_obj_count with appropriate arguments\n    obj_count = H5Fget_obj_count(file_id, types);\n    if (obj_count < 0) {\n        FUZZ_BAIL(); // The API call failed\n    }\n\n    // Optionally: You might want to handle the obj_count value further depending on your fuzzing needs\n\n    // Clean up any temporary objects (if necessary)\n    // No dynamic allocation was made here to clean up, so nothing to do\n}"
+    },
+    {
+      "name": "H5Fset_libver_bounds_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); \nH5F_libver_t low_version = FUZZ_PARAM(H5F_libver_t); \nH5F_libver_t high_version = FUZZ_PARAM(H5F_libver_t); \n\nif (low_version > high_version) {\n    FUZZ_BAIL(); \n}\n\nherr_t result = H5Fset_libver_bounds(file_id, low_version, high_version);\n\nif (result < 0) {\n    FUZZ_BAIL(); \n}"
+    },
+    {
+      "name": "H5Fget_filesize_v0",
+      "variables": [],
+      "template": "const char *filename = FUZZ_FILE();\nhid_t fapl_id = FUZZ_PARAM(hid_t);\nhid_t file_id = H5Fopen(filename, H5F_ACC_RDONLY, fapl_id);\nif (file_id < 0) {\n    FUZZ_BAIL();\n}\nhsize_t file_size = 0;\nherr_t status = H5Fget_filesize(file_id, &file_size);\nif (status < 0) {\n    H5Fclose(file_id);\n    FUZZ_BAIL();\n}\nH5Fclose(file_id);"
+    },
+    {
+      "name": "H5Fget_mdc_logging_status_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\nhbool_t is_enabled;\nhbool_t is_currently_logging;\n\nif (file_id < 0) {\n    FUZZ_BAIL();\n}\n\nherr_t status = H5Fget_mdc_logging_status(file_id, &is_enabled, &is_currently_logging);\n\nif (status < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Freset_mdc_hit_rate_stats_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\nif (file_id < 0) {\n    FUZZ_BAIL(); // Invalid file identifier\n}\n\nherr_t result = H5Freset_mdc_hit_rate_stats(file_id);\n\nif (result < 0) {\n    FUZZ_BAIL(); // The operation failed\n}"
+    },
+    {
+      "name": "H5Fget_mdc_image_info_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);  // Random file identifier\n    haddr_t image_addr;                  // Will hold the address of the cache image\n    hsize_t image_len;                   // Will hold the length of the cache image\n\n    // Validate input parameters\n    if (file_id < 0) {\n        FUZZ_BAIL();\n    }\n\n    // Call H5Fget_mdc_image_info with appropriate arguments\n    herr_t status = H5Fget_mdc_image_info(file_id, &image_addr, &image_len);\n    if (status < 0) {\n        FUZZ_BAIL();  // Call FUZZ_BAIL if the operation fails\n    }\n\n    // Initialize output arguments (for example, you could log or store these values)\n    \n    // Clean up is not necessary as we do not dynamically allocate any memory in this function\n"
+    },
+    {
+      "name": "H5Fincrement_filesize_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\nhsize_t increment = FUZZ_PARAM(hsize_t);\n\nif (file_id <= 0) {\n    FUZZ_BAIL();\n}\n\nherr_t result = H5Fincrement_filesize(file_id, increment);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Freset_page_buffering_stats_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);  \n\n// Validate input parameter by checking if file_id is valid (if needed)  \n// In a fuzzing scenario, we may not have actual validity checks, as we're testing random input.\n\n// Call the API function  \nherr_t result = H5Freset_page_buffering_stats(file_id);  \nif (result < 0) { // H5Freset_page_buffering_stats returns negative on failure\n    FUZZ_BAIL();  // If the API fails, bail out\n}  \n\n// No output parameters or cleanup needed for this function, as per the specification"
+    },
+    {
+      "name": "H5Fis_accessible_v0",
+      "variables": [],
+      "template": "const char *filename = FUZZ_FILE();\nhid_t fapl_id = FUZZ_PARAM(hid_t);\n\nif (!filename) {\n    FUZZ_BAIL();\n}\n\nhtri_t result = H5Fis_accessible(filename, fapl_id);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Freopen_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\nif (file_id < 0) {\n    FUZZ_BAIL(); \n}\n\nhid_t new_file_id = H5Freopen(file_id);\nif (new_file_id < 0) {\n    FUZZ_BAIL(); \n}\n\nif (H5Fclose(new_file_id) < 0) {\n    FUZZ_BAIL(); \n}"
+    },
+    {
+      "name": "H5Fstart_swmr_write_v0",
+      "variables": [
+        {
+          "name": "__file_id",
+          "dir": "*",
+          "typ": "struct H5F_info2_t *"
+        }
+      ],
+      "template": "if (__file_id == nullptr) {\n    FUZZ_BAIL();\n}\n\n// We need a valid file identifier (hid_t) to invoke H5Fstart_swmr_write\nhid_t file_id = H5Iget_file_id((hid_t)__file_id);  // Assuming H5F_info2_t itself can be cast to a valid hid_t\n\nif (file_id <= 0) {\n    FUZZ_BAIL();\n}\n\nherr_t status = H5Fstart_swmr_write(file_id);\nif (status < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Fget_file_image_v0",
+      "variables": [],
+      "template": "    hid_t file_id = FUZZ_PARAM(hid_t); \n    size_t buf_len = FUZZ_PARAM(size_t); \n    void *buf = nullptr; \n\n    if (buf_len > 0) {\n        buf = gf_malloc(buf_len); \n        if (buf == nullptr) {\n            FUZZ_BAIL(); \n        }\n    }\n\n    ssize_t result = H5Fget_file_image(file_id, buf, buf_len);\n\n    if (result < 0) {\n        if (buf != nullptr) {\n            gf_free(buf); \n        }\n        FUZZ_BAIL(); \n    }\n\n    if (buf != nullptr) {\n        gf_free(buf); \n    }"
+    },
+    {
+      "name": "H5Fget_dset_no_attrs_hint_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); \nhbool_t hint; \n\nif (file_id < 0) {\n    FUZZ_BAIL(); \n}\n\nherr_t ret = H5Fget_dset_no_attrs_hint(file_id, &hint);\nif (ret < 0) {\n    FUZZ_BAIL(); \n}"
+    },
+    {
+      "name": "H5Fclear_elink_file_cache_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\nif (file_id <= 0) {\n    FUZZ_BAIL();\n}\n\nherr_t status = H5Fclear_elink_file_cache(file_id);\n\nif (status < 0) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "H5Fget_mdc_hit_rate_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\ndouble *hit_rate = (double *)gf_malloc(sizeof(double));\nif (hit_rate == NULL) {\n    FUZZ_BAIL();\n}\n\nherr_t status = H5Fget_mdc_hit_rate(file_id, hit_rate);\nif (status < 0) {\n    gf_free(hit_rate); // Clean up allocated memory\n    FUZZ_BAIL();\n}\n\nif (*hit_rate < 0.0) {\n    gf_free(hit_rate); // Clean up allocated memory\n    FUZZ_BAIL();\n}\n\ngf_free(hit_rate);"
+    },
+    {
+      "name": "H5Fopen_async_v0",
+      "variables": [],
+      "template": "const char *filename = FUZZ_FILE();\nunsigned flags = FUZZ_PARAM(unsigned);\nhid_t fapl_id = FUZZ_PARAM(hid_t);\nhid_t es_id = FUZZ_PARAM(hid_t);\n\nhid_t file_id = H5Fopen_async(filename, flags, fapl_id, es_id);\nif (file_id < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Fget_metadata_read_retry_info_v0",
+      "variables": [
+        {
+          "name": "__info",
+          "dir": "new",
+          "typ": "struct H5F_retry_info_t *"
+        }
+      ],
+      "template": "if (__info == nullptr) {\n    FUZZ_BAIL();\n}\n\nmemset(__info, 0, sizeof(struct H5F_retry_info_t));\n\nhid_t file_id = FUZZ_PARAM(hid_t);\n\nherr_t result = H5Fget_metadata_read_retry_info(file_id, __info);\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Fget_access_plist_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\nif (file_id < 0) {\n    FUZZ_BAIL();\n}\n\nhid_t access_plist_id = H5Fget_access_plist(file_id);\n\nif (access_plist_id == H5I_INVALID_HID) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Fflush_v0",
+      "variables": [],
+      "template": "{\n    hid_t object_id = FUZZ_PARAM(hid_t);\n    H5F_scope_t scope = FUZZ_PARAM(H5F_scope_t);\n\n    if (H5Iget_type(object_id) != H5I_FILE) {\n        FUZZ_BAIL();\n    }\n\n    herr_t result = H5Fflush(object_id, scope);\n    if (result < 0) {\n        FUZZ_BAIL();\n    }\n}"
+    },
+    {
+      "name": "H5Fclose_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); // Getting a random file ID for testing\n    herr_t status;\n\n    // Validate the input file ID\n    if (H5I_FILE != H5Iget_type(file_id)) {\n        FUZZ_BAIL(); // Invalid file ID\n    }\n\n    // Call H5Fclose to attempt closing the file\n    status = H5Fclose(file_id);\n    if (status < 0) {\n        FUZZ_BAIL(); // Failed to close the file\n    }\n\n    // No need for special output arguments or clean-up in this function\n"
+    },
+    {
+      "name": "H5Fget_page_buffering_stats_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); // Random file identifier\nunsigned accesses[2], hits[2], misses[2], evictions[2], bypasses[2];\n\n// Validate input parameters\nif (file_id < 0) {\n    FUZZ_BAIL(); // Invalid file ID\n}\n\n// Initialize output arguments to ensure no garbage values\nfor (int i = 0; i < 2; ++i) {\n    accesses[i] = 0;\n    hits[i] = 0;\n    misses[i] = 0;\n    evictions[i] = 0;\n    bypasses[i] = 0;\n}\n\n// Call H5Fget_page_buffering_stats\nherr_t status = H5Fget_page_buffering_stats(file_id, accesses, hits, misses, evictions, bypasses);\n\n// Check for success or failure\nif (status < 0) {\n    FUZZ_BAIL(); // Failed to get page buffering stats\n}"
+    },
+    {
+      "name": "H5Fstart_mdc_logging_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); // Fuzzable file identifier\n\n    // Validate input parameters\n    if (file_id < 0) { // Just a basic check for invalid file_id\n        FUZZ_BAIL();\n    }\n\n    // Call H5Fstart_mdc_logging with appropriate arguments\n    herr_t result = H5Fstart_mdc_logging(file_id);\n    if (result < 0) {\n        FUZZ_BAIL(); // Mark error case if the function fails\n    }\n\n    // No output arguments need initialization in this case."
+    },
+    {
+      "name": "H5Fget_free_sections_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); // Fuzzable file ID\nH5F_mem_t type = FUZZ_PARAM(H5F_mem_t); // Fuzzable memory type\nsize_t nsects = FUZZ_PARAM(size_t); // Fuzzable number of sections\n\n// To hold the section information\nH5F_sect_info_t *sect_info = nullptr;\n\n// First, we need to check how many sections we need\nssize_t total_sect_count = H5Fget_free_sections(file_id, type, 0, nullptr);\nif (total_sect_count < 0) {\n    FUZZ_BAIL(); // Error case, cannot retrieve free-section count\n}\n\n// If nsects is more than total available sections, limit to total_sect_count\nif (nsects > static_cast<size_t>(total_sect_count)) {\n    nsects = static_cast<size_t>(total_sect_count);\n}\n\n// Allocate memory for sect_info based on nsects\nsect_info = static_cast<H5F_sect_info_t*>(gf_malloc(nsects * sizeof(H5F_sect_info_t)));\nif (sect_info == nullptr) {\n    FUZZ_BAIL(); // Error case, can't allocate memory for sections\n}\n\n// Call the actual API to get the free sections\nssize_t sects_obtained = H5Fget_free_sections(file_id, type, nsects, sect_info);\nif (sects_obtained < 0) {\n    gf_free(sect_info); // Clean up allocated memory\n    FUZZ_BAIL(); // Error case, failed to retrieve sections\n}\n\n// At this point, sect_info contains the free section information we need\n// Processing can happen here if needed...\n\ngf_free(sect_info); // Clean up allocated memory\n"
+    },
+    {
+      "name": "H5Fget_free_sections_v1",
+      "variables": [
+        {
+          "name": "__sect_info",
+          "dir": "new",
+          "typ": "struct H5F_sect_info_t *"
+        }
+      ],
+      "template": "if (__sect_info == nullptr) {\n    __sect_info = (struct H5F_sect_info_t *)gf_malloc(sizeof(struct H5F_sect_info_t));\n    if (__sect_info == nullptr) {\n        FUZZ_BAIL();\n    }\n}\n\nhid_t file_id = FUZZ_PARAM(hid_t);\nH5F_mem_t type = FUZZ_PARAM(H5F_mem_t);\nsize_t nsects = 1;\n\nssize_t result = H5Fget_free_sections(file_id, type, nsects, __sect_info);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "H5Fget_intent_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\nunsigned *intent_flags = (unsigned *)gf_malloc(sizeof(unsigned));\nif (intent_flags == nullptr) {\n    FUZZ_BAIL();\n}\n\n*intent_flags = 0;\n\nherr_t result = H5Fget_intent(file_id, intent_flags);\nif (result < 0) {\n    gf_free(intent_flags);\n    FUZZ_BAIL();\n}\n\n// Use of intent_flags is made here (e.g., logging or further processing) if needed\n// ...\n\ngf_free(intent_flags);"
+    },
+    {
+      "name": "H5Fget_vfd_handle_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);      // a random file ID\n    hid_t fapl_id = FUZZ_PARAM(hid_t);      // a random file access property list ID\n    void *file_handle = nullptr;             // output parameter to receive the file handle\n\n    // Validate inputs based on the library's constraints\n    if (!H5Pisa_class(fapl_id, H5P_FILE_ACCESS)) {\n        FUZZ_BAIL(); // fapl_id must be a valid file access property list ID\n    }\n\n    // Call the H5Fget_vfd_handle API\n    herr_t status = H5Fget_vfd_handle(file_id, fapl_id, &file_handle);\n    if (status < 0) {\n        FUZZ_BAIL(); // API call failed\n    }\n\n    // At this point, file_handle should contain the file handle.\n    // You can perform additional operations with file_handle if needed.\n    \n    // Clean up if needed, in this function, it is managed by HDF5.\n    // If file_handle points to allocated memory, you would typically free it,\n    // but in the context of the API, we assume it is managed elsewhere."
+    },
+    {
+      "name": "H5Fget_fileno_v0",
+      "variables": [],
+      "template": "{    hid_t file_id = FUZZ_PARAM(hid_t);    unsigned long *fileno = (unsigned long *)gf_malloc(sizeof(unsigned long));    if (fileno == nullptr) {        FUZZ_BAIL();    }    *fileno = 0;    herr_t status = H5Fget_fileno(file_id, fileno);    if (status < 0) {        gf_free(fileno);        FUZZ_BAIL();    }    gf_free(fileno); }"
+    },
+    {
+      "name": "H5Fget_mdc_config_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);  // Random file identifier\nH5AC_cache_config_t *config = (H5AC_cache_config_t *)gf_malloc(sizeof(H5AC_cache_config_t));\nif (config == NULL) {\n    FUZZ_BAIL();  // Memory allocation failed\n}\n\n// Initialize the config structure version field\nconfig->version = H5AC__CURR_CACHE_CONFIG_VERSION;\n\n// Call the H5Fget_mdc_config function\nherr_t status = H5Fget_mdc_config(file_id, config);\nif (status < 0) {\n    gf_free(config);  // Clean up allocated memory\n    FUZZ_BAIL();      // API call failed\n}\n\n// Further processing with the 'config' can be done here if needed\n    \n// Clean up temporary objects\ngf_free(config);"
+    },
+    {
+      "name": "H5Fget_name_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t); // Fuzzable file id\nsize_t size = FUZZ_PARAM(size_t); // Size of the name buffer\nchar *name = (char *)gf_malloc(size); // Dynamic allocation for the name\nif (!name) {\n    FUZZ_BAIL(); // Memory allocation failure\n}\n\n// Call the target API\nssize_t ret_value = H5Fget_name(file_id, name, size);\nif (ret_value < 0) {\n    gf_free(name);   // Clean up if there was an error\n    FUZZ_BAIL(); // API call failed\n}\n\n// Optionally, do something with name or ret_value here\n\n// Clean up allocated memory\ngf_free(name);"
+    },
+    {
+      "name": "H5Fstop_mdc_logging_v0",
+      "variables": [],
+      "template": "hid_t file_id = FUZZ_PARAM(hid_t);\n\nherr_t result = H5Fstop_mdc_logging(file_id);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Fset_mdc_config_v0",
+      "variables": [],
+      "template": "{\n    hid_t file_id = FUZZ_PARAM(hid_t);\n    H5AC_cache_config_t config;\n    \n    config.version = H5AC__CURR_CACHE_CONFIG_VERSION;\n    config.rpt_fcn_enabled = FUZZ_PARAM(int);\n    config.dirty_bytes_threshold = FUZZ_PARAM(size_t);\n    config.open_trace_file = FUZZ_PARAM(int);\n    config.close_trace_file = FUZZ_PARAM(int);\n    \n    // Get a random trace file name and ensure it fits the buffer size\n    const char *trace_file_name = FUZZ_PARAM_STR(256);\n    strncpy(config.trace_file_name, trace_file_name, sizeof(config.trace_file_name) - 1);\n    config.trace_file_name[sizeof(config.trace_file_name) - 1] = '\\0'; // Ensure null termination\n\n    if (file_id <= 0) {\n        FUZZ_BAIL();\n    }\n\n    herr_t status = H5Fset_mdc_config(file_id, &config);\n    if (status < 0) {\n        FUZZ_BAIL();\n    }\n}"
+    },
+    {
+      "name": "new struct H5F_sect_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct H5F_sect_info_t *"
+        }
+      ],
+      "template": "haddr_t addr = FUZZ_PARAM(haddr_t);\nhsize_t size = FUZZ_PARAM(hsize_t);\n\nobject = (H5F_sect_info_t*)gf_malloc(sizeof(H5F_sect_info_t));\nif (!object) {\n    FUZZ_BAIL(); // Memory allocation failed\n}\n\nobject->addr = addr;\nobject->size = size;"
+    },
+    {
+      "name": "new struct H5F_retry_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct H5F_retry_info_t *"
+        }
+      ],
+      "template": "    object = (H5F_retry_info_t *)gf_malloc(sizeof(H5F_retry_info_t));\n    if (!object) {\n        FUZZ_BAIL();  // Memory allocation failed\n    }\n    \n    object->nbins = FUZZ_PARAM(uint32_t);\n\n    for (unsigned i = 0; i < H5F_NUM_METADATA_READ_RETRY_TYPES; i++) {\n        object->retries[i] = (uint32_t *)gf_malloc(object->nbins * sizeof(uint32_t));\n        if (!object->retries[i]) {\n            for (unsigned j = 0; j < i; j++) {\n                gf_free(object->retries[j]);\n            }\n            gf_free(object);\n            FUZZ_BAIL();  // Memory allocation for retries failed\n        }\n        \n        for (unsigned j = 0; j < object->nbins; j++) {\n            object->retries[i][j] = FUZZ_PARAM(uint32_t);\n        }\n    }\n\n    hid_t file_id = FUZZ_PARAM(hid_t);\n    if (H5Fget_metadata_read_retry_info(file_id, object) < 0) {\n        for (unsigned i = 0; i < H5F_NUM_METADATA_READ_RETRY_TYPES; i++) {\n            gf_free(object->retries[i]);\n        }\n        gf_free(object);\n        FUZZ_BAIL();  // API call to retrieve data failed\n    }  \n"
+    },
+    {
+      "name": "new H5_ih_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "H5_ih_info_t *"
+        }
+      ],
+      "template": "    object = (H5_ih_info_t *)gf_malloc(sizeof(H5_ih_info_t));\n    if (!object) {\n        FUZZ_BAIL();\n    }\n\n    // Assuming the correct type for H5_ih_info_t\n    hid_t id = H5Iregister(H5I_ATTR, object); // Replace H5I_ATTR with the correct identifier for H5_ih_info_t\n    if (id < 0) {\n        gf_free(object);\n        FUZZ_BAIL();\n    }\n"
+    },
+    {
+      "name": "new struct H5F_info2_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct H5F_info2_t *"
+        }
+      ],
+      "template": "    const char *filename = FUZZ_FILE();\n\n    unsigned flags = FUZZ_PARAM(unsigned);\n\n    hid_t fcpl_id = H5P_DEFAULT; \n    hid_t fapl_id = H5P_DEFAULT; \n\n    hid_t file_id = H5Fcreate(filename, flags, fcpl_id, fapl_id);\n    \n    if (file_id < 0)\n    {\n        FUZZ_BAIL();\n    }\n\n    if (H5Fget_info2(file_id, object) < 0)\n    {\n        H5Fclose(file_id);\n        FUZZ_BAIL();\n    }\n\n    if (H5Fclose(file_id) < 0)\n    {\n        FUZZ_BAIL();\n    }"
+    },
+    {
+      "name": "delete struct H5F_sect_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct H5F_sect_info_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct H5F_retry_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct H5F_retry_info_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5_ih_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5_ih_info_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct H5F_info2_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct H5F_info2_t *"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

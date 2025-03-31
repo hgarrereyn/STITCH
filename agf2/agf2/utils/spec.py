@@ -1,7 +1,7 @@
 import re
 
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 from .colors import Colors
 
@@ -12,6 +12,7 @@ class Variable(BaseModel):
     typ: str
 
 
+# Represents an endpoint as represented in the schema
 class Endpoint(BaseModel):
     name: str
     variables: List[Variable]
@@ -24,6 +25,17 @@ class Endpoint(BaseModel):
         print(f'{Colors.BOLD}Template{Colors.END}')
         print(pprint_template(self.template))
         print()
+
+    def to_function(self):
+        stub = EndpointStub(endpoint_name=self.name, function_name=self.name, variables=self.variables)
+
+        code = ''
+        code += 'void test_function('
+        code += stub.mock_function_sig()
+        code += '){\n'
+        code += self.template
+        code += '\n}\n'
+        return code
 
 
 class Schema(BaseModel):
@@ -55,36 +67,90 @@ class Errors(BaseModel):
             e.endpoint.pprint()
             print()
 
-# --------------- ARCH v2 ---------------
 
-class Objects(BaseModel):
-    objects: List[str]
+class EndpointStub(BaseModel):
+    function_name: str
+    endpoint_name: str
+    variables: List[Variable]
 
-class ObjectArg(BaseModel):
-    name: str
-    typ: str
-    dir: str
+    def mock_function_sig(self) -> str:
+        """Generate a mock function signature for the endpoint (used in prompting)"""
+        sig_lines = []
 
-class Functions(BaseModel):
-    functions: List[str]
+        inputs = [o for o in self.variables if o.dir != 'new']
+        outputs = [o for o in self.variables if o.dir == 'new']
 
-class Stub(BaseModel):
-    function: str
-    object_args: List[ObjectArg]
+        for o in inputs:
+            if o.dir == 'del':
+                sig_lines.append(f'    {o.typ} {o.name} /* input (delete) */')
+            else:
+                sig_lines.append(f'    {o.typ} {o.name} /* input (must use) */')
 
-    def to_endpoint(self, name: str, template: str):
-        variables = [Variable(name='$' + o.name, dir=o.dir, typ=o.typ) for o in self.object_args]
-        variables.append(Variable(name='$__seed', dir='*', typ='unsigned int'))
+        for o in outputs:
+            sig_lines.append(f'    {o.typ}& {o.name} /* output (must initialize) */')
+
+        sig = ''
+        for i, line in enumerate(sig_lines):
+            sig += line
+            if i < len(sig_lines) - 1:
+                sig += ',\n'
+        sig += '\n'
+
+        return sig
+
+    def mock_function_args(self) -> List[str]:
+        """Generate mock function args for the endpoint (used in prompting)"""
+        function_args = []
+
+        inputs = [o for o in self.variables if o.dir != 'new']
+        outputs = [o for o in self.variables if o.dir == 'new']
+
+        if len(inputs) > 0:
+            function_args += [f"{o.typ} {o.name}" for o in inputs]
+
+        if len(outputs) > 0:
+            function_args += [f"{o.typ}& {o.name}" for o in outputs]
+
+        return function_args
+    
+    def to_endpoint(self, template: str):
+        variables = [Variable(name=o.name, dir=o.dir, typ=o.typ) for o in self.variables]
+        return Endpoint(name=self.endpoint_name, variables=variables, template=template)
+
+
+# Represents the result of a function completion task for generating an endpoint template
+# Includes some extra information to help with cross-validation
+class EndpointFunctionCompletion(BaseModel):
+    function_name: str
+    function_args: List[str]
+    function_body: str
+
+    # Validate the completion against the original stub
+    def validate(self, stub: EndpointStub) -> Optional[str]:
+        # Ensure there is no function signature in the body
+        if re.match(r'^\s*void\s+\w+\s*\(', self.function_body):
+            return 'Do not include the function signature in the function body'
         
-        # replace all instances of __<name> with $<name> for name in object_args
-        for o in self.object_args:
-            # use re.sub matching word boundaries
-            template = re.sub(r'\b__' + re.escape(o.name) + r'\b', '$' + o.name, template)
-        
-        template = f'gf_rand::seed($__seed);\n' + template
+        # Ensure the function args match the expected args
+        # if self.function_args != stub.mock_function_args():
+        #     return f'Function args do not match expected args {self.function_args} != {stub.mock_function_args()}'
 
-        return Endpoint(name=name, variables=variables, template=template)
+        # Ensure there is no #include or #define in the function body
+        if re.search(r'\b#include\b', self.function_body) or re.search(r'\b#define\b', self.function_body):
+            return 'Do not include any #include or #define in the function body'
 
+        # Ensure there is no exception throwing in the function body
+        if re.search(r'\bthrow\b', self.function_body):
+            return 'Do not throw any exceptions in the function body'
+
+        # Ensure there is no return statement in the function body
+        if re.search(r'\breturn\b', self.function_body):
+            return 'Do not return any values in the function body'
+
+        return None
+
+
+# Represents a variable, modeled in a way that is easier for the LLM to understand
 class DetailedObjectArg(BaseModel):
     name: str
     type: str
@@ -92,16 +158,33 @@ class DetailedObjectArg(BaseModel):
     dir: str
     is_optional: bool
 
-    def to_object_arg(self):
-        return ObjectArg(name=self.name, typ=self.base_type, dir=self.dir)
 
 class DetailedStub(BaseModel):
     object_args: List[DetailedObjectArg]
 
-    def fixup(self, objects: List[str]):
-        self.object_args = [o for o in self.object_args if o.base_type in objects]
+    def validate(self, objects: List[str]) -> Optional[str]:
+        err_msg = ''
 
-    def expand_stubs(self, function: str) -> "Stubs":
+        for o in self.object_args:
+            if o.dir not in ['del', 'new', '*']:
+                err_msg += f'{o.base_type} has invalid direction {o.dir} (must be del, new, or *) \n'
+
+        keep = []
+        for o in self.object_args:
+            if o.base_type in objects:
+                keep.append(o)
+            elif o.base_type == 'none':
+                continue
+            else:
+                err_msg += f'{o.base_type} is not in the list of objects {objects}\n'
+
+        self.object_args = keep
+        if len(err_msg) > 0:
+            return err_msg
+        else:
+            return None
+
+    def expand_stubs(self, function: str) -> List[EndpointStub]:
         # Generate all combinations of optional arguments being present/absent
         optional_indices = [i for i, arg in enumerate(self.object_args) if arg.is_optional]
         stubs = []
@@ -122,38 +205,10 @@ class DetailedStub(BaseModel):
                         current_args.append(arg)
             
             # Create a new stub with this combination of arguments
-            stubs.append(Stub(function=function, object_args=[o.to_object_arg() for o in current_args]))
+            stubs.append(EndpointStub(
+                function_name=function,
+                endpoint_name=f'{function}_v{i}',
+                variables=[Variable(name='__' + o.name, dir=o.dir, typ=o.base_type) for o in current_args]
+            ))
 
-        return Stubs(stubs=stubs)
-
-class Stubs(BaseModel):
-    stubs: List[Stub]
-
-    def fixup(self, objects: List[str]):
-        for stub in self.stubs:
-            args = [o for o in stub.object_args if o.typ in objects]
-            stub.object_args = args
-
-    def dedup(self):
-        # keep only unique stubs, only the type and direction of the arguments matter
-        seen = set()
-        stubs = []
-        for stub in self.stubs:
-            if tuple([(o.typ, o.dir) for o in stub.object_args]) not in seen:
-                seen.add(tuple([(o.typ, o.dir) for o in stub.object_args]))
-                stubs.append(stub)
-        self.stubs = stubs
-
-class Templates(BaseModel):
-    templates: List[str]
-
-class Template(BaseModel):
-    template: str
-
-class DetailedTemplate(BaseModel):
-    function_name: str
-    function_args: List[str]
-    function_body: str
-
-class TemplateError(BaseModel):
-    error: str
+        return stubs
