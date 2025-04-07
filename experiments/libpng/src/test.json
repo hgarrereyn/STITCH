@@ -1,0 +1,2378 @@
+{
+  "endpoints": [
+    {
+      "name": "png_get_rowbytes_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t rowbytes = png_get_rowbytes(__png_ptr, __info_ptr);\nif (rowbytes == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_get_cHRM_XYZ_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "double red_X, red_Y, red_Z, green_X, green_Y, green_Z, blue_X, blue_Y, blue_Z;\n\nif (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\n// Direct call to the API as it will handle validation internally.\nif (png_get_cHRM_XYZ(__png_ptr, __info_ptr, &red_X, &red_Y, &red_Z, \n                      &green_X, &green_Y, &green_Z, \n                      &blue_X, &blue_Y, &blue_Z) == 0) FUZZ_BAIL(); \n\n// Assume we do something with the values obtained."
+    },
+    {
+      "name": "png_set_tRNS_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n// Create random values for trans_alpha and trans_color\npng_bytep trans_alpha = (png_bytep)gf_malloc(PNG_MAX_PALETTE_LENGTH);\nif (trans_alpha == NULL) {\n    FUZZ_BAIL();\n}\n\npng_color_16 trans_color;\ntrans_color.red = FUZZ_PARAM(uint16_t);\ntrans_color.green = FUZZ_PARAM(uint16_t);\ntrans_color.blue = FUZZ_PARAM(uint16_t);\ntrans_color.gray = FUZZ_PARAM(uint16_t);\n\nint num_trans = FUZZ_PARAM(int);\nif (num_trans < 0 || num_trans > PNG_MAX_PALETTE_LENGTH) {\n    gf_free(trans_alpha);\n    FUZZ_BAIL();\n}\n\n// Fill trans_alpha with fuzzable data\nfor (int i = 0; i < num_trans; ++i) {\n    trans_alpha[i] = FUZZ_PARAM(uint8_t);\n}\n\n// Invoke the target library API\npng_set_tRNS(__png_ptr, __info_ptr, trans_alpha, num_trans, &trans_color);\n\n// Clean up\ngf_free(trans_alpha);"
+    },
+    {
+      "name": "png_set_tRNS_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__trans_alpha",
+          "dir": "*",
+          "typ": "png_byte *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __trans_alpha == NULL) FUZZ_BAIL();\n\nint num_trans = FUZZ_PARAM(int);\nif (num_trans < 0 || num_trans > 256) FUZZ_BAIL(); // Arbitrarily chosen limit for num_trans (assuming PNG_MAX_PALETTE_LENGTH is 256)\n\npng_set_tRNS(__png_ptr, __info_ptr, __trans_alpha, num_trans, NULL);  // Call with NULL for trans_color\n\n// Note: Memory management for trans_alpha is handled by the png_set_tRNS; no need for additional cleanup."
+    },
+    {
+      "name": "png_set_tRNS_v2",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__trans_color",
+          "dir": "*",
+          "typ": "png_color_16 *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __trans_color == NULL) FUZZ_BAIL();\n\nint num_trans = FUZZ_PARAM(int);\nif (num_trans < 0 || num_trans > 256) FUZZ_BAIL();\n\npng_bytep trans_alpha = (png_bytep)gf_malloc(num_trans * sizeof(png_byte));\nif (trans_alpha == NULL) FUZZ_BAIL();\n\nfor (int i = 0; i < num_trans; i++) {\n    trans_alpha[i] = FUZZ_PARAM(png_byte);\n}\n\npng_set_tRNS(__png_ptr, __info_ptr, trans_alpha, num_trans, __trans_color);\n\ngf_free(trans_alpha);\n"
+    },
+    {
+      "name": "png_set_alpha_mode_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nint mode = FUZZ_PARAM(int);\ndouble output_gamma = FUZZ_PARAM(double);\n\npng_set_alpha_mode(__png_ptr, mode, output_gamma);"
+    },
+    {
+      "name": "png_set_quantize_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__palette",
+          "dir": "*",
+          "typ": "png_colorp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __palette == NULL) FUZZ_BAIL();\n\nint num_palette = FUZZ_PARAM(int);\nint maximum_colors = FUZZ_PARAM(int);\npng_const_uint_16p histogram = NULL;\nint full_quantize = 0; // Or use FUZZ_PARAM(int) if needed;\n\nif (num_palette < 0 || maximum_colors <= 0) FUZZ_BAIL();\n\npng_set_quantize(__png_ptr, __palette, num_palette, maximum_colors, histogram, full_quantize);\n"
+    },
+    {
+      "name": "png_set_chunk_cache_max_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__user_chunk_cache_max",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_chunk_cache_max(__png_ptr, __user_chunk_cache_max);"
+    },
+    {
+      "name": "png_get_image_width_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_uint_32 width = png_get_image_width(__png_ptr, __info_ptr);\nif (width == 0) {\n    FUZZ_BAIL();\n}\n\n___return_value_ = width;"
+    },
+    {
+      "name": "png_set_bKGD_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__background",
+          "dir": "*",
+          "typ": "png_const_color_16p"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __background == NULL) {\n    FUZZ_BAIL();\n}\n\npng_set_bKGD(__png_ptr, __info_ptr, __background);\n"
+    },
+    {
+      "name": "png_set_gray_to_rgb_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_gray_to_rgb(__png_ptr);\n"
+    },
+    {
+      "name": "png_get_color_type_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL)\n    FUZZ_BAIL();\n\npng_byte color_type = png_get_color_type(__png_ptr, __info_ptr);\nif (color_type == 0)\n    FUZZ_BAIL();\n\n// Further processing can be done with color_type here."
+    },
+    {
+      "name": "png_set_rows_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n// Allocate memory for row pointers based on fuzz input.\npng_bytepp row_pointers = (png_bytepp)gf_malloc(sizeof(png_bytep) * FUZZ_PARAM(int));\nif (row_pointers == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the row pointers with fuzz data.\nfor (int i = 0; i < sizeof(row_pointers) / sizeof(row_pointers[0]); i++) {\n    row_pointers[i] = (png_bytep)FUZZ_PARAM_FILE(100); // Assuming each row is represented by a file with 100 bytes of data\n}\n\n// Now invoke the png_set_rows from the library.\npng_set_rows(__png_ptr, __info_ptr, row_pointers);\n\n// Cleanup allocated memory if needed.\ngf_free(row_pointers);\n"
+    },
+    {
+      "name": "png_set_rows_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        },
+        {
+          "name": "__row_pointers",
+          "dir": "*",
+          "typ": "png_bytepp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __row_pointers == NULL) {\n    FUZZ_BAIL();\n}\n\npng_set_rows(__png_ptr, __info_ptr, __row_pointers);"
+    },
+    {
+      "name": "png_get_rows_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "png_bytepp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\n__return_value = png_get_rows(__png_ptr, __info_ptr);\nif (__return_value == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_chunk_benign_error_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nconst char *error_message = FUZZ_PARAM_STR(256);\n\npng_chunk_benign_error(__png_ptr, error_message);\n"
+    },
+    {
+      "name": "png_chunk_benign_error_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__error_message",
+          "dir": "*",
+          "typ": "png_charp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __error_message == NULL) FUZZ_BAIL();\n\npng_chunk_benign_error(__png_ptr, __error_message);"
+    },
+    {
+      "name": "png_get_bKGD_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__background",
+          "dir": "new",
+          "typ": "png_color_16 *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __background == NULL) FUZZ_BAIL();\n\npng_uint_32 result = png_get_bKGD(__png_ptr, __info_ptr, &__background);\nif (result == 0) FUZZ_BAIL();\n\n__background = (png_color_16 *)gf_malloc(sizeof(png_color_16));\nif (__background == NULL) FUZZ_BAIL();\n\nresult = png_get_bKGD(__png_ptr, __info_ptr, &__background);\nif (result == 0) FUZZ_BAIL();\n\n// Free any temporary objects if necessary\n// Not applicable in this case as there are no temporary objects created."
+    },
+    {
+      "name": "png_convert_to_rfc1123_buffer_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "new",
+          "typ": "png_voidp"
+        },
+        {
+          "name": "__ptime",
+          "dir": "*",
+          "typ": "png_const_timep"
+        }
+      ],
+      "template": "if (__ptime == NULL) FUZZ_BAIL();\n\nchar *buffer = (char *)gf_malloc(29 * sizeof(char));\nif (buffer == NULL) FUZZ_BAIL();\n\nint result = png_convert_to_rfc1123_buffer(buffer, __ptime);\nif (result == 0) {\n    gf_free(buffer);\n    FUZZ_BAIL();\n}\n\n__out = buffer;"
+    },
+    {
+      "name": "png_chunk_warning_v0",
+      "variables": [
+        {
+          "name": "__warning_message",
+          "dir": "*",
+          "typ": "png_charp"
+        }
+      ],
+      "template": "if (__warning_message == NULL) FUZZ_BAIL();\n\npng_const_structrp png_ptr = NULL; \npng_chunk_warning(png_ptr, __warning_message);"
+    },
+    {
+      "name": "png_chunk_warning_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__warning_message",
+          "dir": "*",
+          "typ": "png_charp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __warning_message == NULL) FUZZ_BAIL();\n\npng_chunk_warning(__png_ptr, __warning_message);"
+    },
+    {
+      "name": "png_free_data_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__mask",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_free_data(__png_ptr, __info_ptr, __mask, -1); // Assuming we want to free all text as part of fuzzing."
+    },
+    {
+      "name": "png_get_filter_type_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "png_byte"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n__return_value = png_get_filter_type(__png_ptr, __info_ptr);\n\nif (__return_value == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_calloc_v0",
+      "variables": [],
+      "template": "\n    size_t size = FUZZ_PARAM(size_t);\n    void *ptr = png_calloc(NULL, size);\n    if (ptr == NULL) {\n        FUZZ_BAIL();\n    }\n    memset(ptr, 0, size);\n    // Suppose we need to use the allocated memory in some way here.\n    // After using it, we should free the memory.\n    png_free(NULL, ptr);\n"
+    },
+    {
+      "name": "png_calloc_v1",
+      "variables": [
+        {
+          "name": "__pp",
+          "dir": "*",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__pp == NULL) FUZZ_BAIL();\nsize_t size = FUZZ_PARAM(size_t);\nvoid* allocated_memory = png_calloc(__pp, size);\nif (allocated_memory == NULL) FUZZ_BAIL();\n// Memory allocated successfully, you can use allocated_memory here\n// Cleanup: Since we are in a fuzzing environment, we call png_free as the API requires memory management.\npng_free(__pp, allocated_memory);"
+    },
+    {
+      "name": "png_calloc_v2",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "png_voidp"
+        }
+      ],
+      "template": "png_const_structrp png_ptr = NULL; // We are not using a valid png_struct.\nsize_t size = FUZZ_PARAM(size_t);\n\nif(size == 0) {\n    FUZZ_BAIL();\n}\n\n__return = png_calloc(png_ptr, size);\n\nif(__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_calloc_v3",
+      "variables": [
+        {
+          "name": "__pp",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "png_voidp"
+        }
+      ],
+      "template": "if (__pp == NULL) FUZZ_BAIL();\n\nsize_t size = FUZZ_PARAM(size_t);\n__return = png_calloc(__pp, size);\n\nif (__return == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_set_expand_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_expand(__png_ptr);"
+    },
+    {
+      "name": "png_image_begin_read_from_memory_v0",
+      "variables": [
+        {
+          "name": "__image",
+          "dir": "*",
+          "typ": "png_image *"
+        },
+        {
+          "name": "__memory",
+          "dir": "*",
+          "typ": "png_const_bytep"
+        }
+      ],
+      "template": "if (__image == NULL || __memory == NULL) FUZZ_BAIL();\n\nsize_t memory_size = FUZZ_PARAM(size_t);\nif (memory_size == 0) FUZZ_BAIL();\n\nint result = png_image_begin_read_from_memory(__image, __memory, memory_size);\nif (result != 0) FUZZ_BAIL();\n\n// The function successfully invoked, no action needed for output arguments."
+    },
+    {
+      "name": "png_get_chunk_cache_max_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_uint_32 cache_max = png_get_chunk_cache_max(__png_ptr);\n\nif (cache_max == 0) FUZZ_BAIL();\n\n// Use cache_max for further computations if needed"
+    },
+    {
+      "name": "png_get_channels_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__channels",
+          "dir": "new",
+          "typ": "png_byte"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\n__channels = png_get_channels(__png_ptr, __info_ptr);\nif (__channels == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_chunk_error_v0",
+      "variables": [
+        {
+          "name": "__s1",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__s1 == NULL) FUZZ_BAIL();\n\npng_chunk_error(__s1, FUZZ_PARAM_STR(20));"
+    },
+    {
+      "name": "png_warning_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__msg",
+          "dir": "*",
+          "typ": "png_charp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __msg == NULL) FUZZ_BAIL();\n\npng_warning(__png_ptr, __msg);\n\n// No output arguments to initialize and no temporary objects to clean up."
+    },
+    {
+      "name": "png_set_filler_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__filler",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_filler(__png_ptr, __filler, PNG_FILLER_AFTER);  // Assuming we're setting the filler after; feel free to change to PNG_FILLER_BEFORE based on your specific needs."
+    },
+    {
+      "name": "png_longjmp_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n// Execute png_longjmp with randomness (simulated error code)\nint error_code = FUZZ_PARAM(int);\npng_longjmp(__png_ptr, error_code);\n"
+    },
+    {
+      "name": "png_read_info_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_read_info(__png_ptr, __info_ptr);\n\n// Ensure __info_ptr fields are initialized by calling api to process the information if needed\n// Any additional initialization can be done here if the API requires it to be handled outside\n"
+    },
+    {
+      "name": "png_set_background_fixed_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__background_color",
+          "dir": "*",
+          "typ": "png_const_color_16p"
+        },
+        {
+          "name": "__background_gamma",
+          "dir": "*",
+          "typ": "png_fixed_point"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __background_color == NULL) FUZZ_BAIL();\n\npng_fixed_point background_gamma_fixed = __background_gamma;\n\npng_set_background_fixed(__png_ptr, __background_color, PNG_BACKGROUND_GAMMA_UNKNOWN, 0, background_gamma_fixed);"
+    },
+    {
+      "name": "png_get_bit_depth_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "png_byte"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n__return = png_get_bit_depth(__png_ptr, __info_ptr);\nif (__return == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_set_cHRM_XYZ_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "double red_X = FUZZ_PARAM(double);\ndouble red_Y = FUZZ_PARAM(double);\ndouble red_Z = FUZZ_PARAM(double);\ndouble green_X = FUZZ_PARAM(double);\ndouble green_Y = FUZZ_PARAM(double);\ndouble green_Z = FUZZ_PARAM(double);\ndouble blue_X = FUZZ_PARAM(double);\ndouble blue_Y = FUZZ_PARAM(double);\ndouble blue_Z = FUZZ_PARAM(double);\n\nif (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_set_cHRM_XYZ(__png_ptr, __info_ptr, red_X, red_Y, red_Z, green_X, green_Y, green_Z, blue_X, blue_Y, blue_Z);"
+    },
+    {
+      "name": "png_set_packswap_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call the library API to set packswap\npng_set_packswap(__png_ptr);\n\n// The function does not require any output arguments or temporary objects."
+    },
+    {
+      "name": "png_get_cHRM_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "double whitex, whitey, redx, redy, greenx, greeny, bluex, bluey;\n\nif (__png_ptr == NULL || __info_ptr == NULL)\n    FUZZ_BAIL();\n\npng_get_cHRM(__png_ptr, __info_ptr, &whitex, &whitey, &redx, &redy, &greenx, &greeny, &bluex, &bluey);\n"
+    },
+    {
+      "name": "png_get_tRNS_v3",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__trans_alpha",
+          "dir": "new",
+          "typ": "png_byte *"
+        },
+        {
+          "name": "__trans_color",
+          "dir": "new",
+          "typ": "png_color_16p"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_uint_32 result = png_get_tRNS(__png_ptr, const_cast<png_infop>(__info_ptr), &__trans_alpha, NULL, &__trans_color);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_get_sPLT_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__spalettes",
+          "dir": "new",
+          "typ": "png_sPLT_t *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL)\n    FUZZ_BAIL();\n\n// Allocate a temporary pointer for palettes\npng_sPLT_t* temp_spalettes = NULL;\n\n// Call the library function\nif (png_get_sPLT(__png_ptr, __info_ptr, &temp_spalettes) == 0)\n    FUZZ_BAIL();\n\n// Initialize output parameter\n__spalettes = temp_spalettes;\n\n// Usually, the allocation would not require cleanup in the context of this library, but\n// we assume it’s the caller's responsibility to free the allocated palette."
+    },
+    {
+      "name": "png_set_bgr_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_set_bgr(__png_ptr);"
+    },
+    {
+      "name": "png_set_gamma_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) { FUZZ_BAIL(); }\n\ndouble scrn_gamma = FUZZ_PARAM(double);\ndouble file_gamma = FUZZ_PARAM(double);\n\npng_set_gamma(__png_ptr, scrn_gamma, file_gamma);"
+    },
+    {
+      "name": "png_set_cHRM_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "if (!__png_ptr || !__info_ptr) FUZZ_BAIL();\n\nfloat white_x = FUZZ_PARAM(float);\nfloat white_y = FUZZ_PARAM(float);\nfloat red_x = FUZZ_PARAM(float);\nfloat red_y = FUZZ_PARAM(float);\nfloat green_x = FUZZ_PARAM(float);\nfloat green_y = FUZZ_PARAM(float);\nfloat blue_x = FUZZ_PARAM(float);\nfloat blue_y = FUZZ_PARAM(float);\n\npng_set_cHRM(__png_ptr, __info_ptr, white_x, white_y, red_x, red_y, green_x, green_y, blue_x, blue_y);\n"
+    },
+    {
+      "name": "png_error_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\npng_error(__png_ptr, FUZZ_PARAM_STR(30));"
+    },
+    {
+      "name": "png_get_text_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_textp text_ptr = NULL;\nint num_text = 0;\n\nif (png_get_text(__png_ptr, __info_ptr, &text_ptr, &num_text) == 0) FUZZ_BAIL();\n\n// Further process text_ptr and num_text as needed\n// Note: Ensure to handle any outputs correctly and manage memory if necessary.\n// No cleanup required for text_ptr and num_text as they point to info_ptr's data."
+    },
+    {
+      "name": "png_get_text_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        },
+        {
+          "name": "__text_ptr",
+          "dir": "new",
+          "typ": "png_text *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\nint num_text = 0;\n__text_ptr = NULL;\n\nint result = png_get_text(__png_ptr, __info_ptr, &__text_ptr, &num_text);\n\nif (result <= 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_get_text_v3",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        },
+        {
+          "name": "__text_ptr",
+          "dir": "new",
+          "typ": "png_text *"
+        },
+        {
+          "name": "__num_text",
+          "dir": "new",
+          "typ": "png_voidp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL)\n    FUZZ_BAIL();\n\n__text_ptr = nullptr;\n__num_text = nullptr;\n\nint numText = 0;\nint result = png_get_text(__png_ptr, __info_ptr, &__text_ptr, &numText);\nif (result < 0 || numText <= 0 || __text_ptr == nullptr)\n    FUZZ_BAIL();\n\n__num_text = (png_voidp)gf_malloc(sizeof(int));\nif (__num_text == nullptr)\n    FUZZ_BAIL();\n\nmemcpy(__num_text, &numText, sizeof(int));"
+    },
+    {
+      "name": "png_get_image_height_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_uint_32 height = png_get_image_height(__png_ptr, __info_ptr);\n\nif (height == 0) {\n    FUZZ_BAIL();\n}\n\n__return_value = height;"
+    },
+    {
+      "name": "png_set_benign_errors_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nint allowed = FUZZ_PARAM(int);\n\npng_set_benign_errors(__png_ptr, allowed);"
+    },
+    {
+      "name": "png_image_free_v0",
+      "variables": [
+        {
+          "name": "__image",
+          "dir": "del",
+          "typ": "png_image *"
+        }
+      ],
+      "template": "if (__image == NULL) FUZZ_BAIL();\n\npng_image_free(__image);\n\n__image = NULL;"
+    },
+    {
+      "name": "png_malloc_warn_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nsize_t size = FUZZ_PARAM(size_t);\nvoid *mem = png_malloc_warn(__png_ptr, size);\nif (mem == NULL) FUZZ_BAIL();\n\n// Using mem for some operation if needed, then cleanup is handled, no explicit clean up required as nothing temporary is created."
+    },
+    {
+      "name": "png_get_compression_buffer_size_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL)\n    FUZZ_BAIL();\n\nsize_t buffer_size = png_get_compression_buffer_size(__png_ptr);\n\nif (buffer_size == 0)\n    FUZZ_BAIL();\n\n// Further processing can be done with buffer_size if needed."
+    },
+    {
+      "name": "png_set_expand_gray_1_2_4_to_8_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_expand_gray_1_2_4_to_8(__png_ptr);"
+    },
+    {
+      "name": "png_get_interlace_type_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_byte result = png_get_interlace_type(__png_ptr, __info_ptr);\n\n// Use result as needed, for now just ensuring no further actions needed"
+    },
+    {
+      "name": "png_set_longjmp_fn_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nsize_t jmp_buf_size = FUZZ_PARAM(size_t);\npng_longjmp_ptr longjmp_fn = (png_longjmp_ptr)(uintptr_t)FUZZ_PARAM(uintptr_t);\n\npng_set_longjmp_fn(__png_ptr, longjmp_fn, jmp_buf_size);"
+    },
+    {
+      "name": "png_set_interlace_handling_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nint result = png_set_interlace_handling(__png_ptr);\n\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_set_text_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__text_ptr",
+          "dir": "*",
+          "typ": "png_const_textp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __text_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n// png_set_text requires 4 parameters: the png_ptr, info_ptr, text_ptr, and the number of text items\nint num_text = 1; // Assuming we have one text item for fuzzing purposes.\n\npng_set_text(__png_ptr, __info_ptr, __text_ptr, num_text);\n// No need to free or clean up since we're not allocating any extra memory here."
+    },
+    {
+      "name": "png_get_rgb_to_gray_status_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_byte status = png_get_rgb_to_gray_status(__png_ptr);\n\nif (status == 0) FUZZ_BAIL();\n\n// Use the status as needed (e.g., logging or further processing)\n"
+    },
+    {
+      "name": "png_set_crc_action_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nint crit_action = FUZZ_PARAM(int);\nint ancil_action = FUZZ_PARAM(int);\n\nif (crit_action < 0 || crit_action > 5) FUZZ_BAIL(); // Validating crit_action\nif (ancil_action < 0 || ancil_action > 5) FUZZ_BAIL(); // Validating ancil_action\n\npng_set_crc_action(__png_ptr, crit_action, ancil_action);"
+    },
+    {
+      "name": "png_set_compression_buffer_size_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nsize_t buffer_size = FUZZ_PARAM(size_t);\nif (buffer_size == 0 || buffer_size > PNG_UINT_31_MAX) FUZZ_BAIL();\n\npng_set_compression_buffer_size(__png_ptr, buffer_size);"
+    },
+    {
+      "name": "png_set_packing_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_set_packing(__png_ptr);"
+    },
+    {
+      "name": "png_set_shift_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__true_bits",
+          "dir": "*",
+          "typ": "png_const_color_8p"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __true_bits == NULL) FUZZ_BAIL();\n\n// Allocate memory for a temporary color_8 structure to hold fuzzed values\npng_color_8 *temp_bits = (png_color_8 *)gf_malloc(sizeof(png_color_8));\nif (temp_bits == NULL) FUZZ_BAIL();\n\n// Fill temp_bits with fuzzed parameters\n*temp_bits = *(__true_bits);\n\n// Invoke the png_set_shift function with the fuzzed value\npng_set_shift(__png_ptr, temp_bits);\n\n// Clean up allocated memory for temp_bits\n\ngf_free(temp_bits);"
+    },
+    {
+      "name": "png_set_invert_alpha_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_invert_alpha(__png_ptr);"
+    },
+    {
+      "name": "png_set_user_limits_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__user_width_max",
+          "dir": "*",
+          "typ": "png_uint_32"
+        },
+        {
+          "name": "__user_height_max",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_user_limits(__png_ptr, __user_width_max, __user_height_max);"
+    },
+    {
+      "name": "png_destroy_info_struct_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL)\n    FUZZ_BAIL();\n\npng_infopp info_ptr_ptr = (png_infopp)gf_malloc(sizeof(png_inforp));\nif (info_ptr_ptr == NULL)\n    FUZZ_BAIL();\n\n// Initialize info_ptr to NULL for safety\n*info_ptr_ptr = NULL;\n\n// Call the library function\npng_destroy_info_struct(__png_ptr, info_ptr_ptr);\n\ngf_free(info_ptr_ptr);"
+    },
+    {
+      "name": "png_set_iCCP_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        },
+        {
+          "name": "__name",
+          "dir": "*",
+          "typ": "png_charp"
+        },
+        {
+          "name": "__profile",
+          "dir": "*",
+          "typ": "png_const_bytep"
+        },
+        {
+          "name": "__proflen",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __name == NULL || __profile == NULL || __proflen == 0) {\n    FUZZ_BAIL();\n}\n\nsize_t name_length = strlen(__name) + 1;\npng_charp new_iccp_name = (png_charp)gf_malloc(name_length);\nif (new_iccp_name == NULL) {\n    FUZZ_BAIL();\n}\nmemcpy(new_iccp_name, __name, name_length);\n\npng_bytep new_iccp_profile = (png_bytep)gf_malloc(__proflen);\nif (new_iccp_profile == NULL) {\n    gf_free(new_iccp_name);\n    FUZZ_BAIL();\n}\nmemcpy(new_iccp_profile, __profile, __proflen);\n\npng_set_iCCP(__png_ptr, __info_ptr, new_iccp_name, PNG_COMPRESSION_TYPE_BASE, new_iccp_profile, __proflen);\n\ngf_free(new_iccp_name);\ngf_free(new_iccp_profile);\n"
+    },
+    {
+      "name": "png_benign_error_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__error_message",
+          "dir": "*",
+          "typ": "png_charp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __error_message == NULL) { FUZZ_BAIL(); }\n\npng_benign_error(__png_ptr, __error_message);\n\n// Since the_png_benign_error function does not return a value or allocate memory,\n// no cleanup is necessary for this implementation."
+    },
+    {
+      "name": "png_set_palette_to_rgb_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_palette_to_rgb(__png_ptr);\n"
+    },
+    {
+      "name": "png_set_tIME_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_info *"
+        },
+        {
+          "name": "__mod_time",
+          "dir": "*",
+          "typ": "png_const_timep"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL || __mod_time == NULL) FUZZ_BAIL();\n\npng_set_tIME(__png_ptr, __info_ptr, __mod_time);\n"
+    },
+    {
+      "name": "png_set_read_user_chunk_fn_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_user_chunk_ptr read_user_chunk_fn = (png_user_chunk_ptr)FUZZ_PARAM_FILE(16);\n\npng_set_read_user_chunk_fn(__png_ptr, NULL, read_user_chunk_fn);\n"
+    },
+    {
+      "name": "png_get_compression_type_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "*",
+          "typ": "png_byte"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_byte compression_type = png_get_compression_type(__png_ptr, __info_ptr);\nif (compression_type == 0) FUZZ_BAIL();\n\n__Return_Value = compression_type;"
+    },
+    {
+      "name": "png_get_user_height_max_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\n__result = png_get_user_height_max(__png_ptr);\n\nif (__result == 0) {\n    // Handle the case where user_height_max is 0 if needed\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_malloc_v0",
+      "variables": [],
+      "template": "{\n    size_t size = FUZZ_PARAM(size_t);\n    if (size == 0)\n        FUZZ_BAIL();\n\n    void *ptr = png_malloc(NULL, size);\n    if (ptr == NULL)\n        FUZZ_BAIL();\n\n    // Simulate usage of allocated memory\n    memset(ptr, 0, size);\n\n    // Free the allocated memory\n    png_free(NULL, ptr);\n}"
+    },
+    {
+      "name": "png_get_pixels_per_meter_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_uint_32 x_pixels_per_meter = 0;\n\nx_pixels_per_meter = png_get_pixels_per_meter(__png_ptr, __info_ptr);\n\nif (x_pixels_per_meter == 0) FUZZ_BAIL();\n\n__return_value = x_pixels_per_meter;"
+    },
+    {
+      "name": "png_read_row_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__row",
+          "dir": "new",
+          "typ": "png_byte *"
+        },
+        {
+          "name": "__dsp_row",
+          "dir": "*",
+          "typ": "png_byte *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __dsp_row == NULL) FUZZ_BAIL();\n\n__row = (png_byte *)gf_malloc(png_get_rowbytes(__png_ptr, 0));\nif (__row == NULL) FUZZ_BAIL();\n\npng_read_row(__png_ptr, __row, __dsp_row);"
+    },
+    {
+      "name": "png_get_signature_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_const_bytep signature = png_get_signature(__png_ptr, __info_ptr);\nif (signature == NULL) FUZZ_BAIL();\n\n// Here we might use the signature in some way, this part is omitted for simplicity.\n// Make sure to clean up or handle signature if necessary."
+    },
+    {
+      "name": "png_set_scale_16_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\n// Invoke the png_set_scale_16 macro with png_ptr\npng_set_scale_16(__png_ptr);"
+    },
+    {
+      "name": "png_get_pixel_aspect_ratio_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming the png_get_pixel_aspect_ratio needs a float pointer to set the result.\nfloat aspect_ratio = png_get_pixel_aspect_ratio(__png_ptr, __info_ptr);\n\n// Check if aspect_ratio is a valid number (optional based on specific API behavior).\nif (aspect_ratio < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_create_info_struct_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "png_info *"
+        }
+      ],
+      "template": "if (__png_ptr == nullptr) FUZZ_BAIL();\n\n__return = png_create_info_struct(__png_ptr);\nif (__return == nullptr) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_create_read_struct_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "__return_value = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);\nif (__return_value == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_create_read_struct_v1",
+      "variables": [
+        {
+          "name": "__user_version",
+          "dir": "*",
+          "typ": "png_charp"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__user_version == NULL) FUZZ_BAIL();\n\n__return_value = png_create_read_struct(__user_version, NULL, NULL, NULL);\nif (__return_value == NULL) FUZZ_BAIL();\n\n// No need for additional cleanup, the library handles the struct."
+    },
+    {
+      "name": "png_create_read_struct_v2",
+      "variables": [
+        {
+          "name": "__malloc_fn",
+          "dir": "*",
+          "typ": "png_voidp"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__malloc_fn == nullptr) { FUZZ_BAIL(); }\n\n__return_value = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);\nif (__return_value == nullptr) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "png_create_read_struct_v8",
+      "variables": [
+        {
+          "name": "__warning_fn",
+          "dir": "*",
+          "typ": "png_voidp"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__warning_fn == nullptr) FUZZ_BAIL();\n\n__return_value = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);\n\nif (__return_value == nullptr) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_get_x_offset_pixels_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_int_32 x_offset = png_get_x_offset_pixels(__png_ptr, __info_ptr);\nif (x_offset < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_set_expand_16_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_expand_16(__png_ptr);"
+    },
+    {
+      "name": "png_get_valid_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        },
+        {
+          "name": "__flag",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_uint_32 valid = png_get_valid(__png_ptr, __info_ptr, __flag);\nif (valid == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "png_set_swap_alpha_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_swap_alpha(__png_ptr);"
+    },
+    {
+      "name": "png_data_freer_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_infop"
+        },
+        {
+          "name": "__mask",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\npng_data_freer(__png_ptr, __info_ptr, PNG_USER_WILL_FREE_DATA, __mask);"
+    },
+    {
+      "name": "png_set_swap_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_swap(__png_ptr);\n\n// Check for any other relevant errors after calling the API\n// Here we're assuming the library handles error cases internally as per the documentation."
+    },
+    {
+      "name": "png_get_sCAL_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL)\n    FUZZ_BAIL();\n\nint unit = 0;\ndouble width, height;\n\nif (png_get_sCAL(__png_ptr, __info_ptr, &unit, &width, &height) == PNG_INFO_sCAL)\n{\n    // Width and height are correctly populated and can be used in fuzzing context.\n}\nelse\n    FUZZ_BAIL();"
+    },
+    {
+      "name": "png_set_invert_mono_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\npng_set_invert_mono(__png_ptr);"
+    },
+    {
+      "name": "png_sig_cmp_v0",
+      "variables": [
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "png_const_bytep"
+        }
+      ],
+      "template": "if (__sig == NULL) FUZZ_BAIL();\n\nsize_t start = FUZZ_PARAM(size_t);\nsize_t num_to_check = FUZZ_PARAM(size_t);\n\n// Call png_sig_cmp with the random signature, start, and num_to_check\nint result = png_sig_cmp(__sig, start, num_to_check);\n\n// Use result if needed, but here it's assumed to be only for validity check\nif (result < -1) FUZZ_BAIL();"
+    },
+    {
+      "name": "png_get_y_pixels_per_meter_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__info_ptr",
+          "dir": "*",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __info_ptr == NULL) FUZZ_BAIL();\n\n// Call the actual png_get_y_pixels_per_meter function -\n// Assuming that it takes the png_const_structrp and png_const_infop and fills some output\n// This function seems to return an int which is the pixels per meter value.\nint y_pixels_per_meter = png_get_y_pixels_per_meter(__png_ptr, __info_ptr);\n\n// Check if the value returned is a valid metric, positive integer (assuming) otherwise bail out.\nif (y_pixels_per_meter < 0) FUZZ_BAIL();\n\n// You may want to do something with y_pixels_per_meter not specified in the task.\n// But here we end the function since we're following up on existing API contracts."
+    },
+    {
+      "name": "png_read_rows_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__row",
+          "dir": "*",
+          "typ": "png_bytepp"
+        },
+        {
+          "name": "__num_rows",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __row == NULL || __num_rows == 0) {\n    FUZZ_BAIL();\n}\n\npng_bytepp rows = (__row);\n\npng_read_rows(__png_ptr, rows, NULL, __num_rows);"
+    },
+    {
+      "name": "png_read_rows_v2",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__display_row",
+          "dir": "*",
+          "typ": "png_bytepp"
+        },
+        {
+          "name": "__num_rows",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\nif (__display_row == NULL) FUZZ_BAIL();\n\npng_bytepp __row_ptrs = (png_bytepp)gf_malloc(__num_rows * sizeof(png_bytep));\nif (__row_ptrs == NULL) FUZZ_BAIL();\n\nfor (png_uint_32 i = 0; i < __num_rows; i++) {\n    __row_ptrs[i] = (png_bytep)gf_malloc(1024);  // Placeholder for row size\n    if (__row_ptrs[i] == NULL) {\n        for (png_uint_32 j = 0; j < i; j++) gf_free(__row_ptrs[j]);\n        gf_free(__row_ptrs);\n        FUZZ_BAIL();\n    }\n}\n\npng_read_rows(__png_ptr, __row_ptrs, __display_row, __num_rows);\n\nfor (png_uint_32 i = 0; i < __num_rows; i++) gf_free(__row_ptrs[i]);\n\ngf_free(__row_ptrs);"
+    },
+    {
+      "name": "png_read_rows_v3",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__row",
+          "dir": "*",
+          "typ": "png_bytepp"
+        },
+        {
+          "name": "__display_row",
+          "dir": "*",
+          "typ": "png_bytepp"
+        },
+        {
+          "name": "__num_rows",
+          "dir": "*",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __row == NULL || __display_row == NULL || __num_rows == 0)\n    FUZZ_BAIL();\n\n// Call the png_read_rows function\npng_read_rows(__png_ptr, __row, __display_row, __num_rows);\n\n// These rows may be processed by the library, ensure display_row is setup if necessary\nfor (png_uint_32 i = 0; i < __num_rows; i++) {\n    if (__display_row[i] == NULL) {\n        FUZZ_BAIL();\n    }\n}"
+    },
+    {
+      "name": "png_set_sig_bytes_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\nint num_bytes = FUZZ_PARAM(int);\n\nif (num_bytes < 0 || num_bytes > 8) {\n    FUZZ_BAIL();\n}\n\npng_set_sig_bytes(__png_ptr, num_bytes);"
+    },
+    {
+      "name": "png_set_strip_16_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_set_strip_16(__png_ptr);"
+    },
+    {
+      "name": "png_set_background_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_structrp"
+        },
+        {
+          "name": "__background_color",
+          "dir": "*",
+          "typ": "png_const_color_16p"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __background_color == NULL)\n    FUZZ_BAIL();\n\nint background_gamma_code = FUZZ_PARAM(int);\nint need_expand = FUZZ_PARAM(int);\ndouble background_gamma = FUZZ_PARAM(double);\n\npng_set_background(__png_ptr, __background_color, background_gamma_code, need_expand, background_gamma);"
+    },
+    {
+      "name": "png_destroy_read_struct_v0",
+      "variables": [
+        {
+          "name": "__png_ptr_ptr",
+          "dir": "del",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "if (__png_ptr_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_destroy_read_struct(&__png_ptr_ptr, NULL, NULL);"
+    },
+    {
+      "name": "png_destroy_read_struct_v1",
+      "variables": [
+        {
+          "name": "__png_ptr_ptr",
+          "dir": "del",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr_ptr",
+          "dir": "del",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "if (__png_ptr_ptr == NULL || __info_ptr_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_destroy_read_struct(&__png_ptr_ptr, &__info_ptr_ptr, NULL);\n// The third argument is allowed to be NULL."
+    },
+    {
+      "name": "png_destroy_read_struct_v2",
+      "variables": [
+        {
+          "name": "__png_ptr_ptr",
+          "dir": "del",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__end_info_ptr_ptr",
+          "dir": "del",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "if (__png_ptr_ptr == NULL || __end_info_ptr_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_structp *png_ptr_ptr = (png_structp *) &__png_ptr_ptr;\npng_infopp end_info_ptr_ptr = (png_infopp) &__end_info_ptr_ptr;\n\npng_destroy_read_struct(png_ptr_ptr, NULL, end_info_ptr_ptr);\n\n__png_ptr_ptr = NULL;"
+    },
+    {
+      "name": "png_destroy_read_struct_v3",
+      "variables": [
+        {
+          "name": "__png_ptr_ptr",
+          "dir": "del",
+          "typ": "png_struct *"
+        },
+        {
+          "name": "__info_ptr_ptr",
+          "dir": "del",
+          "typ": "png_infop"
+        },
+        {
+          "name": "__end_info_ptr_ptr",
+          "dir": "del",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "if (__png_ptr_ptr == NULL || __info_ptr_ptr == NULL || __end_info_ptr_ptr == NULL) {\n    FUZZ_BAIL();\n}\n\npng_destroy_read_struct(&__png_ptr_ptr, &__info_ptr_ptr, &__end_info_ptr_ptr);\n\n__png_ptr_ptr = NULL;  // Set to NULL to avoid dangling pointer after destruction."
+    },
+    {
+      "name": "png_free_v0",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL) FUZZ_BAIL();\n\n/* Instead of using FUZZ_PARAM for ptr_to_free directly as it's a pointer, we will not allocate one since this function is to demonstrate how png_free is called.  Assume we have a valid pointer allocated before this context */\npng_voidp ptr_to_free = malloc(1); // allocates dummy memory to represent allocated block\n\nif (!ptr_to_free) FUZZ_BAIL(); // Handle allocation failure\n\n/* Invoke png_free with the pointer and the structure */\npng_free(__png_ptr, ptr_to_free);\n\n/* Free the allocated memory for ptr_to_free (since we are not using the library's free mechanism here) */\nfree(ptr_to_free);"
+    },
+    {
+      "name": "png_free_v1",
+      "variables": [
+        {
+          "name": "__png_ptr",
+          "dir": "*",
+          "typ": "png_const_structrp"
+        },
+        {
+          "name": "__ptr",
+          "dir": "del",
+          "typ": "png_voidp"
+        }
+      ],
+      "template": "if (__png_ptr == NULL || __ptr == NULL)\n    FUZZ_BAIL();\n\npng_free(__png_ptr, __ptr);"
+    },
+    {
+      "name": "new png_const_infop",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "png_infop info = png_create_info_struct(png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL));\nif (info == NULL)\n    FUZZ_BAIL();\nobject = (png_const_infop)info;\n"
+    },
+    {
+      "name": "new png_color_8p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_color_8p"
+        }
+      ],
+      "template": "object = (png_color_8p) gf_malloc(sizeof(png_color_8));\nif (object == NULL) FUZZ_BAIL();\n\nobject->red = FUZZ_PARAM(uint8_t);\nobject->green = FUZZ_PARAM(uint8_t);\nobject->blue = FUZZ_PARAM(uint8_t);\nobject->alpha = FUZZ_PARAM(uint8_t);\n\nif (object->red > 255 || object->green > 255 || object->blue > 255 || object->alpha > 255) {\n    gf_free(object);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new png_color *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_color *"
+        }
+      ],
+      "template": "object = static_cast<png_color *>(gf_malloc(sizeof(png_color)));\nif (!object) FUZZ_BAIL();\nobject->red = FUZZ_PARAM(png_byte);\nobject->green = FUZZ_PARAM(png_byte);\nobject->blue = FUZZ_PARAM(png_byte);"
+    },
+    {
+      "name": "new png_voidp *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_voidp *"
+        }
+      ],
+      "template": "png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);\nif (!png_ptr) FUZZ_BAIL();\n\npng_infop info_ptr = png_create_info_struct(png_ptr);\nif (!info_ptr) {\n    png_destroy_read_struct(&png_ptr, NULL, NULL);\n    FUZZ_BAIL();\n}\n\n*object = (png_voidp) png_ptr;"
+    },
+    {
+      "name": "new png_image *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_image *"
+        }
+      ],
+      "template": "object = (png_image *)gf_malloc(sizeof(png_image));\nif (!object) {\n    FUZZ_BAIL();\n}\n\npng_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);\nif (!png_ptr) {\n    gf_free(object);\n    FUZZ_BAIL();\n}\n\npng_infop info_ptr = png_create_info_struct(png_ptr);\nif (!info_ptr) {\n    png_destroy_read_struct(&png_ptr, NULL, NULL);\n    gf_free(object);\n    FUZZ_BAIL();\n}\n\n// Initialize the output object\nobject->warning_or_error = 0;\nmemset(object->message, 0, sizeof(object->message));\n\n// Cleanup on success to avoid memory leaks\npng_destroy_info_struct(png_ptr, &info_ptr);\npng_destroy_read_struct(&png_ptr, NULL, NULL);\ngf_free(object);\nFUZZ_BAIL();"
+    },
+    {
+      "name": "new png_structp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_structp"
+        }
+      ],
+      "template": "object = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);\nif (object == NULL) FUZZ_BAIL();\n\npng_infop info = png_create_info_struct(object);\nif (info == NULL) {\n    png_destroy_read_struct(&object, NULL, NULL);\n    FUZZ_BAIL();\n}\n\npng_destroy_read_struct(&object, &info, NULL);"
+    },
+    {
+      "name": "new png_color_8 *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_color_8 *"
+        }
+      ],
+      "template": "object = (png_color_8 *)gf_malloc(sizeof(png_color_8));\nif (!object)\n    FUZZ_BAIL();\n\n// Initialize the color object to random values\nobject->red = FUZZ_PARAM(uint8_t);\nobject->green = FUZZ_PARAM(uint8_t);\nobject->blue = FUZZ_PARAM(uint8_t);\nobject->alpha = FUZZ_PARAM(uint8_t);\n\n// Validate the initialized object (this should be done if the library has checks)\nif (object->red > 255 || object->green > 255 || object->blue > 255 || object->alpha > 255) {\n    gf_free(object);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new png_const_textp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_const_textp"
+        }
+      ],
+      "template": "{ \n    png_textp text = (png_textp)gf_malloc(sizeof(png_text)); \n    if (text == NULL) \n        FUZZ_BAIL(); \n\n    // Initializing the fields of png_text structure\n    text->compression = FUZZ_PARAM(int);\n    text->key = (png_charp)FUZZ_PARAM_STR(79);  // Cast to png_charp (char *)\n    text->text = (png_charp)FUZZ_PARAM_STR(100); // Cast to png_charp (char *)\n    text->text_length = strlen(text->text);\n    text->itxt_length = 0; // Assuming itxt isn't used\n    text->lang = (png_charp)FUZZ_PARAM_STR(79); // Cast to png_charp (char *)\n    text->lang_key = (png_charp)FUZZ_PARAM_STR(100); // Cast to png_charp (char *)\n\n    // Setting the output object\n    object = text; \n}"
+    },
+    {
+      "name": "new png_color_16p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_color_16p"
+        }
+      ],
+      "template": "object = (png_color_16p)gf_malloc(sizeof(png_color_16));\nif (object == NULL) FUZZ_BAIL();\n\nobject->red = FUZZ_PARAM(png_uint_16);\nobject->green = FUZZ_PARAM(png_uint_16);\nobject->blue = FUZZ_PARAM(png_uint_16);\nobject->gray = FUZZ_PARAM(png_uint_16);"
+    },
+    {
+      "name": "new png_text *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "png_text *"
+        }
+      ],
+      "template": "object = (png_text *) gf_malloc(sizeof(png_text));\nif (object == NULL) FUZZ_BAIL();\n\nobject->compression = FUZZ_PARAM(int);\nobject->key = (png_charp) FUZZ_PARAM_FILE(8);\nobject->text = (png_charp) FUZZ_PARAM_FILE(32);\nobject->text_length = strlen(object->text);\nobject->itxt_length = 0;  // For simplicity, we set this to zero\nobject->lang = (png_charp) FUZZ_PARAM_FILE(10);\nobject->lang_key = (png_charp) FUZZ_PARAM_FILE(20);\n\nif (!(object->key && object->text && object->lang && object->lang_key)) FUZZ_BAIL();"
+    },
+    {
+      "name": "delete png_sPLT_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_sPLT_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_infop",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_infop"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_sPLT_entryp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_sPLT_entryp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_uint_32",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_uint_32"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_row_info *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_row_info *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_voidp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_voidp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete jmp_buf *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "jmp_buf *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_int_32",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_int_32"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_timep",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_timep"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_uint_16p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_uint_16p"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_struct *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_struct *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_time *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_time *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_color_8p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_color_8p"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_byte *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_byte *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_infop",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_infop"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_fixed_point",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_fixed_point"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_bytep",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_bytep"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_structrp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_structrp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_uint_16",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_uint_16"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_control *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_control *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_byte",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_byte"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_row_infop",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_row_infop"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_color_8p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_color_8p"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_color_16 *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_color_16 *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_color *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_color *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_voidp *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_voidp *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_sPLT_tp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_sPLT_tp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_color_16p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_color_16p"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_structp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_structp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_image *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_image *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_unknown_chunkp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_unknown_chunkp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_structp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_structp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_info *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_info *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_color_8 *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_color_8 *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_textp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_textp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_row_infopp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_row_infopp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_color_16p",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_color_16p"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_colorp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_colorp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_uint_32pp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_uint_32pp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_structrp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_structrp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_sPLT_tp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_sPLT_tp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_textp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_textp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_alloc_size_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_alloc_size_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_timep",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_timep"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_unknown_chunk *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_unknown_chunk *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_sPLT_entryp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_sPLT_entryp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_unknown_chunkp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_unknown_chunkp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_const_colorp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_const_colorp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_charp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_charp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_bytepp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_bytepp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_imagep",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_imagep"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_sPLT_entry *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_sPLT_entry *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete png_text *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "png_text *"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

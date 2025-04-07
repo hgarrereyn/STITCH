@@ -1,0 +1,942 @@
+{
+  "endpoints": [
+    {
+      "name": "pcap_fopen_offline_v0",
+      "variables": [],
+      "template": "const char *file_path = FUZZ_PARAM_FILE(100);\nchar errbuf[PCAP_ERRBUF_SIZE];\n\npcap_t *handle = pcap_fopen_offline(fopen(file_path, \"rb\"), errbuf);\nif (handle == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up\nif (file_path) {\n    remove(file_path);\n}\n\npcap_close(handle);"
+    },
+    {
+      "name": "pcap_create_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "char *errbuf = (char *)gf_malloc(256);\nif (errbuf == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *device = FUZZ_PARAM_FILE(10);\n\n__return_value = pcap_create(device, errbuf);\nif (__return_value == NULL) {\n    fprintf(stderr, \"Error creating pcap: %s\\n\", errbuf);\n    gf_free(errbuf);\n    FUZZ_BAIL();\n}\n\ngf_free(errbuf);"
+    },
+    {
+      "name": "pcap_free_tstamp_types_v0",
+      "variables": [],
+      "template": "int tstamp_type_count = FUZZ_PARAM(int); // Number of timestamp types to allocate\nif (tstamp_type_count <= 0) {\n    FUZZ_BAIL(); // Validate that the count is positive\n}\n\nint *tstamp_type_list = (int *)gf_malloc(tstamp_type_count * sizeof(int)); // Allocate memory for timestamp types\nif (tstamp_type_list == NULL) {\n    FUZZ_BAIL(); // Validate successful memory allocation\n}\n\n// Populate taramp_type_list with random integer values\nfor (int i = 0; i < tstamp_type_count; i++) {\n    tstamp_type_list[i] = FUZZ_PARAM(int);\n}\n\npcap_free_tstamp_types(tstamp_type_list); // Invoke the API with appropriate arguments\n\ngf_free(tstamp_type_list); // Clean up allocated memory\n"
+    },
+    {
+      "name": "pcap_open_dead_v0",
+      "variables": [],
+      "template": "{\n    int linktype = FUZZ_PARAM(int);\n    int snaplen = FUZZ_PARAM(int);\n\n    if (linktype < 0 || snaplen <= 0) {\n        FUZZ_BAIL();\n    }\n\n    pcap_t *handle = pcap_open_dead(linktype, snaplen);\n    if (handle == NULL) {\n        FUZZ_BAIL();\n    }\n\n    // Perform any additional operations needed with handle if required\n\n    // Since we did not allocate memory, no need to free anything\n}"
+    },
+    {
+      "name": "pcap_open_dead_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "int linktype = FUZZ_PARAM(int);\nint snaplen = FUZZ_PARAM(int);\n\nif (linktype <= 0 || snaplen <= 0) {\n    FUZZ_BAIL();\n}\n\n__return = pcap_open_dead(linktype, snaplen);\n\nif (__return == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_bufsize_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint bufsize = pcap_bufsize(__p);\nif (bufsize < 0) FUZZ_BAIL();\n\n// No output argument initialization required as the return value is directly handled."
+    },
+    {
+      "name": "pcap_breakloop_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\npcap_breakloop(__p);"
+    },
+    {
+      "name": "pcap_dump_ftell64_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap_dumper *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint64_t position = pcap_dump_ftell64(__p);\nif (position == -1) FUZZ_BAIL();\n\n// The position is successfully read, handle it according to further requirements.\n// ... additional processing will go here if needed."
+    },
+    {
+      "name": "pcap_fopen_offline_with_tstamp_precision_v0",
+      "variables": [],
+      "template": "const char *file_path = FUZZ_PARAM_FILE(100);\n    u_int timestamp_precision = FUZZ_PARAM(u_int);\n    char errbuf[PCAP_ERRBUF_SIZE];\n    FILE *file_handle = fopen(file_path, \"rb\");\n\n    if (file_handle == NULL) {\n        FUZZ_BAIL();\n    }\n\n    pcap_t *pcap_handle = pcap_fopen_offline_with_tstamp_precision(file_handle, timestamp_precision, errbuf);\n\n    if (pcap_handle == NULL) {\n        fclose(file_handle);\n        FUZZ_BAIL();\n    }\n\n    // Clean up the file handle if we successfully opened the pcap\n    if (fclose(file_handle) != 0) {\n        FUZZ_BAIL();\n    }\n\n    // If there are other resources that need to be managed, handle them appropriately here.\n"
+    },
+    {
+      "name": "pcap_init_v0",
+      "variables": [],
+      "template": "char errbuf[PCAP_ERRBUF_SIZE];\nunsigned int opts = FUZZ_PARAM(unsigned int);\n\nif (opts != PCAP_CHAR_ENC_LOCAL && opts != PCAP_CHAR_ENC_UTF_8) {\n    snprintf(errbuf, PCAP_ERRBUF_SIZE, \"Invalid options specified\");\n    FUZZ_BAIL();\n}\n\nif (pcap_init(opts, errbuf) != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_set_promisc_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint result;\nresult = pcap_set_promisc(__p, FUZZ_PARAM(int));\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_list_tstamp_types_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint *tstamp_types = NULL;\nint result = pcap_list_tstamp_types(__p, &tstamp_types);\nif (result < 0) FUZZ_BAIL();\n\n// Normally, handle or process the results as needed. In fuzzing context, we assume any valid output is fine.\n\nif (tstamp_types != NULL) {\n    gf_free(tstamp_types);\n}"
+    },
+    {
+      "name": "pcap_list_datalinks_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint *dlt_buffer = NULL;\nint result = pcap_list_datalinks(__p, &dlt_buffer);\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\nif (dlt_buffer != NULL) {\n    // Clean up allocated memory for dlt_buffer\n    gf_free(dlt_buffer);\n} // No need to call gf_free if dlt_buffer is NULL."
+    },
+    {
+      "name": "pcap_set_snaplen_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (!__p) FUZZ_BAIL();\n\nint snaplen = FUZZ_PARAM(int);\n\nint result = pcap_set_snaplen(__p, snaplen);\nif (result != 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "pcap_open_live_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "char errbuf[PCAP_ERRBUF_SIZE]; \nconst char *device = FUZZ_PARAM_FILE(16); \nint snaplen = FUZZ_PARAM(int); \nint promisc = FUZZ_PARAM(int); \nint to_ms = FUZZ_PARAM(int); \n\n__return_value = pcap_open_live(device, snaplen, promisc, to_ms, errbuf);\nif (__return_value == NULL) { \n    FUZZ_BAIL(); \n} \n"
+    },
+    {
+      "name": "pcap_geterr_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nconst char* error_message = pcap_geterr(__p);\nif (error_message == NULL) FUZZ_BAIL();\n\nchar *error_buffer = (char *)gf_malloc(PCAP_ERRBUF_SIZE);\nif (error_buffer == NULL) FUZZ_BAIL();\n\nstrncpy(error_buffer, error_message, PCAP_ERRBUF_SIZE);\n\n// Clean up allocated memory\nif (error_buffer) gf_free(error_buffer);"
+    },
+    {
+      "name": "pcap_dump_fopen_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "FILE *file = fopen(FUZZ_PARAM_FILE(16), \"wb\");\nif (file == NULL) {\n    FUZZ_BAIL();\n}\n\npcap_dumper_t *dumper = pcap_dump_fopen(__p, file);\nif (dumper == NULL) {\n    fclose(file);\n    FUZZ_BAIL();\n}\n\n// Initialize any output arguments, if needed. \n// No dynamic memory management is needed, as FILE is managed by the library."
+    },
+    {
+      "name": "pcap_dump_fopen_v1",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "struct pcap_dumper *"
+        }
+      ],
+      "template": "if (!__p) FUZZ_BAIL();\n\nFILE *f = fopen(FUZZ_PARAM_FILE(10), \"wb\");\nif (!f) FUZZ_BAIL();\n\n__return = pcap_dump_fopen(__p, f);\nif (!__return) {\n    fclose(f);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_datalink_val_to_description_v0",
+      "variables": [],
+      "template": "int dlt = FUZZ_PARAM(int);\nconst char *description = pcap_datalink_val_to_description(dlt);\n\nif (description == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_strerror_v0",
+      "variables": [],
+      "template": "int errnum = FUZZ_PARAM(int);\n\nconst char *error_message = pcap_strerror(errnum);\n\nif (error_message == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assume error_message is being used further in the fuzzing context or output"
+    },
+    {
+      "name": "pcap_get_required_select_timeout_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nconst struct timeval *timeout = pcap_get_required_select_timeout(__p);\nif (timeout == NULL) {\n    FUZZ_BAIL();\n}\n\n// The function does not require output parameters to fill in and pcap_get_required_select_timeout returns a pointer to struct timeval."
+    },
+    {
+      "name": "pcap_can_set_rfmon_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = pcap_can_set_rfmon((pcap_t *)__p);\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\n// Here, we can do something with result if needed, but it is expected to just be checked that it is valid.\n"
+    },
+    {
+      "name": "pcap_inject_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nsize_t buf_size = FUZZ_PARAM(size_t);\nconst void *buf = gf_malloc(buf_size);\nif (buf == NULL) FUZZ_BAIL();\n\nint result = pcap_inject(__p, buf, buf_size);\nif (result < 0) {\n    gf_free((void *)buf);\n    FUZZ_BAIL();\n}\n\ngf_free((void *)buf);\n"
+    },
+    {
+      "name": "pcap_freecode_v0",
+      "variables": [],
+      "template": "struct bpf_program *program = (struct bpf_program *)gf_malloc(sizeof(struct bpf_program));\nif (!program) {\n    FUZZ_BAIL();\n}\n\n// Initialize the program structure with random values\nprogram->bf_len = FUZZ_PARAM(uint32_t);\n\n// Allocate memory for the instructions array\nprogram->bf_insns = (struct bpf_insn *)gf_malloc(program->bf_len * sizeof(struct bpf_insn));\nif (!program->bf_insns) {\n    gf_free(program);\n    FUZZ_BAIL();\n}\n\n// Fill the instructions with fuzzable data\nfor (uint32_t i = 0; i < program->bf_len; ++i) {\n    program->bf_insns[i].code = FUZZ_PARAM(u_short);\n    program->bf_insns[i].jt = FUZZ_PARAM(u_char);\n    program->bf_insns[i].jf = FUZZ_PARAM(u_char);\n    program->bf_insns[i].k = FUZZ_PARAM(bpf_u_int32);\n}\n\n// Call the pcap_freecode function with the initialized program\npcap_freecode(program);\n\n// Clean up the allocated memory\ngf_free(program->bf_insns);\ngf_free(program);"
+    },
+    {
+      "name": "pcap_is_swapped_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint swapped = pcap_is_swapped(__p);\nif (swapped < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_lib_version_v0",
+      "variables": [],
+      "template": "const char *version = pcap_lib_version();\nif (version == NULL) {\n    FUZZ_BAIL();\n}\nchar *version_copy = (char *)gf_malloc(strlen(version) + 1);\nif (version_copy == NULL) {\n    FUZZ_BAIL();\n}\nstrcpy(version_copy, version);\n// Use the version_copy as needed, then clean up\n// For example, you could log it or perform some checks here\n\n// Clean up\ngf_free(version_copy);"
+    },
+    {
+      "name": "pcap_setfilter_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "struct bpf_program *filt_prog = (struct bpf_program *)gf_malloc(sizeof(struct bpf_program));\nif (filt_prog == NULL) {\n    FUZZ_BAIL();\n}\n\n// Fuzzing generating random length for the BPF program\nfilt_prog->bf_len = FUZZ_PARAM(int);\nif (filt_prog->bf_len <= 0) {\n    gf_free(filt_prog);\n    FUZZ_BAIL();\n}\n\n// Allocating memory for BPF instructions\nfilt_prog->bf_insns = (struct bpf_insn *)gf_malloc(filt_prog->bf_len * sizeof(struct bpf_insn));\nif (filt_prog->bf_insns == NULL) {\n    gf_free(filt_prog);\n    FUZZ_BAIL();\n}\n\nfor (int i = 0; i < filt_prog->bf_len; ++i) {\n    // Fill in each instruction with random data\n    filt_prog->bf_insns[i].code = FUZZ_PARAM(int);\n    filt_prog->bf_insns[i].jt = FUZZ_PARAM(int);\n    filt_prog->bf_insns[i].jf = FUZZ_PARAM(int);\n    filt_prog->bf_insns[i].k = FUZZ_PARAM(int);\n}\n\n// Invoke the pcap_setfilter function\nif (pcap_setfilter(__p, filt_prog) != 0) {\n    gf_free(filt_prog->bf_insns);\n    gf_free(filt_prog);\n    FUZZ_BAIL();\n}\n\n// Memory cleanup\ngf_free(filt_prog->bf_insns);\ngf_free(filt_prog);"
+    },
+    {
+      "name": "pcap_dump_close_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "del",
+          "typ": "struct pcap_dumper *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\npcap_dump_close(__p);\n"
+    },
+    {
+      "name": "pcap_set_timeout_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint timeout_ms = FUZZ_PARAM(int);\nint result = pcap_set_timeout(__p, timeout_ms);\nif (result != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_statustostr_v0",
+      "variables": [],
+      "template": "int errnum = FUZZ_PARAM(int);\n\nconst char *error_string = pcap_statustostr(errnum);\n\nif (error_string == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_next_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nstruct pcap_pkthdr *header = (struct pcap_pkthdr *)gf_malloc(sizeof(struct pcap_pkthdr));\nif (header == NULL) FUZZ_BAIL();\n\nconst u_char *packet = pcap_next(__p, header);\nif (packet == NULL) {\n    gf_free(header);\n    FUZZ_BAIL();\n}\n\n// Process the packet and header as needed, if any further actions are to be taken.\n\n// Cleanup.\ngf_free(header);"
+    },
+    {
+      "name": "pcap_next_v1",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        },
+        {
+          "name": "__h",
+          "dir": "*",
+          "typ": "struct pcap_pkthdr"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\nconst u_char *pkt;\n\npcap_pkthdr *h_ptr = &__h;\nif (pcap_next(__p, h_ptr) == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcap_dump_open_append_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *fname = FUZZ_PARAM_FILE(32);\npcap_dumper_t *dumper = pcap_dump_open_append(__p, fname);\nif (dumper == NULL) {\n    FUZZ_BAIL();\n}\n\n// Cleanup if necessary (in this case, pcap_dump_open_append handles its own file management)"
+    },
+    {
+      "name": "pcap_datalink_val_to_description_or_dlt_v0",
+      "variables": [],
+      "template": "{\n    int dlt = FUZZ_PARAM(int);\n    const char *description;\n\n    // Validate input parameter (no additional validation needed based on the API usage)\n\n    // Call the API function\n    description = pcap_datalink_val_to_description_or_dlt(dlt);\n    if (description == NULL) {\n        FUZZ_BAIL(); // indicate failure if description is NULL\n    }\n\n    // In a fuzzing context, simply continue since we invoked the API correctly\n    // No output to return or handle further as we are not using returned description in fuzzing context.\n}"
+    },
+    {
+      "name": "pcap_next_ex_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        },
+        {
+          "name": "__pkt_header",
+          "dir": "new",
+          "typ": "struct pcap_pkthdr"
+        }
+      ],
+      "template": "if (__p == nullptr) FUZZ_BAIL();\n\n// Temporary variable to hold the packet data pointer\nconst u_char *pkt_data;\n\n// Create a pointer to the packet header\nstruct pcap_pkthdr *pkt_header_ptr = &__pkt_header;\n\n// Call the pcap_next_ex function, passing the appropriate arguments\nint result = pcap_next_ex(__p, &pkt_header_ptr, &pkt_data);\n\n// Check the result and handle errors accordingly\nif (result < -1) FUZZ_BAIL();\n\n// If the result is 0, it indicates a timeout, which we can ignore in fuzzing\n// If the result is -2, it indicates EOF which is expected behavior in fuzzing\n\n// Initialize the packet header structure as required by the library if we get a valid result\nif (result > 0) {\n    // Packet received, process as needed\n}"
+    },
+    {
+      "name": "pcap_dump_file_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap_dumper *"
+        }
+      ],
+      "template": "if (__p == NULL) { FUZZ_BAIL(); }\n\nFILE *file = pcap_dump_file(__p);\nif (file == NULL) { FUZZ_BAIL(); }\n\n// Use the file pointer as needed; cleanup is not necessary because it is managed by the library."
+    },
+    {
+      "name": "pcap_dump_open_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nconst char *file_name = FUZZ_PARAM_FILE(50);\n\npcap_dumper_t *dumper = pcap_dump_open(__p, file_name);\nif (dumper == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up will be handled by API itself as it will take care of the resources."
+    },
+    {
+      "name": "pcap_set_buffer_size_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint buffer_size = FUZZ_PARAM(int);\n\nint result = pcap_set_buffer_size(__p, buffer_size);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcap_datalink_ext_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = pcap_datalink_ext(__p);\nif (result == PCAP_ERROR_NOT_ACTIVATED) {\n    FUZZ_BAIL();\n} else if (result < 0) {\n    FUZZ_BAIL();\n}\n\n// The value returned should now be valid for further processing, but no output structure is specified to populate."
+    },
+    {
+      "name": "pcap_setnonblock_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nchar errbuf[PCAP_ERRBUF_SIZE];\nint nonblock = FUZZ_PARAM(int);\n\nint result = pcap_setnonblock(__p, nonblock, errbuf);\nif (result == -1) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_set_rfmon_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint rfmon = FUZZ_PARAM(int);\nint r = pcap_set_rfmon(__p, rfmon);\nif (r != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_dump_flush_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap_dumper *"
+        }
+      ],
+      "template": "if (__p == nullptr) FUZZ_BAIL();\n\nint result = pcap_dump_flush((pcap_dumper_t *)__p);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcap_free_datalinks_v0",
+      "variables": [],
+      "template": "int dlt_count = FUZZ_PARAM(int);\n\nif (dlt_count < 0) {\n    FUZZ_BAIL();\n}\n\nint *dlt_list = (int *)gf_malloc(dlt_count * sizeof(int));\n\nif (dlt_list == NULL) {\n    FUZZ_BAIL();\n}\n\n// Fill dlt_list with random datalink types\nfor (int i = 0; i < dlt_count; ++i) {\n    dlt_list[i] = FUZZ_PARAM(int);\n}\n\npcap_free_datalinks(dlt_list);\n\ngf_free(dlt_list);"
+    },
+    {
+      "name": "pcap_close_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "del",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\npcap_close((pcap_t *)__p);\n\n// No need for cleanup as pcap_close handles the freeing of memory."
+    },
+    {
+      "name": "pcap_lookupnet_v0",
+      "variables": [
+        {
+          "name": "__localnet",
+          "dir": "new",
+          "typ": "bpf_u_int32"
+        },
+        {
+          "name": "__netmask",
+          "dir": "new",
+          "typ": "bpf_u_int32"
+        }
+      ],
+      "template": "char errbuf[PCAP_ERRBUF_SIZE];\n\n// Initialize the output parameters\n__localnet = 0;\n__netmask = 0;\n\n// Generate a temporary file path to pass as device input\nconst char *device = FUZZ_PARAM_FILE(16);\n\n// Invoke pcap_lookupnet\nint result = pcap_lookupnet(device, &__localnet, &__netmask, errbuf);\n\n// Check the result of the invocation\nif (result == -1) {\n    FUZZ_BAIL();\n}\n\n// No needs for temporary file management since FUZZ_PARAM_FILE handles it."
+    },
+    {
+      "name": "pcap_freealldevs_v0",
+      "variables": [
+        {
+          "name": "__alldevs",
+          "dir": "del",
+          "typ": "pcap_if_t"
+        }
+      ],
+      "template": "if (&__alldevs == NULL) {\n    FUZZ_BAIL();\n}\n\npcap_freealldevs(&__alldevs);\n"
+    },
+    {
+      "name": "pcap_tstamp_type_val_to_description_v0",
+      "variables": [],
+      "template": "int tstamp_type = FUZZ_PARAM(int);\nconst char *description = pcap_tstamp_type_val_to_description(tstamp_type);\nif (description == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_stats_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        },
+        {
+          "name": "__ps",
+          "dir": "*",
+          "typ": "struct pcap_stat *"
+        }
+      ],
+      "template": "if (__p == NULL || __ps == NULL) {\n    FUZZ_BAIL();\n}\n\nif (pcap_stats(__p, __ps) < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_setdirection_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\npcap_direction_t direction = FUZZ_PARAM(pcap_direction_t);\nif (direction < PCAP_D_IN || direction > PCAP_D_INOUT) FUZZ_BAIL();\n\nif (pcap_setdirection(__p, direction) < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcap_loop_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        },
+        {
+          "name": "__callback",
+          "dir": "*",
+          "typ": "pcap_handler"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\nif (__callback == NULL) FUZZ_BAIL();\n\nint result = pcap_loop(__p, -1, __callback, NULL);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcap_tstamp_type_name_to_val_v0",
+      "variables": [],
+      "template": "const char *name = FUZZ_PARAM_STR(16); // Generate random string for the timestamp type name\n\nint result = pcap_tstamp_type_name_to_val(name); // Call the target API\n\nif (result == PCAP_ERROR) { // Check for error return from the API\n    FUZZ_BAIL(); // Mark the error case\n}"
+    },
+    {
+      "name": "pcap_file_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint *tstamp_types;\nint count = pcap_list_tstamp_types(__p, &tstamp_types);\nif (count < 0) FUZZ_BAIL();\n\nFILE *file = pcap_file(__p);\nif (file == NULL) FUZZ_BAIL();\n\n// Do something with file if necessary\n\nif (tstamp_types != NULL) gf_free(tstamp_types);"
+    },
+    {
+      "name": "pcap_sendpacket_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nconst int packet_size = FUZZ_PARAM(int);\nif (packet_size <= 0) FUZZ_BAIL();\n\nconst u_char *packet_buffer = (const u_char *)gf_malloc(packet_size);\nif (packet_buffer == NULL) FUZZ_BAIL();\n\nif (pcap_sendpacket(__p, packet_buffer, packet_size) != 0) {\n    gf_free((void *)packet_buffer);\n    FUZZ_BAIL();\n}\n\ngf_free((void *)packet_buffer);"
+    },
+    {
+      "name": "pcap_snapshot_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint snapshot_value = pcap_snapshot(__p);\nif (snapshot_value < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_datalink_val_to_name_v0",
+      "variables": [],
+      "template": "int dlt = FUZZ_PARAM(int);\n\nconst char *result = pcap_datalink_val_to_name(dlt);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n// Optionally handle result if needed"
+    },
+    {
+      "name": "pcap_open_dead_with_tstamp_precision_v0",
+      "variables": [],
+      "template": "int linktype = FUZZ_PARAM(int);\nint snaplen = FUZZ_PARAM(int);\nu_int precision = FUZZ_PARAM(int);\n\n// Validate timestamp precision value\nif (precision != PCAP_TSTAMP_PRECISION_MICRO && precision != PCAP_TSTAMP_PRECISION_NANO) {\n    precision = PCAP_TSTAMP_PRECISION_MICRO; // Default to microsecond if invalid\n}\n\n// Invoke the target API\npcap_t *handle = pcap_open_dead_with_tstamp_precision(linktype, snaplen, precision);\n\n// Check if the handle is created successfully\nif (handle == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up any temporary objects here if necessary\n// (In this case, no temporary objects to clean up since we directly use the handle)\nhandle = NULL; // This simulates cleaning up as pcap_open_dead_with_tstamp_precision allocates memory."
+    },
+    {
+      "name": "pcap_open_dead_with_tstamp_precision_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "int linktype = FUZZ_PARAM(int);\nint snaplen = FUZZ_PARAM(int);\nu_int precision = FUZZ_PARAM(int);\n\n__return = pcap_open_dead_with_tstamp_precision(linktype, snaplen, precision);\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_dispatch_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        },
+        {
+          "name": "__callback",
+          "dir": "*",
+          "typ": "pcap_handler"
+        }
+      ],
+      "template": "if (__p == NULL || __callback == NULL) {\n    FUZZ_BAIL();\n}\n\nint cnt = FUZZ_PARAM(int);\n\nint result = pcap_dispatch(__p, cnt, __callback, NULL);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_get_selectable_fd_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (!__p) {\n    FUZZ_BAIL();\n}\n\nint fd = pcap_get_selectable_fd(__p);\nif (fd < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_findalldevs_v0",
+      "variables": [
+        {
+          "name": "__alldevsp",
+          "dir": "new",
+          "typ": "pcap_if_t"
+        }
+      ],
+      "template": "pcap_if_t *alldevsp = NULL;\nchar errbuf[PCAP_ERRBUF_SIZE];\n\nif (pcap_findalldevs(&alldevsp, errbuf) != 0) {\n    FUZZ_BAIL();\n}\n\n__alldevsp = *alldevsp;\n\nif (alldevsp != NULL) {\n    // Assuming we have a function to free them appropriately\n    // however, pcap_findalldevs should take care of this under failure\n    pcap_freealldevs(alldevsp);\n}"
+    },
+    {
+      "name": "pcap_set_immediate_mode_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint result = pcap_set_immediate_mode(__p, FUZZ_PARAM(int));\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcap_open_offline_with_tstamp_precision_v0",
+      "variables": [],
+      "template": "const char *filename = FUZZ_PARAM_FILE(100);\nuint32_t precision = FUZZ_PARAM(uint32_t);\nchar errbuf[PCAP_ERRBUF_SIZE];\npcap_t *handle = pcap_open_offline_with_tstamp_precision(filename, precision, errbuf);\nif (handle == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_perror_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *prefix = FUZZ_PARAM_STR(32);\n\npcap_perror(__p, prefix);\n"
+    },
+    {
+      "name": "pcap_datalink_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nint linktype = pcap_datalink(__p);\nif (linktype < 0) FUZZ_BAIL();\n\n// Successful invocation; do nothing special as we only need to validate the call.\n"
+    },
+    {
+      "name": "pcap_getnonblock_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) FUZZ_BAIL();\n\nchar errbuf[PCAP_ERRBUF_SIZE];\nint result = pcap_getnonblock(__p, errbuf);\nif (result == -1) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "pcap_get_tstamp_precision_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint precision = pcap_get_tstamp_precision(__p);\nif (precision < 0) {\n    FUZZ_BAIL();\n}\n\n// Assuming further processing or usage of precision might be done here."
+    },
+    {
+      "name": "pcap_tstamp_type_val_to_name_v0",
+      "variables": [],
+      "template": "int tstamp_type = FUZZ_PARAM(int);\nconst char *name;\n\n// Invoke the API function\nname = pcap_tstamp_type_val_to_name(tstamp_type);\n\n// Handle the response\nif (name == NULL) {\n    FUZZ_BAIL();\n}\n\n// Add any further processing if required"
+    },
+    {
+      "name": "pcap_open_offline_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "char errbuf[PCAP_ERRBUF_SIZE];\n\nconst char *filename = FUZZ_PARAM_FILE(1024);\n\n__return_value = pcap_open_offline(filename, errbuf);\nif (__return_value == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcap_lookupdev_v0",
+      "variables": [],
+      "template": "char ebuf[PCAP_ERRBUF_SIZE];\n\nchar *dev_name = pcap_lookupdev(ebuf);\nif (dev_name == NULL) {\n    // Handle error case, print the error message if desired.\n    FUZZ_BAIL();\n}\n\n// If dev_name is found, it would be available for further processing."
+    },
+    {
+      "name": "pcap_datalink_name_to_val_v0",
+      "variables": [],
+      "template": "{\n    const char *fuzzed_input = FUZZ_PARAM_FILE(16);\n    int result = pcap_datalink_name_to_val(fuzzed_input);\n    if (result == -1) {\n        FUZZ_BAIL();\n    }\n    // Normally you would store or use 'result' after this, but in a fuzzing context, this suffices.\n    // Clean up: Fuzzed input is a temporary file, no additional cleanup actions needed.\n}"
+    },
+    {
+      "name": "pcap_fileno_v0",
+      "variables": [
+        {
+          "name": "__p",
+          "dir": "*",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "if (__p == NULL) {\n    FUZZ_BAIL();\n}\n\nint fd = pcap_fileno(__p);\nif (fd < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new pcap_if_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "pcap_if_t"
+        }
+      ],
+      "template": "pcap_if_t *alldevs = NULL;\nchar errbuf[PCAP_ERRBUF_SIZE];\n\nif (pcap_findalldevs(&alldevs, errbuf) == -1) {\n    FUZZ_BAIL();\n}\n\nif (alldevs == NULL) {\n    FUZZ_BAIL();\n}\n\n*reinterpret_cast<pcap_if_t*>(&object) = *alldevs;\n\npcap_freealldevs(alldevs);\n"
+    },
+    {
+      "name": "new struct pcap_if",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct pcap_if"
+        }
+      ],
+      "template": "pcap_if_t *alldevs = NULL;\nchar errbuf[PCAP_ERRBUF_SIZE];\n\nif (pcap_findalldevs(&alldevs, errbuf) == -1) {\n    FUZZ_BAIL();\n}\n\nif (alldevs == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output object. We will copy the first device.\nmemcpy(&object, alldevs, sizeof(struct pcap_if));\n\n// Cleanup of allocated memory.\npcap_freealldevs(alldevs);"
+    },
+    {
+      "name": "new struct pcap_if *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct pcap_if *"
+        }
+      ],
+      "template": "pcap_if_t *alldevs = NULL;\nchar errbuf[PCAP_ERRBUF_SIZE];\n\nif (pcap_findalldevs(&alldevs, errbuf) == -1) {\n    FUZZ_BAIL();\n}\n\nif (alldevs == NULL) {\n    FUZZ_BAIL();\n}\n\nobject = alldevs;\n\n// No need for further cleanup since pcap_findalldevs already allocates.\n"
+    },
+    {
+      "name": "delete struct pcap_rmtauth",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_rmtauth"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_stat",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_stat"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete bpf_u_int32",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "bpf_u_int32"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_send_queue *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_send_queue *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcap_handler",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcap_handler"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_addr *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_addr *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_file_header",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_file_header"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_stat *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_stat *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_stat_ex *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_stat_ex *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcap_if_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcap_if_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcap_addr_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcap_addr_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete bpf_int32",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "bpf_int32"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_if",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_if"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_dumper *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_dumper *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_addr",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_addr"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcap_direction_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcap_direction_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_if *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_if *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct pcap_pkthdr",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct pcap_pkthdr"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

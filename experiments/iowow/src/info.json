@@ -1,9 +1,20 @@
 {
     "name": "iowow",
-    "config": "/fuzz/src/config.json",
-    "build_script_full": "/fuzz/src/full.sh",
-    "build_script": "/fuzz/src/build.sh",
-    "build_script_ext": "/fuzz/src/build_ext.sh",
     "codebase": "/fuzz/iowow/",
-    "rag": "/fuzz/src/iowow.rag"
+    "build": {
+        "include_paths": [],
+        "lib_paths": [],
+        "libs": [
+            "iowow"
+        ],
+        "source_files": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "iowow/iwkv.h",
+                "language": "c++"
+            }
+        ]
+    }
 }

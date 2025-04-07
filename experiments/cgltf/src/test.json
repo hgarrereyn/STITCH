@@ -1,0 +1,1980 @@
+{
+  "endpoints": [
+    {
+      "name": "cgltf_copy_extras_json_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data"
+        },
+        {
+          "name": "__extras",
+          "dir": "*",
+          "typ": "cgltf_extras"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "cgltf_result"
+        }
+      ],
+      "template": "if (__data.json == NULL || __extras.data == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_size dest_size = FUZZ_PARAM(cgltf_size);\nchar* dest = (char*)gf_malloc(dest_size);\nif (dest == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_result result = cgltf_copy_extras_json(&__data, &__extras, dest, &dest_size);\nif (result != cgltf_result_success) {\n    gf_free(dest);\n    FUZZ_BAIL();\n}\n\n__return_value = result;\ngf_free(dest);"
+    },
+    {
+      "name": "cgltf_copy_extras_json_v1",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data"
+        },
+        {
+          "name": "__extras",
+          "dir": "*",
+          "typ": "cgltf_extras"
+        },
+        {
+          "name": "__dest_size",
+          "dir": "*",
+          "typ": "cgltf_size"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "cgltf_result"
+        }
+      ],
+      "template": "if (&__data == nullptr || &__extras == nullptr || __dest_size == 0) { FUZZ_BAIL(); }\n\nchar* dest = (char*)gf_malloc(__dest_size);\nif (dest == nullptr) { FUZZ_BAIL(); }\n\n__return_value = cgltf_copy_extras_json(&__data, &__extras, dest, &__dest_size);\nif (__return_value != cgltf_result_success) { gf_free(dest); FUZZ_BAIL(); }\n\ngf_free(dest);"
+    },
+    {
+      "name": "cgltf_parse_v0",
+      "variables": [
+        {
+          "name": "__size",
+          "dir": "*",
+          "typ": "cgltf_ssize"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "    if (__size <= 0) {\n        FUZZ_BAIL();\n    }\n\n    cgltf_options options = {};\n    options.memory.alloc_func = &cgltf_default_alloc;\n    options.memory.free_func = &cgltf_default_free;\n\n    const char* file_path = FUZZ_PARAM_FILE(1024); // assuming maximum file size\n    if (file_path == NULL) {\n        FUZZ_BAIL();\n    }\n\n    cgltf_data* out_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\n    if (out_data == NULL) {\n        FUZZ_BAIL();\n    }\n    *out_data = {};\n\n    cgltf_result result = cgltf_parse(&options, file_path, __size, &out_data);\n    if (result != cgltf_result_success) {\n        gf_free(out_data);\n        FUZZ_BAIL();\n    }\n\n    __out_data = *out_data;\n    gf_free(out_data);\n"
+    },
+    {
+      "name": "cgltf_parse_json_skins_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (__options == nullptr || __out_data == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Temporary JSON chunk and token array. They should be set up properly according to the library's documentation.\nconst char* json_chunk_file = FUZZ_PARAM_FILE(1024); // Get a temporary file filled with fuzz data\nuint8_t* json_chunk = (uint8_t*)gf_malloc(1024); // Allocate buffer for JSON data\nif (json_chunk == nullptr) {\n    FUZZ_BAIL();\n}\n\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * 128); // Assuming 128 tokens for fuzzing\nif (tokens == nullptr) {\n    gf_free(json_chunk);\n    FUZZ_BAIL();\n}\n\nint token_count = FUZZ_PARAM(int); // Get a random token count\n__out_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data)); // Allocate output data\nif (__out_data == nullptr) {\n    gf_free(tokens);\n    gf_free(json_chunk);\n    FUZZ_BAIL();\n}\n\nint i = 0;\n\n// Call the actual API function\nint result = cgltf_parse_json_skins(__options, tokens, i, json_chunk, __out_data);\n\n// Check if the result is successful\nif (result < 0) {\n    gf_free(__out_data);\n    __out_data = nullptr;\n    gf_free(tokens);\n    gf_free(json_chunk);\n    FUZZ_BAIL();\n}\n\n// Cleanup\ngf_free(tokens);\ngf_free(json_chunk);\n"
+    },
+    {
+      "name": "cgltf_parse_file_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (__options == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char* path = FUZZ_PARAM_FILE(12);\n__out_data = NULL;\n\ncgltf_result result = cgltf_parse_file(__options, path, &__out_data);\nif (result != cgltf_result_success) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_calc_size_v0",
+      "variables": [],
+      "template": "cgltf_type type = FUZZ_PARAM(cgltf_type);\n    cgltf_component_type component_type = FUZZ_PARAM(cgltf_component_type);\n\n    // Validate the types\n    if (type >= cgltf_type_max_enum || component_type >= cgltf_component_type_max_enum) {\n        FUZZ_BAIL();\n    }\n\n    // Invoke the library function\n    cgltf_size size = cgltf_calc_size(type, component_type);\n\n    // Output the size (not specified how to output, so assume just logging or storing is handled elsewhere)  \n    // Clean up operations if required (none required for primitive types)\n    (void)size; // Use size to avoid unused variable warning"
+    },
+    {
+      "name": "cgltf_parse_json_meshopt_compression_v0",
+      "variables": [
+        {
+          "name": "__out_meshopt_compression",
+          "dir": "new",
+          "typ": "cgltf_meshopt_compression"
+        }
+      ],
+      "template": "cgltf_options options;\njsmntok_t tokens[16];\nconst char* json_chunk = FUZZ_PARAM_FILE(128);\nif (!json_chunk) FUZZ_BAIL();\n\n__out_meshopt_compression = {}; // Initialize output struct\n\nif (cgltf_parse_json_meshopt_compression(&options, tokens, 0, (const uint8_t*)json_chunk, &__out_meshopt_compression) < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_accessor_unpack_floats_v0",
+      "variables": [
+        {
+          "name": "__accessor",
+          "dir": "*",
+          "typ": "cgltf_accessor"
+        },
+        {
+          "name": "__float_count",
+          "dir": "*",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (__float_count == 0) {\n    FUZZ_BAIL();\n}\n\n// Allocate output buffer for floats\ncgltf_float* out = (cgltf_float*)gf_malloc(__float_count * sizeof(cgltf_float));\nif (out == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call the library function to unpack floats\ncgltf_size result = cgltf_accessor_unpack_floats(&__accessor, out, __float_count);\nif (result == 0) {\n    gf_free(out);\n    FUZZ_BAIL();\n}\n\n// Successfully unpacked, do any additional processing if needed\n// For now, just free the allocated memory\ngf_free(out);"
+    },
+    {
+      "name": "cgltf_accessor_unpack_floats_v1",
+      "variables": [
+        {
+          "name": "__accessor",
+          "dir": "*",
+          "typ": "cgltf_accessor"
+        },
+        {
+          "name": "__out",
+          "dir": "new",
+          "typ": "cgltf_float"
+        },
+        {
+          "name": "__float_count",
+          "dir": "*",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (__float_count == 0) {\n    FUZZ_BAIL();\n}\n\ncgltf_float* out_floats = (cgltf_float*)gf_malloc(__float_count * sizeof(cgltf_float));\nif (out_floats == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_size result = cgltf_accessor_unpack_floats(&__accessor, out_floats, __float_count);\nif (result == 0) {\n    gf_free(out_floats);\n    FUZZ_BAIL();\n}\n\n__out = *out_floats;\n\ngf_free(out_floats);"
+    },
+    {
+      "name": "cgltf_parse_json_root_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "if (!__options.json_token_count) {\n    FUZZ_BAIL();\n}\n\nconst char* json_chunk = FUZZ_PARAM_FILE(256);\nif (!json_chunk) {\n    FUZZ_BAIL();\n}\n\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * __options.json_token_count);\nif (!tokens) {\n    FUZZ_BAIL();\n}\n\nmemset(tokens, 0, sizeof(jsmntok_t) * __options.json_token_count);\n\n// The tokens need to be prepared properly based on the given json_chunk.\n// This is an assumed step, typically we would fill tokens by parsing the json_chunk first.\n\nint result = cgltf_parse_json_root(&__options, tokens, 0, (const uint8_t*)json_chunk, &__out_data);\n\nif (result < 0) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\ngf_free(tokens);"
+    },
+    {
+      "name": "cgltf_free_v0",
+      "variables": [],
+      "template": "cgltf_data* data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!data) FUZZ_BAIL();\n\n// Assuming data has been populated before this point, invoke cgltf_free\ncgltf_free(data);\n\n// Clean up\ngf_free(data);"
+    },
+    {
+      "name": "cgltf_free_v1",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "del",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (__data == NULL) {\n    FUZZ_BAIL();\n}\n\n// Invoke the cgltf_free function to free the memory allocated for the cgltf_data\ncgltf_free(__data);\n// No additional output arguments to initialize."
+    },
+    {
+      "name": "cgltf_parse_json_variant_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_variant",
+          "dir": "new",
+          "typ": "cgltf_material_variant"
+        }
+      ],
+      "template": "jsmntok_t tokens[100];\nsize_t token_count = 100;  \nconst char* json_chunk = FUZZ_PARAM_FILE(256);\n\nif (json_chunk == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the tokens and options as needed (random sizes and counts)\nif (__options.json_token_count == 0 || __options.json_token_count > token_count) {\n    FUZZ_BAIL();\n}\n\n// Invoke the parsing function\nint result = cgltf_parse_json_variant(&__options, tokens, 0, (const uint8_t*)json_chunk, &__out_variant);\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\n// Clean up if necessary (no dynamic memory allocated here, but for demonstration)\n// Normally there's no need to free json_chunk here because it is a temporary file."
+    },
+    {
+      "name": "cgltf_parse_json_lights_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "jsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * FUZZ_PARAM(int));\nif (!tokens) FUZZ_BAIL();\n\nconst uint8_t* json_chunk = (const uint8_t*)FUZZ_PARAM_FILE(1024);\nif (!json_chunk) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\nint i = 0;\nint parse_result = cgltf_parse_json_lights(&__options, tokens, i, json_chunk, &__out_data);\nif (parse_result < 0) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\n// Initialization of output data as necessary.\n__out_data.lights = NULL;\n__out_data.lights_count = 0;\n\n// Clean up temporary objects created.\ngf_free(tokens);"
+    },
+    {
+      "name": "cgltf_parse_json_animation_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_animation",
+          "dir": "new",
+          "typ": "cgltf_animation"
+        }
+      ],
+      "template": "jsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * __options.json_token_count);\nif (!tokens) FUZZ_BAIL();\n\nconst char* json_chunk = FUZZ_PARAM_FILE(1024);\nif (!json_chunk) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\njsmn_parser parser;\njsmn_init(&parser);\nint tokens_parsed = jsmn_parse(&parser, json_chunk, 1024, tokens, __options.json_token_count);\nif (tokens_parsed < 0) {\n    gf_free(tokens);\n    gf_free((void*)json_chunk);\n    FUZZ_BAIL();\n}\n\nint result = cgltf_parse_json_animation(&__options, tokens, 0, (const uint8_t*)json_chunk, &__out_animation);\nif (result < 0) {\n    gf_free(tokens);\n    gf_free((void*)json_chunk);\n    FUZZ_BAIL();\n}\n\ngf_free(tokens);\ngf_free((void*)json_chunk);"
+    },
+    {
+      "name": "cgltf_parse_json_animation_channel_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_channel",
+          "dir": "new",
+          "typ": "cgltf_animation_channel*"
+        }
+      ],
+      "template": "if (__options == nullptr) {\n    FUZZ_BAIL();\n}\n\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * 10);\nif (tokens == nullptr) {\n    FUZZ_BAIL();\n}\n\nconst uint8_t* json_chunk = (const uint8_t*)FUZZ_PARAM_FILE(100);\nif (json_chunk == nullptr) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\nint i = FUZZ_PARAM(int);\n__out_channel = (cgltf_animation_channel*)gf_malloc(sizeof(cgltf_animation_channel));\nif (__out_channel == nullptr) {\n    gf_free(tokens);\n    gf_free((void*)json_chunk);\n    FUZZ_BAIL();\n}\n\nint result = cgltf_parse_json_animation_channel(__options, tokens, i, json_chunk, __out_channel);\nif (result < 0) {\n    gf_free(tokens);\n    gf_free((void*)json_chunk);\n    gf_free(__out_channel);\n    __out_channel = nullptr;\n    FUZZ_BAIL();\n}\n\ngf_free(tokens);\ngf_free((void*)json_chunk);"
+    },
+    {
+      "name": "cgltf_decode_string_v0",
+      "variables": [
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "const char* random_string = FUZZ_PARAM_STR(20); // Generate a random string of 20 bytes\nif (!random_string)\n{\n    FUZZ_BAIL();\n}\n\n__result = cgltf_decode_string((char*)random_string);\nif (__result == (cgltf_size)(-1)) // Assuming -1 indicates an error case\n{\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_num_components_v0",
+      "variables": [],
+      "template": "cgltf_type type = FUZZ_PARAM(cgltf_type);\n\ncgltf_size components = cgltf_num_components(type);\n\nif (components == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_parse_json_buffers_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "jsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * __options.json_token_count);\nif (!tokens) FUZZ_BAIL();\n\nuint8_t* json_chunk = (uint8_t*)FUZZ_PARAM_FILE(1024);\nif (!json_chunk) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\nint result = cgltf_parse_json_buffers(&__options, tokens, 0, json_chunk, &__out_data);\nif (result < 0) {\n    gf_free(tokens);\n    gf_free(json_chunk);\n    FUZZ_BAIL();\n}\n\n// Initialize output data (to comply with the requirements of cgltf_data)\n__out_data.buffers = NULL;\n__out_data.buffers_count = 0;\n\n// Clean up\ngf_free(tokens);\ngf_free(json_chunk);"
+    },
+    {
+      "name": "cgltf_camera_index_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_camera"
+        }
+      ],
+      "template": "if (&__data == NULL || &__object == NULL) FUZZ_BAIL();\n\ncgltf_size index = cgltf_camera_index(&__data, &__object);\n\nif (index >= __data.cameras_count) FUZZ_BAIL();"
+    },
+    {
+      "name": "cgltf_parse_json_nodes_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (!__options || !__out_data) {\n    FUZZ_BAIL();\n}\n\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * 128);\nif (!tokens) {\n    FUZZ_BAIL();\n}\n\nconst uint8_t* json_chunk = (const uint8_t*)FUZZ_PARAM_FILE(256);\nif (!json_chunk) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\nint i = 0;\n__out_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!__out_data) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\nint result = cgltf_parse_json_nodes(__options, tokens, i, json_chunk, __out_data);\nif (result < 0) {\n    gf_free(tokens);\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\ngf_free(tokens);\n"
+    },
+    {
+      "name": "cgltf_parse_json_scenes_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (!__options || !__out_data) {\n    FUZZ_BAIL();\n}\n\n// Initialize output data\n__out_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!__out_data) {\n    FUZZ_BAIL();\n}\nmemset(__out_data, 0, sizeof(cgltf_data));\n\n// Generate a random JSON string for the function call\nconst char* json_chunk = FUZZ_PARAM_FILE(128);\nif (!json_chunk) {\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\n// Create a parser and token array\njsmn_parser parser;\njsmn_init(&parser);\njsmntok_t tokens[128]; // Arbitrary token limit, adjust as necessary\n\n// Parse the JSON to fill tokens\nint num_tokens = jsmn_parse(&parser, json_chunk, 128, tokens, 128);\nif (num_tokens < 0) {\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\n// Invoke the library function to parse scenes\nint result = cgltf_parse_json_scenes(__options, tokens, 0, (const uint8_t*)json_chunk, __out_data);\nif (result < 0) {\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\n// Free any temporary memory if necessary\n// For future proofing, ensure we handle any leftover allocations here."
+    },
+    {
+      "name": "cgltf_parse_json_animations_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__tokens",
+          "dir": "*",
+          "typ": "jsmntok_t const*"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (!__options || !__tokens) FUZZ_BAIL();\n\nconst uint8_t* json_chunk = (const uint8_t*)FUZZ_PARAM_FILE(1024);\nif (!json_chunk) FUZZ_BAIL();\n\n__out_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!__out_data) FUZZ_BAIL();\nmemset(__out_data, 0, sizeof(cgltf_data));\n\nint result = cgltf_parse_json_animations(__options, __tokens, 0, json_chunk, __out_data);\nif (result < 0)\n{\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\n// Additional cleanup for the json_chunk or related objects if necessary.\n"
+    },
+    {
+      "name": "cgltf_animation_index_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_animation"
+        }
+      ],
+      "template": "if (&__data == NULL || &__object == NULL) {\n    FUZZ_BAIL();\n}\n\n// Get the index of the animation\ncgltf_size index = cgltf_animation_index(&__data, &__object);\n\n// Validate the index against the count of animations\nif (index >= __data.animations_count) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_parse_json_buffer_views_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "if (!__options) FUZZ_BAIL();\n\n__out_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!__out_data) FUZZ_BAIL();\n\nmemset(__out_data, 0, sizeof(cgltf_data));\n\nconst int token_count = FUZZ_PARAM(int);\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(token_count * sizeof(jsmntok_t));\nif (!tokens) {\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\nconst uint8_t* json_chunk = (const uint8_t*)FUZZ_PARAM_FILE(1024);\nint i = 0;\nint result = cgltf_parse_json_buffer_views(__options, tokens, i, json_chunk, __out_data);\n\nif (result < 0) {\n    gf_free(tokens);\n    gf_free(__out_data);\n    FUZZ_BAIL();\n}\n\ngf_free(tokens);"
+    },
+    {
+      "name": "cgltf_accessor_read_uint_v0",
+      "variables": [
+        {
+          "name": "__accessor",
+          "dir": "*",
+          "typ": "cgltf_accessor"
+        },
+        {
+          "name": "__out",
+          "dir": "new",
+          "typ": "cgltf_uint"
+        }
+      ],
+      "template": "if (__accessor.is_sparse) {\n    FUZZ_BAIL();\n}\n\nif (__accessor.buffer_view == NULL) {\n    memset(&__out, 0, sizeof(cgltf_uint));\n    FUZZ_BAIL();\n}\n\nconst uint8_t* element = cgltf_buffer_view_data(__accessor.buffer_view);\nif (element == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_size index = FUZZ_PARAM(cgltf_size);\nif (!cgltf_accessor_read_uint(&__accessor, index, &__out, sizeof(cgltf_uint))) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_buffer_index_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data*"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_buffer*"
+        },
+        {
+          "name": "__None",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (!__data || !__object) FUZZ_BAIL();\n\n__None = cgltf_buffer_index(__data, __object);\n\nif (__None < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cgltf_load_buffer_base64_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__size",
+          "dir": "*",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (!__options.memory.alloc_func || !__options.memory.free_func) FUZZ_BAIL();\n\nvoid* out_data = NULL;\nconst char* base64_data = FUZZ_PARAM_FILE(64); // assuming 64 bytes of base64 string for fuzzing\n\nif (!base64_data) FUZZ_BAIL();\n\ncgltf_result result = cgltf_load_buffer_base64(&__options, __size, base64_data, &out_data);\n\nif (result != cgltf_result_success) {\n    FUZZ_BAIL();\n}\n\n// Clean up if necessary\nif (out_data) { \n    __options.memory.free_func(__options.memory.user_data, out_data); \n}"
+    },
+    {
+      "name": "cgltf_component_size_v0",
+      "variables": [
+        {
+          "name": "__component_type",
+          "dir": "*",
+          "typ": "cgltf_component_type"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (__component_type < 0 || __component_type >= cgltf_component_type_invalid) {\n    FUZZ_BAIL();\n}\n\n__return = cgltf_component_size(__component_type);\nif (__return == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_node_index_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_node"
+        }
+      ],
+      "template": "if (!__object.name) {\n    FUZZ_BAIL();\n}\n\ncgltf_size index = cgltf_node_index(&__data, &__object);\nif (index >= __data.nodes_count) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_buffer_view_index_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data*"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_buffer_view*"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (!__data || !__object) {\n    FUZZ_BAIL();\n}\n\n__return_value = cgltf_buffer_view_index(__data, __object);\nif (__return_value < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_find_accessor_v0",
+      "variables": [
+        {
+          "name": "__prim",
+          "dir": "*",
+          "typ": "cgltf_primitive"
+        },
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "cgltf_attribute_type"
+        },
+        {
+          "name": "__index",
+          "dir": "*",
+          "typ": "cgltf_int"
+        }
+      ],
+      "template": "const cgltf_accessor* accessor = cgltf_find_accessor(&__prim, __type, __index);\nif (accessor == NULL) {\n    FUZZ_BAIL();\n}\n\n// Any further processing can be added here."
+    },
+    {
+      "name": "cgltf_find_accessor_v1",
+      "variables": [
+        {
+          "name": "__prim",
+          "dir": "*",
+          "typ": "cgltf_primitive"
+        },
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "cgltf_attribute_type"
+        },
+        {
+          "name": "__index",
+          "dir": "*",
+          "typ": "cgltf_int"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cgltf_accessor"
+        }
+      ],
+      "template": "if (&__prim == NULL || __index < 0) {\n    FUZZ_BAIL();\n}\n\nconst cgltf_accessor* result = cgltf_find_accessor(&__prim, __type, __index);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n__return = *result;"
+    },
+    {
+      "name": "cgltf_accessor_read_float_v0",
+      "variables": [
+        {
+          "name": "__accessor",
+          "dir": "*",
+          "typ": "cgltf_accessor"
+        },
+        {
+          "name": "__out",
+          "dir": "new",
+          "typ": "cgltf_float"
+        }
+      ],
+      "template": "if (__accessor.buffer_view == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_size random_index = FUZZ_PARAM(cgltf_size);\nif (random_index >= __accessor.count) {\n    FUZZ_BAIL();\n}\n\nif (!cgltf_accessor_read_float(&__accessor, random_index, &__out, sizeof(cgltf_float))) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_animation_channel_index_v0",
+      "variables": [
+        {
+          "name": "__animation",
+          "dir": "*",
+          "typ": "cgltf_animation"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_animation_channel"
+        }
+      ],
+      "template": "if (&__animation == NULL || &__object == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_size index = cgltf_animation_channel_index(&__animation, &__object);\nif (index < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_animation_sampler_index_v0",
+      "variables": [
+        {
+          "name": "__animation",
+          "dir": "*",
+          "typ": "cgltf_animation"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_animation_sampler"
+        }
+      ],
+      "template": "if (__animation.samplers_count == 0 || __object.interpolation >= __animation.samplers_count) {\n    FUZZ_BAIL();\n}\n\ncgltf_size index = cgltf_animation_sampler_index(&__animation, &__object);\n\nif (index == (cgltf_size)-1) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cgltf_parse_json_light_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_light",
+          "dir": "new",
+          "typ": "cgltf_light"
+        }
+      ],
+      "template": "if (!__options) FUZZ_BAIL();\n\n// Declare a buffer for the JSON chunk\nconst char* json_chunk = FUZZ_PARAM_FILE(1024);\nif (!json_chunk) FUZZ_BAIL();\n\n// Create a token array for parsing JSON\njsmntok_t tokens[128];\njsmn_parser parser;\njsmn_init(&parser);\n\nsize_t parsed = jsmn_parse(&parser, json_chunk, strlen(json_chunk), tokens, sizeof(tokens) / sizeof(tokens[0]));\nif (parsed < 0) FUZZ_BAIL();\n\n// Initialize __out_light before invoking\n__out_light = {};\n\n// Call cgltf_parse_json_light\nint result = cgltf_parse_json_light(__options, tokens, 0, (const uint8_t*)json_chunk, &__out_light);\nif (result < 0) FUZZ_BAIL();\n\n// Clean up\n// json_chunk is managed by FUZZ_PARAM_FILE and will be cleaned up automatically."
+    },
+    {
+      "name": "cgltf_parse_json_animation_sampler_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options*"
+        },
+        {
+          "name": "__out_sampler",
+          "dir": "new",
+          "typ": "cgltf_animation_sampler"
+        }
+      ],
+      "template": "if (!__options) FUZZ_BAIL();\n\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(sizeof(jsmntok_t) * 10);\nif (!tokens) FUZZ_BAIL();\n\nuint8_t* json_chunk = (uint8_t*)gf_malloc(1024);\nif (!json_chunk) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\n// Assume we fill tokens and json_chunk with appropriate fuzz data\nint result = cgltf_parse_json_animation_sampler(__options, tokens, 0, json_chunk, &__out_sampler);\nif (result < 0) {\n    gf_free(tokens);\n    gf_free(json_chunk);\n    FUZZ_BAIL();\n}\n\n// Clean up allocated memory\ngf_free(tokens);\ngf_free(json_chunk);\n\n// Initialize the output sampler if required\nmemset(&__out_sampler, 0, sizeof(cgltf_animation_sampler));\n"
+    },
+    {
+      "name": "cgltf_parse_json_buffer_view_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_buffer_view",
+          "dir": "new",
+          "typ": "cgltf_buffer_view"
+        }
+      ],
+      "template": "const int TOKENS_COUNT = FUZZ_PARAM(int); // Assume you need this many tokens for parsing\njsmntok_t* tokens = (jsmntok_t*)gf_malloc(TOKENS_COUNT * sizeof(jsmntok_t));\nif (!tokens) FUZZ_BAIL();\n\nuint8_t* json_data = (uint8_t*)FUZZ_PARAM_FILE(1024); // Assume we are working with a 1024 byte JSON chunk\nif (!json_data) {\n    gf_free(tokens);\n    FUZZ_BAIL();\n}\n\nint parse_result = cgltf_parse_json_buffer_view(&__options, tokens, 0, json_data, &__out_buffer_view);\nif (parse_result < 0) {\n    gf_free(tokens);\n    gf_free(json_data);\n    FUZZ_BAIL();\n}\n\n// Clean up memory\ngf_free(tokens);\ngf_free(json_data);"
+    },
+    {
+      "name": "cgltf_accessor_read_index_v0",
+      "variables": [
+        {
+          "name": "__accessor",
+          "dir": "*",
+          "typ": "cgltf_accessor"
+        },
+        {
+          "name": "__index",
+          "dir": "*",
+          "typ": "cgltf_size"
+        },
+        {
+          "name": "__",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (__accessor.buffer_view == NULL) FUZZ_BAIL();\n\nconst uint8_t* element = cgltf_buffer_view_data(__accessor.buffer_view);\nif (element == NULL) FUZZ_BAIL();\n\nif (__index >= __accessor.count) FUZZ_BAIL();\n\telement += __accessor.offset + __accessor.stride * __index;\n\ncgltf_uint value;\nif (!cgltf_element_read_uint(element, __accessor.type, __accessor.component_type, &value, sizeof(cgltf_uint))) FUZZ_BAIL();\n\n__ = static_cast<cgltf_size>(value);"
+    },
+    {
+      "name": "cgltf_parse_json_variants_v0",
+      "variables": [
+        {
+          "name": "__options",
+          "dir": "*",
+          "typ": "cgltf_options"
+        },
+        {
+          "name": "__out_data",
+          "dir": "new",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "jsmn_parser parser;\njsmn_init(&parser);\nint num_tokens = 16; // Arbitrary number, will be fuzzed for testing\njsmntok_t tokens[num_tokens];\nconst char* json_chunk = FUZZ_PARAM_FILE(128);\n\nif (json_chunk == NULL) {\n    FUZZ_BAIL();\n}\n\nif (parser.toknext >= num_tokens) {\n    FUZZ_BAIL();\n}\n\nint parse_result = jsmn_parse(&parser, json_chunk, strlen(json_chunk), tokens, num_tokens);\nif (parse_result < 0) {\n    FUZZ_BAIL();\n}\n\nint i = 0;\nint result = cgltf_parse_json_variants(&__options, tokens, i, (const uint8_t*)json_chunk, &__out_data);\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\n__out_data.variants_count = result; // Set the output variant count\n"
+    },
+    {
+      "name": "cgltf_decode_uri_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "const char* uri = FUZZ_PARAM_FILE(64);\n__return = cgltf_decode_uri((char*)uri);\ngf_free((void*)uri);"
+    },
+    {
+      "name": "cgltf_node_transform_world_v0",
+      "variables": [
+        {
+          "name": "__node",
+          "dir": "*",
+          "typ": "cgltf_node"
+        }
+      ],
+      "template": "cgltf_float out_matrix[16];\n\nif (!__node.parent) {\n    FUZZ_BAIL();\n}\n\ncgltf_node_transform_world(&__node, out_matrix);\n"
+    },
+    {
+      "name": "cgltf_image_index_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data*"
+        },
+        {
+          "name": "__object",
+          "dir": "*",
+          "typ": "cgltf_image"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "if (!__data) FUZZ_BAIL();\n\ncgltf_size index = cgltf_image_index(__data, &__object);\nif (index >= __data->images_count) FUZZ_BAIL();\n\n__return = index;"
+    },
+    {
+      "name": "cgltf_node_transform_local_v0",
+      "variables": [
+        {
+          "name": "__node",
+          "dir": "*",
+          "typ": "cgltf_node"
+        }
+      ],
+      "template": "if (&__node == NULL) FUZZ_BAIL();\n\ncgltf_float *out_matrix = (cgltf_float *)gf_malloc(sizeof(cgltf_float) * 16);\nif (out_matrix == NULL) FUZZ_BAIL();\n\ncgltf_node_transform_local(&__node, out_matrix);\n\n// Here we might want to do something with out_matrix, like logging or checking\n// For example, ensuring the output matrix is valid\nif (out_matrix[0] == 0.0f) FUZZ_BAIL(); // Example condition to check the output\n\n// Clean up\nif (out_matrix) gf_free(out_matrix);"
+    },
+    {
+      "name": "cgltf_validate_v0",
+      "variables": [
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "cgltf_data*"
+        },
+        {
+          "name": "__result",
+          "dir": "*",
+          "typ": "cgltf_result"
+        }
+      ],
+      "template": "if (__data == NULL) FUZZ_BAIL();\n\n__result = cgltf_validate(__data);\nif (__result != cgltf_result_success) FUZZ_BAIL();\n\n// No temporary objects to clean up as no memory allocation is performed."
+    },
+    {
+      "name": "new cgltf_node",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_node"
+        }
+      ],
+      "template": "{ \n    // Initialize the object using the library API\n    cgltf_scene* scene = (cgltf_scene*)gf_malloc(sizeof(cgltf_scene));\n    if (!scene) FUZZ_BAIL();\n\n    scene->name = NULL;\n    scene->nodes = (cgltf_node**)gf_malloc(sizeof(cgltf_node*) * 1);\n    if (!scene->nodes) FUZZ_BAIL();\n\n    scene->nodes_count = 1;\n    scene->extras = {};\n    scene->extensions_count = 0;\n    scene->extensions = NULL;\n \n    // Initialize the object itself\n    object.name = NULL;\n    object.parent = NULL;\n    object.children = NULL;\n    object.children_count = 0;\n    object.skin = NULL;\n    object.mesh = NULL;\n    object.camera = NULL;\n    object.light = NULL;\n    object.weights = NULL;\n    object.weights_count = 0;\n    object.has_translation = 0;\n    object.has_rotation = 0;\n    object.has_scale = 0;\n    object.has_matrix = 0;\n    object.translation[0] = FUZZ_PARAM(float);\n    object.translation[1] = FUZZ_PARAM(float);\n    object.translation[2] = FUZZ_PARAM(float);\n    object.rotation[0] = FUZZ_PARAM(float);\n    object.rotation[1] = FUZZ_PARAM(float);\n    object.rotation[2] = FUZZ_PARAM(float);\n    object.rotation[3] = FUZZ_PARAM(float);\n    object.scale[0] = FUZZ_PARAM(float);\n    object.scale[1] = FUZZ_PARAM(float);\n    object.scale[2] = FUZZ_PARAM(float);\n    object.has_mesh_gpu_instancing = 0;\n    object.extensions_count = 0;\n    object.extensions = NULL;\n\n    // Cleanup\n    gf_free(scene->nodes);\n    gf_free(scene);\n}"
+    },
+    {
+      "name": "new cgltf_anisotropy",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_anisotropy"
+        }
+      ],
+      "template": "object.anisotropy_strength = FUZZ_PARAM(float);\nobject.anisotropy_rotation = FUZZ_PARAM(float);\n\n// Directly initialize anisotropy_texture without separate allocation. Instead, initialize its members directly.\nobject.anisotropy_texture.has_transform = FUZZ_PARAM(bool);\nobject.anisotropy_texture.texcoord = FUZZ_PARAM(int);\nobject.anisotropy_texture.scale = FUZZ_PARAM(float);\n\n// As for the texture pointer, handle its initialization according to fuzzing requirements or leave it uninitialized."
+    },
+    {
+      "name": "new cgltf_attribute_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_attribute_type"
+        }
+      ],
+      "template": "object = FUZZ_PARAM(cgltf_attribute_type);\n\nif (object < cgltf_attribute_type_invalid || object >= cgltf_attribute_type_max_enum) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new cgltf_data_free_method",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_data_free_method"
+        }
+      ],
+      "template": "cgltf_data data;\n    cgltf_result result = cgltf_load_buffers(NULL, &data, FUZZ_PARAM_FILE(64));\n    if (result != cgltf_result_success) FUZZ_BAIL();\n    object = data.buffers[0].data_free_method;"
+    },
+    {
+      "name": "new cgltf_camera_perspective",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_camera_perspective"
+        }
+      ],
+      "template": "object.has_aspect_ratio = FUZZ_PARAM(cgltf_bool);\nobject.aspect_ratio = FUZZ_PARAM(cgltf_float);\nobject.yfov = FUZZ_PARAM(cgltf_float);\nobject.has_zfar = FUZZ_PARAM(cgltf_bool);\nobject.zfar = FUZZ_PARAM(cgltf_float);\nobject.znear = FUZZ_PARAM(cgltf_float);\n\n// Initialize extras if necessary (assuming it's safe to do so):\nif (object.has_aspect_ratio) {\n    object.aspect_ratio = FUZZ_PARAM(cgltf_float);\n}\nif (object.has_zfar) {\n    object.zfar = FUZZ_PARAM(cgltf_float);\n}\nobject.znear = FUZZ_PARAM(cgltf_float);\nobject.extras = (cgltf_extras) {0}; // Assuming default init is okay.\n\n// Ensure valid initialization without leaving behind temporary data."
+    },
+    {
+      "name": "new cgltf_clearcoat",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_clearcoat"
+        }
+      ],
+      "template": "object.clearcoat_factor = FUZZ_PARAM(float);\nobject.clearcoat_roughness_factor = FUZZ_PARAM(float);\n\nobject.clearcoat_texture = (cgltf_texture_view){0};\nobject.clearcoat_texture.texcoord = FUZZ_PARAM(int);\nobject.clearcoat_texture.scale = FUZZ_PARAM(float);\nobject.clearcoat_texture.has_transform = FUZZ_PARAM(bool);\n\nobject.clearcoat_roughness_texture = (cgltf_texture_view){0};\nobject.clearcoat_roughness_texture.texcoord = FUZZ_PARAM(int);\nobject.clearcoat_roughness_texture.scale = FUZZ_PARAM(float);\nobject.clearcoat_roughness_texture.has_transform = FUZZ_PARAM(bool);\n\nobject.clearcoat_normal_texture = (cgltf_texture_view){0};\nobject.clearcoat_normal_texture.texcoord = FUZZ_PARAM(int);\nobject.clearcoat_normal_texture.scale = FUZZ_PARAM(float);\nobject.clearcoat_normal_texture.has_transform = FUZZ_PARAM(bool);"
+    },
+    {
+      "name": "new cgltf_result",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_result"
+        }
+      ],
+      "template": "cgltf_options options;\noptions.type = cgltf_file_type_glb;  // Assuming GLB type for fuzzing\noptions.json_token_count = 0;\noptions.memory.alloc_func = NULL;\noptions.memory.free_func = NULL;\noptions.memory.user_data = NULL;\n\ncgltf_data* data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (data == NULL) {\n    FUZZ_BAIL();\n}\n\nmemset(data, 0, sizeof(cgltf_data));\n\nconst char* gltf_path = FUZZ_PARAM_FILE(64);  // Fuzzable file path for GLTF data\nobject = cgltf_load_buffers(&options, data, gltf_path);\nif (object != cgltf_result_success) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\n// Cleaning up if necessary - relying on the library for data management\ngf_free(data);\n"
+    },
+    {
+      "name": "new cgltf_buffer",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_buffer"
+        }
+      ],
+      "template": "cgltf_data* data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!data) FUZZ_BAIL();\n\nmemset(data, 0, sizeof(cgltf_data));\n\nconst char* filepath = FUZZ_PARAM_FILE(16);\nif (!filepath) FUZZ_BAIL();\n\ncgltf_result result = cgltf_load_buffers(NULL, data, filepath);\nif (result != cgltf_result_success) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\nobject.data = data->buffers[0].data;\nobject.size = data->buffers[0].size;\nobject.uri = data->buffers[0].uri;\nobject.name = data->buffers[0].name;\nobject.data_free_method = data->buffers[0].data_free_method;\nobject.extensions_count = data->buffers[0].extensions_count;\nobject.extensions = data->buffers[0].extensions;\n\ncgltf_free(data);\n"
+    },
+    {
+      "name": "new cgltf_extras",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_extras"
+        }
+      ],
+      "template": "object.start_offset = 0;\nobject.end_offset = 0;\nobject.data = (char*)gf_malloc(sizeof(char) * 64);\nif (object.data == NULL) {\n    FUZZ_BAIL();\n}\nmemset(object.data, 0, 64);  // Initialize the memory with zeroes\n\n// Here you could use fuzzing data to fill the object data if needed.\n// Assuming we just want to create it for now.\n// For full usage, consider fuzzing logic appropriate for the library functions here.\n// Normally you'd want to fill `object.data` with meaningful content.\n\n// Since we should not return or throw, but finish the function appropriately\n// we invoke FUZZ_BAIL() at the time of any errors only."
+    },
+    {
+      "name": "new cgltf_transmission",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_transmission"
+        }
+      ],
+      "template": "cgltf_texture_view* texture_view = (cgltf_texture_view*)gf_malloc(sizeof(cgltf_texture_view));\nif (!texture_view) FUZZ_BAIL();\n\ntexture_view->texture = (cgltf_texture*)gf_malloc(sizeof(cgltf_texture));\nif (!texture_view->texture) FUZZ_BAIL();\n\ntexture_view->texcoord = FUZZ_PARAM(int);\ntexture_view->scale = FUZZ_PARAM(float);\ntexture_view->has_transform = FUZZ_PARAM(bool);\n\nif (texture_view->has_transform) {\n    texture_view->transform.offset[0] = FUZZ_PARAM(float);\n    texture_view->transform.offset[1] = FUZZ_PARAM(float);\n    texture_view->transform.rotation = FUZZ_PARAM(float);\n    texture_view->transform.scale[0] = FUZZ_PARAM(float);\n    texture_view->transform.scale[1] = FUZZ_PARAM(float);\n    texture_view->transform.has_texcoord = FUZZ_PARAM(bool);\n    texture_view->transform.texcoord = FUZZ_PARAM(int);\n}\n\nobject.transmission_texture = *texture_view;\nobject.transmission_factor = FUZZ_PARAM(float);\n\ngf_free(texture_view->texture);\ngf_free(texture_view);\n"
+    },
+    {
+      "name": "new cgltf_material_mapping",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_material_mapping"
+        }
+      ],
+      "template": "object.variant = FUZZ_PARAM(cgltf_size);\n\nobject.material = (cgltf_material*)gf_malloc(sizeof(cgltf_material));\nif(!object.material) FUZZ_BAIL();\n\n// Here we can use a method specific for initializing cgltf_material since no direct initializing function is available, hence initializing the members manually.\nobject.material->name = NULL;  // Assume name can be null for now\nobject.material->has_pbr_metallic_roughness = FUZZ_PARAM(cgltf_bool);\nobject.material->has_pbr_specular_glossiness = FUZZ_PARAM(cgltf_bool);\nobject.material->has_clearcoat = FUZZ_PARAM(cgltf_bool);\nobject.material->has_transmission = FUZZ_PARAM(cgltf_bool);\nobject.material->has_volume = FUZZ_PARAM(cgltf_bool);\nobject.material->has_ior = FUZZ_PARAM(cgltf_bool);\nobject.material->has_specular = FUZZ_PARAM(cgltf_bool);\nobject.material->has_sheen = FUZZ_PARAM(cgltf_bool);\nobject.material->has_emissive_strength = FUZZ_PARAM(cgltf_bool);\nobject.material->has_iridescence = FUZZ_PARAM(cgltf_bool);\nobject.material->has_diffuse_transmission = FUZZ_PARAM(cgltf_bool);\nobject.material->has_anisotropy = FUZZ_PARAM(cgltf_bool);\nobject.material->has_dispersion = FUZZ_PARAM(cgltf_bool);\n\n// Other fields may need initial values depending on the application needs.\n\nobject.extras = (cgltf_extras){};  // Initialize extras to a default state."
+    },
+    {
+      "name": "new cgltf_light",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_light"
+        }
+      ],
+      "template": "object.name = NULL;\nobject.color[0] = FUZZ_PARAM(float);\nobject.color[1] = FUZZ_PARAM(float);\nobject.color[2] = FUZZ_PARAM(float);\nobject.intensity = FUZZ_PARAM(float);\nobject.type = FUZZ_PARAM(cgltf_light_type);\nobject.range = FUZZ_PARAM(float);\nobject.spot_inner_cone_angle = FUZZ_PARAM(float);\nobject.spot_outer_cone_angle = FUZZ_PARAM(float);\nobject.extras = (cgltf_extras){0};\n\n// Please note that we are returning empty values for string, which is acceptable as per the API usage."
+    },
+    {
+      "name": "new cgltf_interpolation_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_interpolation_type"
+        }
+      ],
+      "template": "object = (cgltf_interpolation_type)(FUZZ_PARAM(int) % 3); // This line uses FUZZ_PARAM and maps it to the enumeration values in cgltf_interpolation_type by taking modulus of the size of the enum."
+    },
+    {
+      "name": "new cgltf_material",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_material"
+        }
+      ],
+      "template": "memset(&object, 0, sizeof(cgltf_material));\n\n// Set a default name for the material\nobject.name = (char*)gf_malloc(16 * sizeof(char));\nif (object.name == NULL) FUZZ_BAIL();\nstrcpy(object.name, \"MaterialName\");\n\n// Initialize boolean flags\nobject.has_pbr_metallic_roughness = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_pbr_specular_glossiness = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_clearcoat = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_transmission = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_volume = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_ior = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_specular = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_sheen = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_emissive_strength = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_iridescence = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_diffuse_transmission = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_anisotropy = (cgltf_bool)FUZZ_PARAM(int);\nobject.has_dispersion = (cgltf_bool)FUZZ_PARAM(int);\n\n// Initialize material properties with random values\nobject.pbr_metallic_roughness = (cgltf_pbr_metallic_roughness){};\nobject.pbr_specular_glossiness = (cgltf_pbr_specular_glossiness){};\nobject.clearcoat = (cgltf_clearcoat){};\nobject.ior = (cgltf_ior){};\nobject.specular = (cgltf_specular){};\nobject.sheen = (cgltf_sheen){};\nobject.transmission = (cgltf_transmission){};\nobject.volume = (cgltf_volume){};\nobject.emissive_strength = (cgltf_emissive_strength){};\nobject.iridescence = (cgltf_iridescence){};\nobject.diffuse_transmission = (cgltf_diffuse_transmission){};\nobject.anisotropy = (cgltf_anisotropy){};\nobject.dispersion = (cgltf_dispersion){};\n\n// Initialize textures to null\nobject.normal_texture = (cgltf_texture_view){0};\nobject.occlusion_texture = (cgltf_texture_view){0};\nobject.emissive_texture = (cgltf_texture_view){0};\n\n// Set emissive factor\nobject.emissive_factor[0] = FUZZ_PARAM(float);\nobject.emissive_factor[1] = FUZZ_PARAM(float);\nobject.emissive_factor[2] = FUZZ_PARAM(float);\n\n// Initialize alpha properties\nobject.alpha_mode = (cgltf_alpha_mode)FUZZ_PARAM(int);\nobject.alpha_cutoff = FUZZ_PARAM(float);\nobject.double_sided = (cgltf_bool)FUZZ_PARAM(int);\nobject.unlit = (cgltf_bool)FUZZ_PARAM(int);\n\n// Initialize extras and extensions\nobject.extras = (cgltf_extras){};\nobject.extensions_count = FUZZ_PARAM(size_t);\nobject.extensions = NULL; \n// Consider additional allocations if the extensions are needed."
+    },
+    {
+      "name": "new cgltf_camera_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_camera_type"
+        }
+      ],
+      "template": "object = FUZZ_PARAM(cgltf_camera_type); \nif (object < cgltf_camera_type_invalid || object > cgltf_camera_type_orthographic) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new cgltf_volume",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_volume"
+        }
+      ],
+      "template": "object.thickness_texture = (cgltf_texture_view){0};\nobject.thickness_factor = FUZZ_PARAM(float);\nobject.attenuation_color[0] = FUZZ_PARAM(float);\nobject.attenuation_color[1] = FUZZ_PARAM(float);\nobject.attenuation_color[2] = FUZZ_PARAM(float);\nobject.attenuation_distance = FUZZ_PARAM(float);\n"
+    },
+    {
+      "name": "new cgltf_emissive_strength",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_emissive_strength"
+        }
+      ],
+      "template": "object.emissive_strength = FUZZ_PARAM(cgltf_float);\n// Assuming initialization function doesn't exist, we directly populate the members of the struct. If there were an init function, it would be appropriate to use it here.\n"
+    },
+    {
+      "name": "new cgltf_pbr_metallic_roughness",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_pbr_metallic_roughness"
+        }
+      ],
+      "template": "object.base_color_texture = (cgltf_texture_view){0};\nobject.metallic_roughness_texture = (cgltf_texture_view){0};\n\nobject.base_color_factor[0] = FUZZ_PARAM(float);\nobject.base_color_factor[1] = FUZZ_PARAM(float);\nobject.base_color_factor[2] = FUZZ_PARAM(float);\nobject.base_color_factor[3] = FUZZ_PARAM(float);\n\nobject.metallic_factor = FUZZ_PARAM(float);\nobject.roughness_factor = FUZZ_PARAM(float);"
+    },
+    {
+      "name": "new cgltf_pbr_specular_glossiness",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_pbr_specular_glossiness"
+        }
+      ],
+      "template": "object.diffuse_texture = (cgltf_texture_view){0};\nobject.specular_glossiness_texture = (cgltf_texture_view){0};\n\nfor (int i = 0; i < 4; ++i) {\n    object.diffuse_factor[i] = FUZZ_PARAM(float);\n}\n\nfor (int i = 0; i < 3; ++i) {\n    object.specular_factor[i] = FUZZ_PARAM(float);\n}\n\nobject.glossiness_factor = FUZZ_PARAM(float);\n\n// Construct diffuse texture view\nobject.diffuse_texture.texture =  (cgltf_texture*)gf_malloc(sizeof(cgltf_texture));\nif (!object.diffuse_texture.texture) FUZZ_BAIL();\nobject.diffuse_texture.texcoord = FUZZ_PARAM(int);\nobject.diffuse_texture.scale = FUZZ_PARAM(float);\nobject.diffuse_texture.has_transform = FUZZ_PARAM(bool);\n\n// Construct specular-glossiness texture view\nobject.specular_glossiness_texture.texture =  (cgltf_texture*)gf_malloc(sizeof(cgltf_texture));\nif (!object.specular_glossiness_texture.texture) FUZZ_BAIL();\nobject.specular_glossiness_texture.texcoord = FUZZ_PARAM(int);\nobject.specular_glossiness_texture.scale = FUZZ_PARAM(float);\nobject.specular_glossiness_texture.has_transform = FUZZ_PARAM(bool);\n\n// Note: In a real implementation, you should have proper checks and initialization for each texture as per the library guidelines."
+    },
+    {
+      "name": "new cgltf_data",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "cgltf_data* temp_data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (temp_data == NULL) {\n    FUZZ_BAIL();\n}\n\ncgltf_result result = cgltf_parse_file(NULL, FUZZ_PARAM_FILE(32), &temp_data);\nif (result != cgltf_result_success || temp_data == NULL) {\n    gf_free(temp_data);\n    FUZZ_BAIL();\n}\n\nobject = *temp_data;\n\nresult = cgltf_load_buffers(NULL, &object, \"path/to/your/buffer\");\nif (result != cgltf_result_success) {\n    cgltf_free(&object);\n    FUZZ_BAIL();\n}\n\ngf_free(temp_data);"
+    },
+    {
+      "name": "new cgltf_size",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "cgltf_data* data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (!data) {\n    FUZZ_BAIL();\n}\n\nconst char* path = FUZZ_PARAM_FILE(64);\nif (!path) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\ncgltf_result result = cgltf_parse_file(NULL, path, &data);\nif (result != cgltf_result_success) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\nobject = sizeof(cgltf_data);\n\ncgltf_free(data);\n"
+    },
+    {
+      "name": "new cgltf_data*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "cgltf_options options = {}; // Initialize options for parsing\n\n// Using the library API to create a new cgltf_data object\nif (cgltf_parse_file(&options, FUZZ_PARAM_FILE(256), &object) != cgltf_result_success) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new cgltf_uint",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_uint"
+        }
+      ],
+      "template": "cgltf_data* data = (cgltf_data*)gf_malloc(sizeof(cgltf_data));\nif (data == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char* path = FUZZ_PARAM_FILE(10);\nif (cgltf_parse_file(NULL, path, &data) != cgltf_result_success) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\nobject = data->meshes_count;\n\ncgltf_free(data);\n"
+    },
+    {
+      "name": "new cgltf_animation_path_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cgltf_animation_path_type"
+        }
+      ],
+      "template": "object = cgltf_animation_path_type_invalid;\nint random_value = FUZZ_PARAM(int);\nif (random_value < 0 || random_value > 5) {\n    FUZZ_BAIL();\n}\nobject = (cgltf_animation_path_type)random_value;"
+    },
+    {
+      "name": "delete cgltf_material_variant",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_material_variant"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_skin",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_skin"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_asset",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_asset"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_file_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_file_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_node",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_node"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_alpha_mode",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_alpha_mode"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_options*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_options*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_ior",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_ior"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_anisotropy",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_anisotropy"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_attribute_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_attribute_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_data_free_method",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_data_free_method"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_camera_perspective",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_camera_perspective"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_clearcoat",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_clearcoat"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_accessor_sparse",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_accessor_sparse"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_meshopt_compression*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_meshopt_compression*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation_sampler*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation_sampler*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_result",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_result"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_component_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_component_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_texture",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_texture"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_meshopt_compression_mode",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_meshopt_compression_mode"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_texture_transform",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_texture_transform"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_camera*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_camera*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_mesh",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_mesh"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_buffer",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_buffer"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_wrap_mode",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_wrap_mode"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_material_variant*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_material_variant*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_extras",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_extras"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_primitive",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_primitive"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation_sampler",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation_sampler"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_transmission",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_transmission"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_extension*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_extension*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_material_mapping",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_material_mapping"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_light",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_light"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_file_options",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_file_options"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_interpolation_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_interpolation_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_camera",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_camera"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_iridescence",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_iridescence"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation_channel",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation_channel"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_material",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_material"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_accessor",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_accessor"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_attribute",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_attribute"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_filter_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_filter_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_light_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_light_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_dispersion",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_dispersion"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_light*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_light*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_primitive_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_primitive_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_int",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_int"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_camera_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_camera_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_meshopt_compression_filter",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_meshopt_compression_filter"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_volume",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_volume"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_emissive_strength",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_emissive_strength"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_texture_view",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_texture_view"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_pbr_metallic_roughness",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_pbr_metallic_roughness"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_diffuse_transmission",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_diffuse_transmission"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_morph_target",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_morph_target"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_bool",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_bool"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_options",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_options"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_buffer_view",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_buffer_view"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_memory_options",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_memory_options"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_pbr_specular_glossiness",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_pbr_specular_glossiness"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_data",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_data"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_camera_orthographic",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_camera_orthographic"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_scene",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_scene"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_size",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_size"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_skin*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_skin*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_data*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_data*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_buffer*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_buffer*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_image",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_image"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_mesh_gpu_instancing",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_mesh_gpu_instancing"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_node*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_node*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_specular",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_specular"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_uint",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_uint"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_meshopt_compression",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_meshopt_compression"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation_path_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation_path_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_extension",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_extension"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_draco_mesh_compression",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_draco_mesh_compression"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation_channel*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation_channel*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_buffer_view*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_buffer_view*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_float",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_float"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_asset*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_asset*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete jsmntok_t const*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "jsmntok_t const*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_ssize",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_ssize"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_buffer_view_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_buffer_view_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_animation*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_animation*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_sampler",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_sampler"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_sheen",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_sheen"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cgltf_scene*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cgltf_scene*"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

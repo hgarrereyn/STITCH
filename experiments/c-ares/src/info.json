@@ -1,0 +1,20 @@
+{
+    "name": "c-ares",
+    "codebase": "/fuzz/c-ares",
+    "build": {
+        "source_files": [],
+        "include_paths": [],
+        "lib_paths": [],
+        "libs": [
+            "cares"
+        ]
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "ares.h",
+                "language": "c"
+            }
+        ]
+    }
+}

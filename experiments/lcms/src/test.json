@@ -1,0 +1,4996 @@
+{
+  "endpoints": [
+    {
+      "name": "cmsStageInputChannels_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "cmsPipeline* pipeline = (cmsPipeline*) FUZZ_PARAM_FILE(64);\n    if (pipeline == NULL) FUZZ_BAIL();\n\n    cmsStage* stage = (cmsStage*) FUZZ_PARAM_FILE(64);\n    if (stage == NULL) FUZZ_BAIL();\n\n    cmsStageLoc loc = (cmsStageLoc) FUZZ_PARAM(cmsUInt32Number);\n\n    __return_value = cmsPipelineInsertStage(pipeline, loc, stage);\n    if (__return_value == FALSE) FUZZ_BAIL();\n\n    // Clean up temporary objects\n    gf_free(pipeline);\n    gf_free(stage);"
+    },
+    {
+      "name": "cmsCreateNULLProfileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsHPROFILE profile = cmsCreateNULLProfileTHR(__ContextID);\nif (profile == NULL) FUZZ_BAIL();\n// Optionally, use the profile or further process if needed\n// In fuzzing, it is common to check if a returned pointer is valid.\n"
+    },
+    {
+      "name": "cmsBFDdeltaE_v0",
+      "variables": [
+        {
+          "name": "__Lab1",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__Lab2",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "__return = cmsBFDdeltaE(&__Lab1, &__Lab2);\nif (__return < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsSetHeaderAttributes_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Flags",
+          "dir": "*",
+          "typ": "cmsUInt64Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetHeaderAttributes(__hProfile, __Flags);"
+    },
+    {
+      "name": "cmsIT8SetPropertyDbl_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__Val",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char* fuzzProp = FUZZ_PARAM_STR(10);\nif (fuzzProp == NULL) FUZZ_BAIL();\n\nchar Buffer[1024];\nsnprintf(Buffer, 1023, \"%.10f\", __Val);\n\nif (!cmsIT8SetPropertyDbl(__hIT8, fuzzProp, __Val)) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCreateXYZProfile_v0",
+      "variables": [
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "    cmsHPROFILE profile = cmsCreateXYZProfileTHR(NULL);\n    if (profile == NULL) FUZZ_BAIL();\n    __result = profile;"
+    },
+    {
+      "name": "cmsSetAdaptationState_v0",
+      "variables": [
+        {
+          "name": "__d",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__d < 0) FUZZ_BAIL();\n__return_value = cmsSetAdaptationState(__d);\nif (__return_value < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsOpenProfileFromStream_v0",
+      "variables": [],
+      "template": "const char* profilePath = FUZZ_PARAM_FILE(1024);\nconst char* accessMode = FUZZ_PARAM_STR(10);\n\nif (profilePath == NULL || accessMode == NULL) FUZZ_BAIL();\n\n// Open the file stream using fopen for cmsOpenProfileFromStream\nFILE* profile = fopen(profilePath, accessMode);\nif (profile == NULL) FUZZ_BAIL();\n\ncmsHPROFILE hProfile = cmsOpenProfileFromStream(profile, accessMode);\n\nif (hProfile == NULL) {\n    fclose(profile);\n    FUZZ_BAIL();\n}\n\n// Clean up the profile after use\nfclose(profile);"
+    },
+    {
+      "name": "cmsOpenProfileFromStream_v1",
+      "variables": [
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "FILE* tempFile = fopen(FUZZ_PARAM_FILE(100), \"rb\");\nif (tempFile == NULL) FUZZ_BAIL();\n\nconst char* accessMode = FUZZ_PARAM_STR(2); // Use 2 to ensure a valid short access string\n\n___return_value_ = cmsOpenProfileFromStreamTHR(NULL, tempFile, accessMode);\n\nif (___return_value_ == NULL) {\n    fclose(tempFile);\n    FUZZ_BAIL();\n}\n\nfclose(tempFile);"
+    },
+    {
+      "name": "cmsD50_xyY_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "cmsCIExyY temp;\nmemset(&temp, 0, sizeof(temp));\n\nconst cmsCIExyY* D50xyY = cmsD50_xyY();\nif (D50xyY == NULL) FUZZ_BAIL();\n\n__return = *D50xyY;\n\n// All operations successful; continue as normal."
+    },
+    {
+      "name": "cmsMD5computeID_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\n__result = cmsMD5computeID(__hProfile);\n\nif (!__result) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetNamedColorList_v0",
+      "variables": [
+        {
+          "name": "__xform",
+          "dir": "*",
+          "typ": "cmsHTRANSFORM"
+        }
+      ],
+      "template": "if (__xform == NULL) FUZZ_BAIL();\n\ncmsNAMEDCOLORLIST* colorList = cmsGetNamedColorList(__xform);\nif (colorList == NULL) FUZZ_BAIL();\n\n// Assuming we need to do something with colorList, such as processing it further or logging.\n// Clean-up or further processing code should be added here if necessary.\n// No need for manual cleanup as we are not allocating memory."
+    },
+    {
+      "name": "cmsIT8SaveToMem_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__BytesNeeded",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hIT8 == NULL || __BytesNeeded == 0) FUZZ_BAIL();\n\ncmsUInt8Number *memoryBuffer = (cmsUInt8Number*) gf_malloc(__BytesNeeded);\nif (memoryBuffer == NULL) FUZZ_BAIL();\n\ncmsUInt32Number bytesNeededTemp = __BytesNeeded;\nif (!cmsIT8SaveToMem(__hIT8, memoryBuffer, &bytesNeededTemp)) {\n    gf_free(memoryBuffer);\n    FUZZ_BAIL();\n}\n\n__BytesNeeded = bytesNeededTemp;\ngf_free(memoryBuffer);"
+    },
+    {
+      "name": "cmsXYZ2Lab_v0",
+      "variables": [
+        {
+          "name": "__Lab",
+          "dir": "new",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__xyz",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "const cmsCIEXYZ* whitePoint = cmsD50_XYZ();\n\nif (whitePoint == NULL) FUZZ_BAIL();\n\n// Initialize the output Lab structure\n__Lab.L = 0.0;\n__Lab.a = 0.0;\n__Lab.b = 0.0;\n\n// Invoke the library function\ncmsXYZ2Lab(whitePoint, &__Lab, &__xyz);"
+    },
+    {
+      "name": "cmsXYZ2Lab_v1",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__Lab",
+          "dir": "new",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__xyz",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "if (__WhitePoint.X < 0 || __WhitePoint.Y < 0 || __WhitePoint.Z < 0) FUZZ_BAIL();\nif (__xyz.X < 0 || __xyz.Y < 0 || __xyz.Z < 0) FUZZ_BAIL();\n\nconst cmsCIEXYZ* whitePointPtr = &__WhitePoint;\nif (whitePointPtr == NULL) {\n    whitePointPtr = cmsD50_XYZ();\n}\n\ncmsXYZ2Lab(whitePointPtr, &__Lab, &__xyz);\n\n__Lab.L = 0; // Initialize output structure\n__Lab.a = 0;\n__Lab.b = 0; // Ensure __Lab is initialized before use\n\nif (!__Lab.L && !__Lab.a && !__Lab.b) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIsTag_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsBool result = cmsIsTag(__hProfile, __sig);\n\n// Assuming __return is used to indicate success or failure, we can do something with the result.\nif (result != __return) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsGetHeaderRenderingIntent_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__ReturnValue",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\n__ReturnValue = cmsGetHeaderRenderingIntent(__hProfile);\n\nif (__ReturnValue == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetHeaderCreator_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\ncmsUInt32Number creator = cmsGetHeaderCreator(__hProfile);\n\n// Use the created value (you can add any relevant code here, e.g., logging, assertions, etc.)\n// Since this is a fuzzing context, we generally don't need to store or manipulate `creator` further."
+    },
+    {
+      "name": "cmsBuildSegmentedToneCurve_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nSegments",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Segments",
+          "dir": "*",
+          "typ": "cmsCurveSegment"
+        }
+      ],
+      "template": "if (__nSegments == 0) FUZZ_BAIL();\nif (&__Segments == NULL) FUZZ_BAIL();\n\ncmsToneCurve* curve = cmsBuildSegmentedToneCurve(__ContextID, __nSegments, &__Segments);\nif (curve == NULL) FUZZ_BAIL();\n\ncmsFreeToneCurve(curve);"
+    },
+    {
+      "name": "cmsxyY2XYZ_v0",
+      "variables": [
+        {
+          "name": "__Dest",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__Source",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "__Dest.X = 0.0; /* Initialize output */\n__Dest.Y = 0.0;\n__Dest.Z = 0.0;\n\nif (&__Source == NULL) FUZZ_BAIL(); /* Validate input parameter */\n\ncmsxyY2XYZ(&__Dest, &__Source); /* Invoke the target library function */"
+    },
+    {
+      "name": "cmsIsMatrixShaper_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsBool result = cmsIsMatrixShaper(__hProfile);\n\nif (result != __Return_Value) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsStageFree_v0",
+      "variables": [],
+      "template": "cmsStage* mbo = (cmsStage*) FUZZ_PARAM_FILE(128);\n\nif (mbo == NULL) \n    FUZZ_BAIL();\n\ncmsStageFree(mbo);\n\n// No output arguments to initialize, cleanup is managed by cmsStageFree."
+    },
+    {
+      "name": "cmsStageSampleCLut16bit_v0",
+      "variables": [
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "cmsStage* mpe = (cmsStage*) FUZZ_PARAM_FILE(20);\nif (mpe == NULL) FUZZ_BAIL();\n\ncmsSAMPLER16 Sampler = (cmsSAMPLER16) FUZZ_PARAM_FILE(20);\nif (Sampler == NULL) FUZZ_BAIL();\n\nvoid* Cargo = NULL;\n\ncmsBool result = cmsStageSampleCLut16bit(mpe, Sampler, Cargo, __dwFlags);\nif (result != __return) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsSliceSpace16_v0",
+      "variables": [
+        {
+          "name": "__nInputs",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__clutPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nInputs >= cmsMAXCHANNELS) FUZZ_BAIL();\n\ncmsUInt32Number clutPoints[] = { __clutPoints };\nif (clutPoints[0] == 0) FUZZ_BAIL();\n\nif (!cmsSliceSpace16(__nInputs, clutPoints, NULL, NULL)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsReadTag_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\nvoid* result = cmsReadTag(__hProfile, __sig);\n\nif (result == NULL) FUZZ_BAIL();\n\n// Further processing of result can be done here if necessary."
+    },
+    {
+      "name": "cmsIsCLUT_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__UsedDirection",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\nif (__Intent > 6) FUZZ_BAIL(); // Assuming there are 7 intents including 0\n\nif (__UsedDirection > 2) FUZZ_BAIL(); // Assuming there are 3 directions including 0\n\n__return = cmsIsCLUT(__hProfile, __Intent, __UsedDirection);\n\nif (__return == FALSE) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsBuildGamma_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__Gamma",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "cmsToneCurve* curve = cmsBuildGamma(__ContextID, __Gamma);\nif (curve == NULL) FUZZ_BAIL();\n// Optionally: You can validate that curve was created successfully here.\n// Cleanup would be needed after using the curve in a real scenario.\n// Assuming further processing is done here.\n// Remember: At the end, free any allocated curves using cmsFreeToneCurve() if needed.\ncmsFreeToneCurve(curve);"
+    },
+    {
+      "name": "cmsNamedColorCount_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "cmsContext contextID = cmsCreateContext(NULL, NULL);\nif (contextID == NULL) FUZZ_BAIL();\n\ncmsNAMEDCOLORLIST* NamedColorList = cmsAllocNamedColorList(contextID, FUZZ_PARAM(cmsUInt32Number), FUZZ_PARAM(cmsUInt32Number), FUZZ_PARAM_STR(32), FUZZ_PARAM_STR(32));\nif (NamedColorList == NULL) FUZZ_BAIL();\n\n__return_value = cmsNamedColorCount(NamedColorList);\n\ncmsFreeNamedColorList(NamedColorList);\ncmsDeleteContext(contextID);"
+    },
+    {
+      "name": "cmsOpenProfileFromStreamTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "FILE *iccProfileFile = fopen(FUZZ_PARAM_FILE(1024), \"rb\");\nif (!iccProfileFile) FUZZ_BAIL();\n\nconst char *accessMode = FUZZ_PARAM_STR(1);\nif (accessMode[0] != 'r' && accessMode[0] != 'w') FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsOpenProfileFromStreamTHR(__ContextID, iccProfileFile, accessMode);\nif (profile == NULL) {\n    fclose(iccProfileFile);\n    FUZZ_BAIL();\n}\n\nfclose(iccProfileFile);\n"
+    },
+    {
+      "name": "cmsFreeNamedColorList_v0",
+      "variables": [],
+      "template": "cmsNAMEDCOLORLIST* colorList = (cmsNAMEDCOLORLIST*) FUZZ_PARAM_FILE(1024);\nif (!colorList) FUZZ_BAIL();\n cmsFreeNamedColorList(colorList);\n gf_free(colorList);"
+    },
+    {
+      "name": "cmsGetTagSignature_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__n",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n// Initialize the output parameter\n__return = (cmsTagSignature)0;\n\n// Invoke the cmsGetTagSignature function\n__return = cmsGetTagSignature(__hProfile, __n);\n\n// Check if the returned value indicates an error case\nif (__return == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8SetDataRowCol_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nint row = FUZZ_PARAM(int);\nint col = FUZZ_PARAM(int);\nconst char* Val = FUZZ_PARAM_STR(256);\n\nif (cmsIT8SetDataRowCol(__hIT8, row, col, Val) == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCreateRGBProfileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__Primaries",
+          "dir": "*",
+          "typ": "cmsCIExyYTRIPLE"
+        }
+      ],
+      "template": "if (!__ContextID) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsCreateRGBProfileTHR(__ContextID, NULL, &__Primaries, NULL);\nif (!profile) FUZZ_BAIL();\n\n// Clean up temporary objects\n// No dynamic memory allocated directly here, but if any cleanup was needed, it would be done here.\n\n// If any output parameters need to be initialized, do it here (Not needed for this function)."
+    },
+    {
+      "name": "cmsTagLinkedTo_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsTagSignature result = cmsTagLinkedTo(__hProfile, __sig);\n\nif (result == 0) FUZZ_BAIL();  // Handle case where no linked tag is found\n\n// The function doesn't require further processing for the result, as it is simply being utilized for its side effects."
+    },
+    {
+      "name": "cmsTagLinkedTo_v1",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "// Validate the input parameters\nif (__hProfile == nullptr) FUZZ_BAIL();\n\n// Invoke the cmsTagLinkedTo API with the input parameters\n___return_value_ = cmsTagLinkedTo(__hProfile, __sig);\n\n// Check if the return value is null to catch the error case\nif (___return_value_ == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCloseIOhandler_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "cmsIOHANDLER* io = (cmsIOHANDLER*)FUZZ_PARAM_FILE(1024);\nif (io == NULL) FUZZ_BAIL();\n\n__return_value = cmsCloseIOhandler(io);\n\nif (__return_value == 0) FUZZ_BAIL(); // Check if the operation was successful\n"
+    },
+    {
+      "name": "cmsFloat2XYZEncoded_v0",
+      "variables": [
+        {
+          "name": "__XYZ",
+          "dir": "new",
+          "typ": "cmsUInt16Number"
+        },
+        {
+          "name": "__fXYZ",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "if (__fXYZ.X < 0 || __fXYZ.Y < 0 || __fXYZ.Z < 0) FUZZ_BAIL();\n\ncmsFloat2XYZEncoded(&__XYZ, &__fXYZ);"
+    },
+    {
+      "name": "cmsGetProfileVersion_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsFloat64Number version = cmsGetProfileVersion(__hProfile);\nif (version < 0.0) FUZZ_BAIL();\n\n// Here we would typically handle the version value as needed, but this is a direct call to the API."
+    },
+    {
+      "name": "cmsSetAlarmCodes_v0",
+      "variables": [
+        {
+          "name": "__NewAlarm",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__NewAlarm == 0) FUZZ_BAIL();\n\ncmsUInt16Number alarmCodes[cmsMAXCHANNELS];\n\nfor (size_t i = 0; i < cmsMAXCHANNELS; ++i) {\n    alarmCodes[i] = FUZZ_PARAM(cmsUInt16Number);\n}\n\ncmsSetAlarmCodes(alarmCodes);"
+    },
+    {
+      "name": "cmsFloat2LabEncoded_v0",
+      "variables": [
+        {
+          "name": "__wLab",
+          "dir": "new",
+          "typ": "cmsUInt16Number"
+        },
+        {
+          "name": "__fLab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "cmsCIELab lab_copy = __fLab; // Copy input to local variable since the function expects a pointer\n\nif (lab_copy.L < 0.0 || lab_copy.L > 100.0) FUZZ_BAIL(); // Validate L range\nif (lab_copy.a < -128.0 || lab_copy.a > 127.0) FUZZ_BAIL(); // Validate a range\nif (lab_copy.b < -128.0 || lab_copy.b > 127.0) FUZZ_BAIL(); // Validate b range\n\ncmsFloat2LabEncoded(&__wLab, &lab_copy); // Call the API with validated parameters\n\n// Output argument __wLab is initialized within the API call."
+    },
+    {
+      "name": "cmsOpenIOhandlerFromFile_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "const char* filePath = FUZZ_PARAM_FILE(1024);\nconst char* accessMode = FUZZ_PARAM_STR(4);\n\nif (__ContextID == NULL || filePath == NULL || accessMode == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsIOHANDLER* iohandler = cmsOpenIOhandlerFromFile(__ContextID, filePath, accessMode);\n\nif (iohandler == NULL) {\n    FUZZ_BAIL();\n}\n\n// Cleanup if necessary\n// Since we do not have a specific cleanup function provided in the user requirements,\n// we are keeping it simple and not allocating additional resources.  \n"
+    },
+    {
+      "name": "cmsfilelength_v0",
+      "variables": [],
+      "template": "const char *temp_file_path = FUZZ_PARAM_FILE(256);\n\nFILE *file = fopen(temp_file_path, \"r\");\nif (!file) {\n    FUZZ_BAIL();\n}\n\nlong int file_length = cmsfilelength(file);\nif (file_length == -1L) {\n    fclose(file);\n    FUZZ_BAIL();\n}\n\nfclose(file);\n"
+    },
+    {
+      "name": "cmsCreateGrayProfile_v0",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "cmsToneCurve* transferFunction = cmsBuildGamma(NULL, FUZZ_PARAM(float));\nif (transferFunction == NULL) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsCreateGrayProfile(&__WhitePoint, transferFunction);\nif (profile == NULL) {\n    cmsFreeToneCurve(transferFunction);\n    FUZZ_BAIL();\n}\n\n// Clean up temporary objects\ncmsFreeToneCurve(transferFunction);"
+    },
+    {
+      "name": "cmsCreateXYZProfileTHR_v0",
+      "variables": [],
+      "template": "cmsHPROFILE profile = cmsCreateXYZProfileTHR(NULL);\nif (profile == NULL) FUZZ_BAIL();\n\n// Logo and additional required parameters to api can be added if needed\n\n// Verify profile creation\n// If any checks need to be implemented, you can go ahead, else you can just clean.\n\n// If successful, clean up issues\ncmsCloseProfile(profile);"
+    },
+    {
+      "name": "cmsCreateXYZProfileTHR_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsHPROFILE profile = cmsCreateXYZProfileTHR(__ContextID);\nif (profile == NULL) {\n    FUZZ_BAIL();\n}\n// Normally, the function would initialize or process further based on profile\n// However, since we are only asked to invoke cmsCreateXYZProfileTHR,\n// we will leave further processing and initialization out as the API\n// seems to handle it internally. The return value is already validated\n// to not be NULL, which means the profile creation was successful.\n\n// Cleanup is handled internally by the API as seen in its implementation,\n// specifically with cmsCloseProfile if something goes wrong during \n// additional processing. Therefore, we do not need any further clean-up here."
+    },
+    {
+      "name": "cmsNamedColorIndex_v0",
+      "variables": [],
+      "template": "const cmsNAMEDCOLORLIST* NamedColorList = (const cmsNAMEDCOLORLIST*)FUZZ_PARAM_FILE(64);\nconst char* Name = FUZZ_PARAM_STR(32);\n\nif (NamedColorList == NULL || Name == NULL) FUZZ_BAIL();\n\ncmsInt32Number index = cmsNamedColorIndex(NamedColorList, Name);\n\nif (index < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDeleteTransform_v0",
+      "variables": [
+        {
+          "name": "__hTransform",
+          "dir": "del",
+          "typ": "cmsHTRANSFORM"
+        }
+      ],
+      "template": "if (!__hTransform) FUZZ_BAIL();\ncmsDeleteTransform(__hTransform);"
+    },
+    {
+      "name": "cmsGetSupportedIntents_v0",
+      "variables": [
+        {
+          "name": "__nMax",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nMax == 0) FUZZ_BAIL();\n\ncmsUInt32Number* codes = (cmsUInt32Number*) gf_malloc(sizeof(cmsUInt32Number) * __nMax);\nif (codes == NULL) FUZZ_BAIL();\n\n// Initialize output parameter\n__return = cmsGetSupportedIntents(__nMax, codes, NULL);\n\n// Final memory cleanup\nif (__return > 0) {\n    gf_free(codes);\n} else {\n    gf_free(codes);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsGetSupportedIntents_v1",
+      "variables": [
+        {
+          "name": "__nMax",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Codes",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nMax == 0) FUZZ_BAIL();\n\ncmsUInt32Number supportedIntents = cmsGetSupportedIntents(__nMax, &__Codes, NULL);\nif (supportedIntents == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsMLUalloc_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nItems",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nItems == 0) FUZZ_BAIL();\n\ncmsMLU* result = cmsMLUalloc(__ContextID, __nItems);\nif (result == NULL) FUZZ_BAIL();\n\n// Initialize output arguments if needed\n// Since there are no additional output arguments in the API, we don't need to do anything else."
+    },
+    {
+      "name": "cmsGetAlarmCodes_v0",
+      "variables": [
+        {
+          "name": "__OldAlarm",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__OldAlarm == 0) FUZZ_BAIL();\n\ncmsUInt16Number alarmCodes[cmsMAXCHANNELS];\n\ncmsGetAlarmCodes(alarmCodes);\n\nif (alarmCodes[0] == 0) FUZZ_BAIL();\n\n// Further processing of alarm codes can be added here if necessary."
+    },
+    {
+      "name": "cmsBuildParametricToneCurve_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__Type",
+          "dir": "*",
+          "typ": "cmsInt32Number"
+        },
+        {
+          "name": "__Params",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\nif (__Type < 0) FUZZ_BAIL();\n\ncmsFloat64Number* paramsArray = (cmsFloat64Number*)gf_malloc(sizeof(cmsFloat64Number) * 1);\nif (paramsArray == NULL) FUZZ_BAIL();\n\nparamsArray[0] = __Params;\n\ncmsToneCurve* toneCurve = cmsBuildParametricToneCurve(__ContextID, __Type, paramsArray);\n\nif (toneCurve == NULL) {\n    gf_free(paramsArray);\n    FUZZ_BAIL();\n}\n\n// Clean up\n// Assuming further operations with toneCurve are not required, if so, they need to be added.\n\n// Free the temporary allocated paramsArray\ngf_free(paramsArray);"
+    },
+    {
+      "name": "cmsTempFromWhitePoint_v0",
+      "variables": [
+        {
+          "name": "__TempK",
+          "dir": "new",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "if (&__WhitePoint == NULL) FUZZ_BAIL();\n\ncmsFloat64Number tempKValue;\n\ncmsBool result = cmsTempFromWhitePoint(&tempKValue, &__WhitePoint);\n\nif (!result) FUZZ_BAIL();\n\n__TempK = tempKValue;"
+    },
+    {
+      "name": "cmsCreateLinearizationDeviceLink_v0",
+      "variables": [
+        {
+          "name": "__ColorSpace",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "cmsToneCurve* TransferFunctions[4];\n\n// Generate random tone curves as part of the TransferFunctions array\nfor (int i = 0; i < 4; ++i) {\n    TransferFunctions[i] = cmsBuildGamma(NULL, FUZZ_PARAM(float));\n    if (TransferFunctions[i] == NULL) {\n        FUZZ_BAIL();\n    }\n}\n\n// Call the target API function\ncmsHPROFILE profile = cmsCreateLinearizationDeviceLink(__ColorSpace, TransferFunctions);\nif (profile == NULL) {\n    FUZZ_BAIL();\n}\n\n// Cleanup allocated memory for the TransferFunctions\nfor (int i = 0; i < 4; ++i) {\n    cmsFreeToneCurve(TransferFunctions[i]);\n}"
+    },
+    {
+      "name": "cmsCreateLinearizationDeviceLink_v1",
+      "variables": [
+        {
+          "name": "__ColorSpace",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        },
+        {
+          "name": "__",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "cmsToneCurve* TransferFunctions[3] = { NULL, NULL, NULL }; // Initialize to NULL\n\n__ = cmsCreateLinearizationDeviceLink(__ColorSpace, TransferFunctions);\nif (__ == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsDupProfileSequenceDescription_v0",
+      "variables": [],
+      "template": "const cmsSEQ* pseq = (const cmsSEQ*) FUZZ_PARAM_FILE(64);\n\nif (pseq == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsSEQ* newSeq = cmsDupProfileSequenceDescription(pseq);\nif (newSeq == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up the allocated memory after usage\ncmsFreeProfileSequenceDescription(newSeq);"
+    },
+    {
+      "name": "cmsDupProfileSequenceDescription_v1",
+      "variables": [
+        {
+          "name": "__pseq",
+          "dir": "*",
+          "typ": "cmsSEQ"
+        }
+      ],
+      "template": "if (&__pseq == NULL) FUZZ_BAIL();\n\ncmsSEQ* result = cmsDupProfileSequenceDescription(&__pseq);\nif (result == NULL) FUZZ_BAIL();\n\n// Assuming further actions may be needed with result, but the primary focus is invoking the API\n// No allocation to free since result is directly from library alloc\n"
+    },
+    {
+      "name": "cmsDupProfileSequenceDescription_v2",
+      "variables": [
+        {
+          "name": "__NewSeq",
+          "dir": "new",
+          "typ": "cmsSEQ"
+        }
+      ],
+      "template": "if (&__NewSeq == nullptr) FUZZ_BAIL();\n\nconst cmsSEQ* inputSeq = (const cmsSEQ*) FUZZ_PARAM_FILE(1);\nif (inputSeq == nullptr) FUZZ_BAIL();\n\n__NewSeq = *cmsDupProfileSequenceDescription(inputSeq);\nif (&__NewSeq == nullptr) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "cmsFormatterForPCSOfProfile_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nBytes",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__lIsFloat",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\nif (__nBytes == 0) FUZZ_BAIL();\n\ncmsUInt32Number result = cmsFormatterForPCSOfProfile(__hProfile, __nBytes, __lIsFloat);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsStageAllocCLutFloat_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nGridPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__inputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__outputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nGridPoints == 0 || __inputChan == 0 || __outputChan == 0) FUZZ_BAIL();\n\nconst cmsUInt32Number Dimensions[] = { __nGridPoints, __nGridPoints, __nGridPoints, __nGridPoints, __nGridPoints };\n\ncmsStage* stage = cmsStageAllocCLutFloatGranular(__ContextID, Dimensions, __inputChan, __outputChan, NULL);\nif (stage == NULL) FUZZ_BAIL();\n\n// Clean up if necessary\nif (stage) { \n    gf_free(stage); \n}"
+    },
+    {
+      "name": "cmsStageAllocCLutFloat_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nGridPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__inputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__outputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Table",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "if (__nGridPoints == 0 || __inputChan == 0 || __outputChan == 0) FUZZ_BAIL();\n\n// Create a temporary buffer to hold the table data because it needs to be a pointer.\nconst cmsFloat32Number* tablePtr = &__Table;\n\n// Prepare dimensions for the LUT allocation, using the maximum input dimensions.\ncmsUInt32Number Dimensions[15];\nfor (int i = 0; i < 15; i++) {\n    Dimensions[i] = __nGridPoints;\n}\n\n// Invoke the API function to allocate the CLUT.\ncmsStage* lut = cmsStageAllocCLutFloatGranular(__ContextID, Dimensions, __inputChan, __outputChan, tablePtr);\nif (lut == NULL) FUZZ_BAIL();\n\n// Additional processing or setting up output resources can go here.\n// If necessary, clean up any temporary objects, etc."
+    },
+    {
+      "name": "cmsCreateLab4ProfileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsCIExyY whitePoint;\nwhitePoint.x = FUZZ_PARAM(double);\nwhitePoint.y = FUZZ_PARAM(double);\nwhitePoint.Y = FUZZ_PARAM(double);\n\n// Invoke the API with the generated parameters\ncmsHPROFILE result = cmsCreateLab4ProfileTHR(__ContextID, &whitePoint);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up any allocated resources (if necessary)\n// If the library manages the memory we can skip this part.\n\n// Other logic or further calls can be added as necessary."
+    },
+    {
+      "name": "cmsCreateLab4ProfileTHR_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsCreateLab4ProfileTHR(__ContextID, &__WhitePoint);\nif (profile == NULL) FUZZ_BAIL();\n\n// Example of using the created profile, further initialization or usage would go here\n\n// Clean-up would normally go here, but since we're in a fuzzing context, we assume the profile is used directly.\n\n// Remember to release any resources if done manually in a non-fuzzing context (like custom allocations)."
+    },
+    {
+      "name": "cmsstrcasecmp_v0",
+      "variables": [],
+      "template": "const char* str1 = FUZZ_PARAM_STR(20);\nconst char* str2 = FUZZ_PARAM_STR(20);\n\nif (!str1 || !str2) {\n    FUZZ_BAIL();\n}\n\nint result = cmsstrcasecmp(str1, str2);\nif (result < 0) {\n    // Handle the case where str1 is less than str2\n} else if (result > 0) {\n    // Handle the case where str1 is greater than str2\n} else {\n    // Strings are equal\n}"
+    },
+    {
+      "name": "cmsGetToneCurveEstimatedTableEntries_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "const cmsToneCurve* curve = (const cmsToneCurve*) FUZZ_PARAM_FILE(1024);\nif (curve == NULL) FUZZ_BAIL();\n\n__return = cmsGetToneCurveEstimatedTableEntries(curve);\n\nif (__return == 0) FUZZ_BAIL();\n\n// No need to clean up as we used a random file instead."
+    },
+    {
+      "name": "cmsReverseToneCurve_v0",
+      "variables": [],
+      "template": "cmsToneCurve* in_gamma = (cmsToneCurve*) FUZZ_PARAM_FILE(64);\n\nif (in_gamma == NULL) FUZZ_BAIL();\n\ncmsToneCurve* result = cmsReverseToneCurve(in_gamma);\nif (result == NULL) FUZZ_BAIL();\n\n// Assuming further usage of result, but as per the instruction, no specific output is detailed in the function signature."
+    },
+    {
+      "name": "cmsPRINTER_DEFAULT_SCREENS_v0",
+      "variables": [
+        {
+          "name": "__flags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if ((__flags & ~cmsPRINTER_DEFAULT_SCREENS) != 0) FUZZ_BAIL();\n\ncmsScreening screeningData;\nmemset(&screeningData, 0, sizeof(screeningData));\nscreeningData.Flag = __flags;\nscreeningData.nChannels = FUZZ_PARAM(cmsUInt32Number) % (cmsMAXCHANNELS + 1);\n\nfor (cmsUInt32Number i = 0; i < screeningData.nChannels; i++) {\n    screeningData.Channels[i].Frequency = FUZZ_PARAM(cmsFloat64Number);\n    screeningData.Channels[i].ScreenAngle = FUZZ_PARAM(cmsFloat64Number);\n    screeningData.Channels[i].SpotShape = FUZZ_PARAM(cmsUInt32Number) % 8;\n}\n\n// Call the API and get the result\n__result = cmsPRINTER_DEFAULT_SCREENS;\n\nif (!__result) FUZZ_BAIL();\n\n"
+    },
+    {
+      "name": "cmsNamedColorInfo_v0",
+      "variables": [
+        {
+          "name": "__nColor",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "const cmsNAMEDCOLORLIST* NamedColorList = (const cmsNAMEDCOLORLIST*) FUZZ_PARAM_FILE(1024);\n\nif (NamedColorList == NULL) FUZZ_BAIL();\n\nif (__nColor >= cmsNamedColorCount(NamedColorList)) FUZZ_BAIL();\n\nchar* Name = (char*) gf_malloc(256); // Allocating buffer for Name\nif (Name == NULL) FUZZ_BAIL();\n\nchar* Prefix = (char*) gf_malloc(256); // Allocating buffer for Prefix\nif (Prefix == NULL) { gf_free(Name); FUZZ_BAIL(); }\n\nchar* Suffix = (char*) gf_malloc(256); // Allocating buffer for Suffix\nif (Suffix == NULL) { gf_free(Name); gf_free(Prefix); FUZZ_BAIL(); }\n\ncmsUInt16Number PCS[3];\n\ncmsUInt16Number Colorant[cmsMAXCHANNELS];\n\ncmsBool result = cmsNamedColorInfo(NamedColorList, __nColor, Name, Prefix, Suffix, PCS, Colorant);\nif (result == FALSE) { gf_free(Name); gf_free(Prefix); gf_free(Suffix); FUZZ_BAIL(); }\n\n// Clean up\n gf_free(Name);\n gf_free(Prefix);\n gf_free(Suffix);"
+    },
+    {
+      "name": "cmsNamedColorInfo_v1",
+      "variables": [
+        {
+          "name": "__nColor",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__PCS",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "    // This function requires a valid cmsNAMEDCOLORLIST pointer to work with\n    cmsNAMEDCOLORLIST* NamedColorList = NULL;\n    // Note: The allocation of NamedColorList should be done prior to this function call, e.g., loading from a file or creating dynamically.\n\n    // Validate color index\n    if (__nColor < 0) FUZZ_BAIL();\n\n    // Suppose we have a temporary file with any required information\n    const char* temp_file_path = FUZZ_PARAM_FILE(64);\n    // Load or fill NamedColorList by using other necessary API functions (not shown here)\n    // For example: NamedColorList = cmsAllocNamedColorList(...);\n    // If NamedColorList initialization fails\n    // if (NamedColorList == NULL) FUZZ_BAIL();\n\n    // Check if the color index is valid\n    if (__nColor >= cmsNamedColorCount(NamedColorList)) FUZZ_BAIL();\n\n    // Prepare buffers\n    char Name[128];\n    char Prefix[64];\n    char Suffix[64];\n    cmsUInt16Number localPCS[3];\n    cmsUInt16Number localColorant[cmsMAXCHANNELS];\n\n    // Invoke the cmsNamedColorInfo API\n    cmsBool result = cmsNamedColorInfo(NamedColorList, __nColor, Name, Prefix, Suffix, localPCS, localColorant);\n    if (!result) FUZZ_BAIL();\n\n    // Clean-up logic if necessary\n    // FreeNamedColorList(NamedColorList); (if you allocated it here)\n"
+    },
+    {
+      "name": "cmsPipelineInputChannels_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "    // Initialize output\n    __return_value = 0;\n    \n    // Use Fuzzing utility to generate a random input file pointer\n    const char* fake_lut_path = FUZZ_PARAM_FILE(50);\n    \n    // In a real scenario, you would load a cmsPipeline object from the file\n    // However, for the fuzzing environment, let’s use dummy logic:\n    const cmsPipeline *lut = reinterpret_cast<const cmsPipeline*>(fake_lut_path);\n    if (lut == nullptr) {\n        FUZZ_BAIL(); // Invalid lut, cannot proceed\n    }\n    \n    // Invoke the library function with the created lut\n    __return_value = cmsPipelineInputChannels(lut);\n    \n    // Clean up any dynamically allocated resources, if applicable\n    // In this scenario, since we did not actually allocate anything we need to free\n    \n    // Note: Normally, if the lut was allocated it should be freed, but we only used a pointer to a path here.\n"
+    },
+    {
+      "name": "cmsCreateInkLimitingDeviceLink_v0",
+      "variables": [
+        {
+          "name": "__ColorSpace",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        },
+        {
+          "name": "__Limit",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "    // Initialize the return value\n    __Return_Value = NULL;\n\n    // Call the API function\n    __Return_Value = cmsCreateInkLimitingDeviceLink(__ColorSpace, __Limit);\n    if (__Return_Value == NULL) {\n        FUZZ_BAIL();\n    }"
+    },
+    {
+      "name": "cmsAppendNamedColor_v1",
+      "variables": [
+        {
+          "name": "__PCS",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "cmsNAMEDCOLORLIST* namedColorList = cmsAllocNamedColorList(/* ContextID */ NULL, FUZZ_PARAM(cmsUInt32Number), FUZZ_PARAM(cmsUInt32Number), NULL, NULL);\nif (namedColorList == NULL) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(20);\ncmsUInt16Number colorant[cmsMAXCHANNELS];\nfor (size_t i = 0; i < cmsMAXCHANNELS; ++i) {\n    colorant[i] = FUZZ_PARAM(cmsUInt16Number);\n}\n\ncmsBool result = cmsAppendNamedColor(namedColorList, name, &__PCS, colorant);\nif (!result) {\n    cmsFreeNamedColorList(namedColorList);\n    FUZZ_BAIL();\n}\n\ncmsFreeNamedColorList(namedColorList);\n"
+    },
+    {
+      "name": "cmsAppendNamedColor_v2",
+      "variables": [
+        {
+          "name": "__Colorant",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "cmsNAMEDCOLORLIST* namedColorList = cmsAllocNamedColorList(NULL, 1, __Colorant, \"\", \"\");\nif (namedColorList == NULL) FUZZ_BAIL();\n\nconst char* randomName = FUZZ_PARAM_STR(20);\n\ncmsUInt16Number randomPCS[3] = {FUZZ_PARAM(cmsUInt16Number), FUZZ_PARAM(cmsUInt16Number), FUZZ_PARAM(cmsUInt16Number)};\n\ncmsBool result = cmsAppendNamedColor(namedColorList, randomName, randomPCS, &__Colorant);\nif (!result) {\n    cmsFreeNamedColorList(namedColorList);\n    FUZZ_BAIL();\n}\n\ncmsFreeNamedColorList(namedColorList);"
+    },
+    {
+      "name": "cmsIT8GetPatchByName_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char *patchName = FUZZ_PARAM_STR(256);  // Assuming 256 is a suitable maximum length for the patch name\n\nint result = cmsIT8GetPatchByName(__hIT8, patchName);\nif (result < 0) FUZZ_BAIL();\n\n// Note: No temporary objects to clean up in this simple implementation."
+    },
+    {
+      "name": "cmsMLUtranslationsCount_v0",
+      "variables": [
+        {
+          "name": "__Returns",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "const cmsMLU* mlu = NULL; // This would normally point to a valid cmsMLU object in a real use case\nif (__Returns == 0) FUZZ_BAIL(); // Validating input parameter, no translations count should be 0, adjust accordingly\n\n// Assuming mlu is properly allocated and set up elsewhere, this is just an example\ncmsUInt32Number count = cmsMLUtranslationsCount(mlu);\n\nif (count == 0) {\n    FUZZ_BAIL(); // If no translations, handle the error case gracefully\n}\n\n// Cleanup if necessary (not using malloc/free since we're just invoking an API without creating allocs)\n"
+    },
+    {
+      "name": "cmsIT8SetComment_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char* comment = FUZZ_PARAM_STR(100);\nif (comment == NULL) FUZZ_BAIL();\n\ncmsBool result = cmsIT8SetComment(__hIT8, comment);\nif (!result) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsLabEncoded2FloatV2_v0",
+      "variables": [
+        {
+          "name": "__Lab",
+          "dir": "new",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__wLab",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__wLab == 0) FUZZ_BAIL();\n\n// Initialize the output argument __Lab\n__Lab.L = 0.0f;\n__Lab.a = 0.0f;\n__Lab.b = 0.0f;\n\n// Prepare wLab as a 3-element array\ncmsUInt16Number wLab[3];\nwLab[0] = (__wLab >> 0) & 0xFFFF;\nwLab[1] = (__wLab >> 16) & 0xFFFF;\nwLab[2] = (__wLab >> 32) & 0xFFFF;\n\n// Invoke the library function\ncmsLabEncoded2FloatV2(&__Lab, wLab);"
+    },
+    {
+      "name": "cmsMLUsetUTF8_v0",
+      "variables": [
+        {
+          "name": "__mlu",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__mlu == NULL) FUZZ_BAIL();\n\nconst char LanguageCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\nconst char CountryCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\nconst char* UTF8String = FUZZ_PARAM_STR(256);\n\ncmsBool result = cmsMLUsetUTF8((cmsMLU*)__mlu, LanguageCode, CountryCode, UTF8String);\nif (!result) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCreateProfilePlaceholder_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsCreateProfilePlaceholder(__ContextID);\nif (profile == NULL) FUZZ_BAIL();\n\n// Initialize any output argument or extra processing could go here, if needed.\n\n// Clean up not required since cmsCreateProfilePlaceholder manages its own memory.\n"
+    },
+    {
+      "name": "cmsOpenIOhandlerFromStream_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "FILE* tempFile = fopen(FUZZ_PARAM_FILE(1024), \"rb\");\nif (tempFile == NULL) FUZZ_BAIL();\n\ncmsIOHANDLER* iohandler = cmsOpenIOhandlerFromStream(__ContextID, tempFile);\nif (iohandler == NULL) {\n    fclose(tempFile);\n    FUZZ_BAIL();\n}\n\n// Cleanup - close the file and free the iohandler\nfclose(tempFile);\n// Assume release is handled elsewhere or through the API if necessary.\n// If a close function was needed, it would typically be invoked here. However, we follow API usage constrains.\nFUZZ_BAIL(); // Mark the end and note cleanup would be necessary if didn't exit here."
+    },
+    {
+      "name": "cmsStageAllocIdentity_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nChannels",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __nChannels == 0) FUZZ_BAIL();\n\ncmsStage* stage = cmsStageAllocIdentity(__ContextID, __nChannels);\nif (stage == NULL) FUZZ_BAIL();\n\n// Assuming no additional cleanup is needed as per library API, we are done with success."
+    },
+    {
+      "name": "cmsStageSampleCLutFloat_v0",
+      "variables": [
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "    cmsStage* mpe = NULL; // The mpe should be derived from the context where the function is used\n    void* Cargo = gf_malloc(sizeof(void*));\n    if (Cargo == NULL) FUZZ_BAIL();\n\n    cmsSAMPLERFLOAT Sampler = NULL; // The sampler needs to be appropriately defined as per library context\n    // Depending on the library functionality, more arguments might be needed.\n    // For now, let's assume standard parameters for the sample.\n\n    // Call the cmsStageSampleCLutFloat function\n    cmsBool result = cmsStageSampleCLutFloat(mpe, Sampler, Cargo, __dwFlags);\n    if (!result) FUZZ_BAIL();\n\n    // Cleanup\n    gf_free(Cargo);\n    // Note: mpe and Sampler should be cleaned up according to how they were allocated, if applicable."
+    },
+    {
+      "name": "cmsSetColorSpace_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetColorSpace(__hProfile, __sig);\n\n// Clean up is not necessary for this function since we have not allocated any dynamic resources.\n"
+    },
+    {
+      "name": "cmsFreeToneCurve_v0",
+      "variables": [],
+      "template": "cmsToneCurve* curve = (cmsToneCurve*)FUZZ_PARAM_FILE(256);\n\nif (curve == NULL) FUZZ_BAIL();\n\ncmsFreeToneCurve(curve);\n\n// Note that no additional memory management cleanup is necessary since we are not allocating memory here."
+    },
+    {
+      "name": "cmsStageAllocMatrix_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__Rows",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Cols",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Matrix",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__Rows == 0 || __Cols == 0) FUZZ_BAIL();\n\nif (__Rows >= UINT_MAX / __Cols) FUZZ_BAIL();\n\ncmsFloat64Number* matrixArray = (cmsFloat64Number*) gf_malloc(__Rows * __Cols * sizeof(cmsFloat64Number));\nif (matrixArray == NULL) FUZZ_BAIL();\n\n// Initialize matrixArray with random values\nfor (cmsUInt32Number i = 0; i < __Rows * __Cols; ++i) {\n    matrixArray[i] = FUZZ_PARAM(cmsFloat64Number);\n}\n\ncmsStage* stage = cmsStageAllocMatrix(__ContextID, __Rows, __Cols, matrixArray, NULL);\nif (stage == NULL) {\n    gf_free(matrixArray);\n    FUZZ_BAIL();\n}\n\ngf_free(matrixArray);"
+    },
+    {
+      "name": "cmsStageAllocMatrix_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__Rows",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Cols",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Matrix",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Offset",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__Rows == 0 || __Cols == 0) FUZZ_BAIL();\n\ncmsUInt32Number totalSize = __Rows * __Cols;\nif (totalSize < __Rows || totalSize < __Cols) FUZZ_BAIL();\n\ncmsStage* stage = cmsStageAllocMatrix(__ContextID, __Rows, __Cols, &__Matrix, &__Offset);\nif (stage == NULL) FUZZ_BAIL();\n\n// Cleanup can be handled here if necessary, but since we're using the library's memory management, we don't need to do manual deallocation."
+    },
+    {
+      "name": "cmsDoTransformStride_v0",
+      "variables": [
+        {
+          "name": "__Transform",
+          "dir": "*",
+          "typ": "cmsHTRANSFORM"
+        },
+        {
+          "name": "__Size",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Stride",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__Transform == NULL || __Size == 0 || __Stride == 0) FUZZ_BAIL();\n\nvoid* InputBuffer = gf_malloc(__Size * __Stride);\nif (InputBuffer == NULL) FUZZ_BAIL();\n\nvoid* OutputBuffer = gf_malloc(__Size * __Stride);\nif (OutputBuffer == NULL) {\n    gf_free(InputBuffer);\n    FUZZ_BAIL();\n}\n\n// Call the API function\ncmsDoTransformStride(__Transform, InputBuffer, OutputBuffer, __Size, __Stride);\n\n// Clean up resources\ngf_free(InputBuffer);\ngf_free(OutputBuffer);"
+    },
+    {
+      "name": "cmsGetProfileInfoASCII_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__BufferSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (!__hProfile || __BufferSize == 0) FUZZ_BAIL();\n\nchar* buffer = (char*) gf_malloc(__BufferSize);\nif (!buffer) FUZZ_BAIL();\n\nconst char languageCode[3] = { 'e', 'n', ' ' };\nconst char countryCode[3] = { 'U', 'S', ' ' };\n\n// Use a random value for Info, assuming it is an enum type and choosing a valid one from the known values.\ncmsInfoType info = FUZZ_PARAM(cmsInfoType);\n\ncmsUInt32Number result = cmsGetProfileInfoASCII(__hProfile, info, languageCode, countryCode, buffer, __BufferSize);\nif (result == 0) {\n    gf_free(buffer);\n    FUZZ_BAIL();\n}\n\n// Output processing not specified in the task, so we just free the buffer here.\ngf_free(buffer);"
+    },
+    {
+      "name": "cmsSetEncodedICCversion_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Version",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetEncodedICCversion(__hProfile, __Version);"
+    },
+    {
+      "name": "cmsGetTransformInputFormat_v0",
+      "variables": [
+        {
+          "name": "__hTransform",
+          "dir": "*",
+          "typ": "cmsHTRANSFORM"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hTransform == NULL) FUZZ_BAIL();\n\n__return = cmsGetTransformInputFormat(__hTransform);\n\nif (__return == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCreateLab2Profile_v1",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "if (&__WhitePoint == NULL) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsCreateLab2Profile(&__WhitePoint);\nif (profile == NULL) FUZZ_BAIL();\n\n// If necessary, initialize any output arguments or handle them after the profile has been created.\n\n// Clean up resources if needed\n// No temporary objects to clean up in this case since we're just using library functions.\n\n// Normally you'd also include any cleanup logic here if any other resources were created."
+    },
+    {
+      "name": "cmsCreateLab2Profile_v2",
+      "variables": [
+        {
+          "name": "__Return_Value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "cmsCIExyY* whitePoint = (cmsCIExyY*)gf_malloc(sizeof(cmsCIExyY));\nif (whitePoint == NULL) FUZZ_BAIL();\n\n// The structure needs to be filled with random data\nwhitePoint->x = FUZZ_PARAM(float);\nwhitePoint->y = FUZZ_PARAM(float);\nwhitePoint->Y = FUZZ_PARAM(float);\n\n// Invoke the cmsCreateLab2Profile function\n__Return_Value = cmsCreateLab2Profile(whitePoint);\nif (__Return_Value == NULL) {\n    gf_free(whitePoint);\n    FUZZ_BAIL();\n}\n\n// Cleanup\n\n// No additional output handling is required and free the allocated memory\ngf_free(whitePoint);"
+    },
+    {
+      "name": "cmsCreateLab2Profile_v3",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "if (&__Return_Value == NULL) FUZZ_BAIL();\n\n// Invoke the cmsCreateLab2Profile function\n__Return_Value = cmsCreateLab2Profile(&__WhitePoint);\n\n// Check if the return value is NULL, which indicates an error in profile creation\nif (__Return_Value == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsSetDeviceClass_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsProfileClassSignature"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\ncmsSetDeviceClass(__hProfile, __sig);\n"
+    },
+    {
+      "name": "cmsOpenProfileFromIOhandler2THR_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__write",
+          "dir": "*",
+          "typ": "cmsBool"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "cmsIOHANDLER* ioHandler = nullptr;\n\n// Create IO handler. Here we are faking the creation of the handler just to demonstrate the process.\nioHandler = cmsOpenIOhandlerFromFile(__ContextID, FUZZ_PARAM_FILE(64), \"rb\");\nif (ioHandler == nullptr) FUZZ_BAIL();\n\n// Create an empty profile placeholder\n___return_value_ = cmsCreateProfilePlaceholder(__ContextID);\nif (___return_value_ == nullptr) {\n    cmsCloseIOhandler(ioHandler);\n    FUZZ_BAIL();\n}\n\n// Prepare for the call to the library function\n___return_value_ = cmsOpenProfileFromIOhandler2THR(__ContextID, ioHandler, __write);\nif (___return_value_ == nullptr) {\n    cmsCloseProfile(___return_value_);\n    FUZZ_BAIL();\n}\n\n// If the profile was opened successfully, clean up IO handler\ncmsCloseIOhandler(ioHandler);"
+    },
+    {
+      "name": "cmsGetPostScriptCRD_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwBufferLen",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "void* buffer = gf_malloc(__dwBufferLen);\nif (buffer == NULL) FUZZ_BAIL();\n\ncmsUInt32Number dwBytesUsed = cmsGetPostScriptCRD(__ContextID, __hProfile, __Intent, __dwFlags, buffer, __dwBufferLen);\nif (dwBytesUsed == 0) {\n    gf_free(buffer);\n    FUZZ_BAIL();\n}\n\n// Normally you would check the content of buffer if necessary\n\ngf_free(buffer);"
+    },
+    {
+      "name": "cmsStageAllocCLut16bit_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nGridPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__inputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__outputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__inputChan > 15 || __nGridPoints == 0) {\n    FUZZ_BAIL();\n}\n\ncmsUInt16Number* clutTable = (cmsUInt16Number*)gf_malloc(__nGridPoints * __inputChan * sizeof(cmsUInt16Number));\nif (clutTable == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initializing the LUT Table with random values\nfor (cmsUInt32Number i = 0; i < __nGridPoints * __inputChan; i++) {\n    clutTable[i] = FUZZ_PARAM(cmsUInt16Number);\n}\n\ncmsStage* stage = cmsStageAllocCLut16bit(__ContextID, __nGridPoints, __inputChan, __outputChan, clutTable);\nif (stage == NULL) {\n    gf_free(clutTable);\n    FUZZ_BAIL();\n}\n\ngf_free(clutTable);"
+    },
+    {
+      "name": "cmsStageAllocCLut16bit_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nGridPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__inputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__outputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Table",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "const cmsUInt32Number MAX_INPUT_DIMENSIONS = 15;\n\nif (__inputChan > MAX_INPUT_DIMENSIONS) FUZZ_BAIL();\n\ncmsUInt32Number Dimensions[MAX_INPUT_DIMENSIONS];\nfor (int i = 0; i < MAX_INPUT_DIMENSIONS; i++) {\n    Dimensions[i] = __nGridPoints;\n}\n\ncmsStage* result = cmsStageAllocCLut16bitGranular(__ContextID, Dimensions, __inputChan, __outputChan, &__Table);\nif (result == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8LoadFromFile_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "const char* cFileName = FUZZ_PARAM_FILE(256);\n\nif (cFileName == NULL) FUZZ_BAIL();\n\ncmsHANDLE hIT8 = cmsIT8LoadFromFile(__ContextID, cFileName);\nif (hIT8 == NULL) FUZZ_BAIL();\n\n// Clean up if necessary, but in this case, hIT8 is allocated by the library and should be used as needed."
+    },
+    {
+      "name": "cmsXYZEncoded2Float_v0",
+      "variables": [
+        {
+          "name": "__fXYZ",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__XYZ",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "    // Validate input parameters\n    if (__XYZ == 0) FUZZ_BAIL();\n\n    // Initialize the output structure\n    __fXYZ = {0};\n\n    // Invoke the cmsXYZEncoded2Float function with appropriate arguments\n    cmsUInt16Number XYZ[3];\n    XYZ[0] = (__XYZ >> 0) & 0xFFFF; // Extracting the first component\n    XYZ[1] = (__XYZ >> 16) & 0xFFFF; // Extracting the second component\n    XYZ[2] = (__XYZ >> 32) & 0xFFFF; // Extracting the third component\n\n    cmsXYZEncoded2Float(&__fXYZ, XYZ);\n"
+    },
+    {
+      "name": "cmsIT8GetPropertyDbl_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "const char* cProp = FUZZ_PARAM_FILE(16);\n\n// Call the library function with fuzzed parameters\n___return_value_ = cmsIT8GetPropertyDbl(__hIT8, cProp);\n\n// Check the return value from the library function\nif (___return_value_ == 0.0) {\n    FUZZ_BAIL();\n}\n\n// If we reach this point, the call was successful."
+    },
+    {
+      "name": "cmsDetectTAC_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsFloat64Number result = cmsDetectTAC(__hProfile);\n\nif (result < 0) FUZZ_BAIL(); // Assuming negative result indicates an error."
+    },
+    {
+      "name": "cmsDeleteContext_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "del",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsDeleteContext(__ContextID);"
+    },
+    {
+      "name": "cmsGetPCS_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__",
+          "dir": "new",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__ = cmsGetPCS(__hProfile);\n\nif (__ == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDeltaE_v0",
+      "variables": [
+        {
+          "name": "__Lab1",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__Lab2",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "    // Validate input parameters\n    if (&__Lab1 == nullptr || &__Lab2 == nullptr) FUZZ_BAIL();\n\n    // Invoke cmsDeltaE with appropriate arguments\n    cmsFloat64Number deltaE = cmsDeltaE(&__Lab1, &__Lab2);\n\n    // Here, as deltaE does not need an output argument and nothing else needs initialization,\n    // there are no temporary objects to clean up. However, if we needed to manage memory,\n    // we would use gf_malloc and gf_free accordingly.\n\n    // No errors to handle post-invocation, as cmsDeltaE handles its own calculations."
+    },
+    {
+      "name": "cmsCloseProfile_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsBool result = cmsCloseProfile(__hProfile);\n\nif (!result && __return) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsGDBCompute_v0",
+      "variables": [
+        {
+          "name": "__hGBD",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hGBD == NULL) FUZZ_BAIL();\n\ncmsUInt32Number dwFlags = FUZZ_PARAM(cmsUInt32Number);\n__return = cmsGDBCompute(__hGBD, dwFlags);\n\nif (__return != TRUE) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGDBCompute_v1",
+      "variables": [
+        {
+          "name": "__hGBD",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hGBD == NULL) FUZZ_BAIL();\n\ncmsBool result = cmsGDBCompute(__hGBD, __dwFlags);\n\n__return = result;"
+    },
+    {
+      "name": "cmsGetPipelineContextID_v0",
+      "variables": [
+        {
+          "name": "__contextID",
+          "dir": "new",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsPipeline* lut = (cmsPipeline*)FUZZ_PARAM_FILE(128);\n\nif (lut == NULL) FUZZ_BAIL();  // Ensure lut is not NULL\n\n__contextID = cmsGetPipelineContextID(lut);\n\nif (__contextID == NULL) FUZZ_BAIL();  // Ensure output is valid"
+    },
+    {
+      "name": "cmsIT8TableCount_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\n__return_value = cmsIT8TableCount(__hIT8);\n\nif (__return_value == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsOpenProfileFromFileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "const char *filePath = FUZZ_PARAM_FILE(128);\nconst char *accessMode = FUZZ_PARAM_STR(1);\n\nif (accessMode[0] != 'r' && accessMode[0] != 'R' && accessMode[0] != 'w' && accessMode[0] != 'W') {\n    FUZZ_BAIL();\n}\n\ncmsHPROFILE profile = cmsOpenProfileFromFileTHR(__ContextID, filePath, accessMode);\nif (profile == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up is not necessary as the library handles it when the profile is closed.\n// If any cleanup was done, it would be here."
+    },
+    {
+      "name": "cmsSetHeaderRenderingIntent_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__RenderingIntent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetHeaderRenderingIntent(__hProfile, __RenderingIntent);"
+    },
+    {
+      "name": "cmsCreateLinearizationDeviceLinkTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__ColorSpace",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "const int nChannels = cmsChannelsOfColorSpace(__ColorSpace);\nif (nChannels < 1 || nChannels > 16) FUZZ_BAIL();\n\ncmsToneCurve* TransferFunctions[16];\nfor (int i = 0; i < nChannels; ++i) {\n    TransferFunctions[i] = (cmsToneCurve*)FUZZ_PARAM(int);\n}\n\ncmsHPROFILE result = cmsCreateLinearizationDeviceLinkTHR(__ContextID, __ColorSpace, TransferFunctions);\nif (result == NULL) FUZZ_BAIL();\n\n// Clean up any resources if needed\n"
+    },
+    {
+      "name": "cmsCIECAM02Forward_v0",
+      "variables": [
+        {
+          "name": "__hModel",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__pIn",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__pOut",
+          "dir": "new",
+          "typ": "cmsJCh"
+        }
+      ],
+      "template": "if (__hModel == NULL) FUZZ_BAIL();\nif (&__pIn == NULL) FUZZ_BAIL();\n\n// Initialize output structure\n__pOut.J = 0.0f;\n__pOut.C = 0.0f;\n__pOut.h = 0.0f;\n\n// Invoke the library function\ncmsCIECAM02Forward(__hModel, &__pIn, &__pOut);"
+    },
+    {
+      "name": "cmsSetProfileVersion_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Version",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetProfileVersion(__hProfile, __Version);"
+    },
+    {
+      "name": "cmsOpenProfileFromMemTHR_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__dwSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "if (__dwSize == 0) FUZZ_BAIL();\n\nconst char* MemPtr = FUZZ_PARAM_FILE(256);\nif (MemPtr == NULL) FUZZ_BAIL();\n\n__ = cmsOpenProfileFromMemTHR(__ContextID, MemPtr, __dwSize);\nif (__ == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsJoinToneCurve_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nResultingPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __nResultingPoints == 0) FUZZ_BAIL();\n\ncmsToneCurve* X = (cmsToneCurve*)FUZZ_PARAM_FILE(32);\ncmsToneCurve* Y = (cmsToneCurve*)FUZZ_PARAM_FILE(32);\n\nif (X == NULL || Y == NULL) FUZZ_BAIL();\n\ncmsToneCurve* result = cmsJoinToneCurve(__ContextID, X, Y, __nResultingPoints);\nif (result == NULL) FUZZ_BAIL();\n\n// Use result as necessary - this could involve processing the result, but since the behavior is unknown, it is omitted here.\n\n// Cleanup: assuming we are responsible for freeing any allocated resources, otherwise let the library handle them."
+    },
+    {
+      "name": "cmsIT8SetPropertyStr_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char *key = FUZZ_PARAM_STR(20);\nconst char *val = FUZZ_PARAM_STR(50);\n\ncmsBool result = cmsIT8SetPropertyStr(__hIT8, key, val);\n\nif (!result) FUZZ_BAIL();\n\n// No temporary objects to clean up since all are on stack."
+    },
+    {
+      "name": "cmsCIECAM02Init_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__pVC",
+          "dir": "*",
+          "typ": "cmsViewingConditions"
+        }
+      ],
+      "template": "if (&__pVC == NULL) FUZZ_BAIL();\n\ncmsHANDLE handle = cmsCIECAM02Init(__ContextID, &__pVC);\nif (handle == NULL) FUZZ_BAIL();\n\n// Additional checks and logic can be added here if necessary\n// Clean up handle if needed when done\ncmsCIECAM02Done(handle); // Ensures that resources are freed after usage"
+    },
+    {
+      "name": "cmsStageAllocToneCurves_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nChannels",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __nChannels == 0) FUZZ_BAIL();\n\ncmsToneCurve* curves[__nChannels];\nfor (cmsUInt32Number i = 0; i < __nChannels; i++) {\n    curves[i] = NULL;  // Initialize each curve pointer to NULL\n}\n\ncmsStage* result = cmsStageAllocToneCurves(__ContextID, __nChannels, curves);\nif (result == NULL) FUZZ_BAIL();\n\n// Assume we need to clean up any allocated curves if needed, though in this case we initialized them to NULL\n// which should be sufficient since they are not used."
+    },
+    {
+      "name": "cmsGetProfileInfoUTF8_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__BufferSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "const char LanguageCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' }; \nconst char CountryCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' }; \nchar* Buffer = (char*) gf_malloc(__BufferSize);\nif (Buffer == NULL) FUZZ_BAIL();\n\ncmsUInt32Number result = cmsGetProfileInfoUTF8(__hProfile, cmsInfoDescription, LanguageCode, CountryCode, Buffer, __BufferSize);\nif (result == 0) {\n    gf_free(Buffer);\n    FUZZ_BAIL();\n}\n\n// Normally you would use the data in Buffer here, but for fuzzing, we may not need to do anything further\ngf_free(Buffer);"
+    },
+    {
+      "name": "cmsIT8SetSheetType_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) { FUZZ_BAIL(); }\nconst char* type = FUZZ_PARAM_STR(10);\nif (cmsIT8SetSheetType(__hIT8, type) != TRUE) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "cmsSetLogErrorHandler_v0",
+      "variables": [],
+      "template": "cmsLogErrorHandlerFunction handler = (cmsLogErrorHandlerFunction)FUZZ_PARAM_FILE(64);\n\nif (handler == NULL) FUZZ_BAIL();\n\ncmsSetLogErrorHandler(handler);\n\n// No additional resources to clean up in this specific case."
+    },
+    {
+      "name": "cmsCreateRGBProfile_v0",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        },
+        {
+          "name": "__Primaries",
+          "dir": "*",
+          "typ": "cmsCIExyYTRIPLE"
+        }
+      ],
+      "template": "// Create a transfer function array (set to NULL for fuzzing)\ncmsToneCurve* TransferFunction[3] = { NULL, NULL, NULL };\n\n// Invoke the cmsCreateRGBProfile function\ncmsHPROFILE profile = cmsCreateRGBProfile(&__WhitePoint, &__Primaries, TransferFunction);\n\n// Check if profile creation failed\nif (profile == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up any temporary objects created - if applicable\n// In this case, no additional temporary objects need cleaning up\n\n// The function finished successfully; no further action required here."
+    },
+    {
+      "name": "cmsCreateRGBProfile_v1",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        },
+        {
+          "name": "__Primaries",
+          "dir": "*",
+          "typ": "cmsCIExyYTRIPLE"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "cmsToneCurve* transferFunction[3];\n\n// Initialize the transfer function with random values\nfor (int i = 0; i < 3; ++i) {\n    transferFunction[i] = NULL; // Placeholder until valid transfer functions are created\n}\n\n// Validate input parameters for WhitePoint and Primaries\nif (&__WhitePoint == NULL || &__Primaries == NULL) {\n    FUZZ_BAIL();\n}\n\n// Invoke the API with appropriate arguments\n__Return_Value = cmsCreateRGBProfile(&__WhitePoint, &__Primaries, transferFunction);\n\n// Check the return value for errors\nif (__Return_Value == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up any temporary objects if necessary (none in this case, as we're using direct pointers)"
+    },
+    {
+      "name": "cmsFreeToneCurveTriple_v0",
+      "variables": [],
+      "template": "cmsToneCurve* curves[3];\n\n// Allocate memory for each of the tone curves in the triple using fuzzing approach\nfor (int i = 0; i < 3; i++) {\n    curves[i] = (cmsToneCurve*) gf_malloc(1); // Allocate 1 byte for each tone curve pointer\n    if (curves[i] == NULL) {\n        FUZZ_BAIL(); // Failed to allocate memory\n    }\n}\n\n// Invoke the API function to free tone curves\ncmsFreeToneCurveTriple(curves);\n\n// Clean up the allocated pointers\nfor (int i = 0; i < 3; i++) {\n    curves[i] = NULL;\n}"
+    },
+    {
+      "name": "cmsIsToneCurveMonotonic_v0",
+      "variables": [
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "cmsToneCurve* t = (cmsToneCurve*) FUZZ_PARAM_FILE(1024);\nif (t == NULL) FUZZ_BAIL();\n\n__result = cmsIsToneCurveMonotonic(t);\n\n// No cleanup needed as we rely on the library's internal memory management."
+    },
+    {
+      "name": "cmsGetHeaderFlags_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\n__return = cmsGetHeaderFlags(__hProfile);\n\nif (__return == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGDBCheckPoint_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsBool"
+        },
+        {
+          "name": "__hGBD",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hGBD == nullptr) FUZZ_BAIL();\n\ncmsCIELab lab;\nlab.L = FUZZ_PARAM(float);\nlab.a = FUZZ_PARAM(float);\nlab.b = FUZZ_PARAM(float);\n\n__return_value = cmsGDBCheckPoint(__hGBD, &lab);"
+    },
+    {
+      "name": "cmsGDBCheckPoint_v1",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsBool"
+        },
+        {
+          "name": "__hGBD",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__Lab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "if (__hGBD == nullptr) FUZZ_BAIL();\n\n// Initialize the output value\n__return_value = FALSE;\n\n// Call the API function and check its success\n__return_value = cmsGDBCheckPoint(__hGBD, &__Lab);\n\nif (__return_value == FALSE) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDictAddEntry_v0",
+      "variables": [
+        {
+          "name": "__hDict",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hDict == NULL) FUZZ_BAIL();\n\nconst wchar_t entryName[256] = { FUZZ_PARAM(wchar_t) };\nconst wchar_t entryValue[256] = { FUZZ_PARAM(wchar_t) };\n\n// Allocate memory for DisplayName and DisplayValue using cmsMLUalloc\ncmsMLU* displayName = cmsMLUalloc(NULL, 1);\nif (displayName == NULL) FUZZ_BAIL();\n\ncmsMLU* displayValue = cmsMLUalloc(NULL, 1);\nif (displayValue == NULL) {\n    cmsMLUfree(displayName);\n    FUZZ_BAIL();\n}\n\n// Add entry to dictionary using cmsDictAddEntry\ncmsBool result = cmsDictAddEntry(__hDict, entryName, entryValue, displayName, displayValue);\n\n// Clean up\ncmsMLUfree(displayName);\ncmsMLUfree(displayValue);\n\nif (!result) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDictFree_v0",
+      "variables": [
+        {
+          "name": "__hDict",
+          "dir": "del",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hDict == NULL) FUZZ_BAIL();\n\ncmsDictFree(__hDict);"
+    },
+    {
+      "name": "cmsCreateTransformTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__Input",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Output",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __Input == NULL || __Output == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsHTRANSFORM transform = cmsCreateTransformTHR(__ContextID, __Input, __InputFormat, __Output, __OutputFormat, __Intent, __dwFlags);\nif (transform == NULL) {\n    FUZZ_BAIL();\n}\n\n// Further processing can be done here if necessary.\n// For fuzzing, we will just ensure that the transform was created successfully."
+    },
+    {
+      "name": "cmsSetPCS_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__pcs",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\nif (__pcs < 0) FUZZ_BAIL();\n\ncmsSetPCS(__hProfile, __pcs);"
+    },
+    {
+      "name": "cmsGetSupportedIntentsTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nMax",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "cmsUInt32Number *codes = (cmsUInt32Number *) gf_malloc(__nMax * sizeof(cmsUInt32Number));\nif (codes == NULL) FUZZ_BAIL();\n\nchar **descriptions = (char **) gf_malloc(__nMax * sizeof(char *));\nif (descriptions == NULL) {\n    gf_free(codes);\n    FUZZ_BAIL();\n}\n\ncmsUInt32Number nIntents = cmsGetSupportedIntentsTHR(__ContextID, __nMax, codes, descriptions);\nif (nIntents == 0) {\n    gf_free(codes);\n    gf_free(descriptions);\n    FUZZ_BAIL();\n}\n\n// Process the returned intents (example operation, modify as needed)\nfor (cmsUInt32Number i = 0; i < nIntents; i++) {\n    // Perform any necessary operation with codes[i] and descriptions[i]\n}\n\nfor (cmsUInt32Number i = 0; i < nIntents; i++) {\n    gf_free(descriptions[i]); // Free each description if it was dynamically allocated\n}\n\ngf_free(codes);\ngf_free(descriptions);"
+    },
+    {
+      "name": "cmsGetSupportedIntentsTHR_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nMax",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Codes",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == nullptr || __nMax <= 0) FUZZ_BAIL();\n\n// Allocate an array for Codes\ncmsUInt32Number* CodesArray = (cmsUInt32Number*) gf_malloc(__nMax * sizeof(cmsUInt32Number));\nif (CodesArray == nullptr) FUZZ_BAIL();\n\n// Initialize output reference\n__Codes = 0;\n\n// Invoke the library function\ncmsUInt32Number result = cmsGetSupportedIntentsTHR(__ContextID, __nMax, CodesArray, nullptr);\nif (result == 0) FUZZ_BAIL();\n\n// Process output\n__Codes = result;\n\n// Clean up\ngf_free(CodesArray);"
+    },
+    {
+      "name": "cmsUnregisterPluginsTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsUnregisterPluginsTHR(__ContextID);"
+    },
+    {
+      "name": "cmsBuildTabulatedToneCurve16_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nEntries",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Values",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__nEntries == 0) FUZZ_BAIL();\n\ncmsUInt16Number* valuesArr = (cmsUInt16Number*) gf_malloc(__nEntries * sizeof(cmsUInt16Number));\nif (!valuesArr) FUZZ_BAIL();\n\nfor (cmsUInt32Number i = 0; i < __nEntries; ++i) {\n    valuesArr[i] = FUZZ_PARAM(cmsUInt16Number);\n}\n\ncmsToneCurve* curve = cmsBuildTabulatedToneCurve16(__ContextID, __nEntries, valuesArr);\nif (curve == NULL) {\n    gf_free(valuesArr);\n    FUZZ_BAIL();\n}\n\n// Use curve for additional operations if needed\n\ngf_free(valuesArr);"
+    },
+    {
+      "name": "cmsCreateMultiprofileTransform_v0",
+      "variables": [
+        {
+          "name": "__hProfiles",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nProfiles",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nProfiles <= 0 || __nProfiles > 255) FUZZ_BAIL();\n\ncmsHTRANSFORM transform = cmsCreateMultiprofileTransform(&__hProfiles, __nProfiles, __InputFormat, __OutputFormat, __Intent, __dwFlags);\n\nif (transform == NULL) FUZZ_BAIL();\n\n// Successful execution, the transform can be used in further processing."
+    },
+    {
+      "name": "cmsGetColorSpace_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__return_value = cmsGetColorSpace(__hProfile);\nif (__return_value == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCreateLab2ProfileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsCIExyY randomWhitePoint;\n    randomWhitePoint.x = FUZZ_PARAM(double);\n    randomWhitePoint.y = FUZZ_PARAM(double);\n    randomWhitePoint.Y = FUZZ_PARAM(double);\n    \n    cmsHPROFILE profile = cmsCreateLab2ProfileTHR(__ContextID, &randomWhitePoint);\n    if (profile == NULL) {\n        FUZZ_BAIL();\n    }\n    cmsCloseProfile(profile);"
+    },
+    {
+      "name": "cmsCreateLab2ProfileTHR_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "cmsHPROFILE profile = cmsCreateLab2ProfileTHR(__ContextID, &__WhitePoint);\nif (profile == NULL) FUZZ_BAIL();\n\n// Additional cleanup is not necessary as the API handles it internally."
+    },
+    {
+      "name": "cmsGetHeaderManufacturer_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__return_value = cmsGetHeaderManufacturer(__hProfile);\n\nif (__return_value == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetToneCurveSegment_v1",
+      "variables": [
+        {
+          "name": "__n",
+          "dir": "*",
+          "typ": "cmsInt32Number"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "cmsCurveSegment"
+        }
+      ],
+      "template": "cmsToneCurve* toneCurve = (cmsToneCurve*) FUZZ_PARAM_FILE(256);\n\nif (toneCurve == NULL) {\n    FUZZ_BAIL();\n}\n\nconst cmsCurveSegment* segment = cmsGetToneCurveSegment(__n, toneCurve);\nif (segment == NULL) {\n    FUZZ_BAIL();\n}\n\n__return_value = *segment;"
+    },
+    {
+      "name": "cmsStageAllocCLutFloatGranular_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__clutPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__inputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__outputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__inputChan > 15) FUZZ_BAIL();\n\ncmsFloat32Number* table = NULL;\n\ncmsStage* result = cmsStageAllocCLutFloatGranular(__ContextID, &__clutPoints, __inputChan, __outputChan, table);\n\nif (result == NULL) FUZZ_BAIL();\n\n// Additional handling as needed to use 'result'\n"
+    },
+    {
+      "name": "cmsStageAllocCLutFloatGranular_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__clutPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__inputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__outputChan",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Table",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "if (__inputChan > 15) FUZZ_BAIL();\n\ncmsUInt32Number clutPoints[__clutPoints];\nfor (cmsUInt32Number i = 0; i < __clutPoints; i++) {\n    clutPoints[i] = FUZZ_PARAM(cmsUInt32Number);\n}\n\ncmsFloat32Number *table = (cmsFloat32Number *)gf_malloc(sizeof(cmsFloat32Number) * __outputChan);\nif (table == NULL) FUZZ_BAIL();\nfor (cmsUInt32Number i = 0; i < __outputChan; i++) {\n    table[i] = FUZZ_PARAM(cmsFloat32Number);\n}\n\ncmsStage* result = cmsStageAllocCLutFloatGranular(__ContextID, clutPoints, __inputChan, __outputChan, table);\nif (result == NULL) FUZZ_BAIL();\n\n// Clean up\ngf_free(table);"
+    },
+    {
+      "name": "cmsSetHeaderModel_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__model",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetHeaderModel(__hProfile, __model);\n"
+    },
+    {
+      "name": "cmsCreate_sRGBProfileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsCreate_sRGBProfileTHR(__ContextID);\nif (profile == NULL) FUZZ_BAIL();\n\n// Assuming a hypothetical cleanup procedure if needed, though cmsCreate_sRGBProfileTHR handles internal memory management."
+    },
+    {
+      "name": "cmsXYZ2xyY_v0",
+      "variables": [
+        {
+          "name": "__Dest",
+          "dir": "new",
+          "typ": "cmsCIExyY"
+        },
+        {
+          "name": "__Source",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "if (__Source.X < 0 || __Source.Y < 0 || __Source.Z < 0) FUZZ_BAIL();\n\ncmsFloat64Number ISum = 1.0 / (__Source.X + __Source.Y + __Source.Z);\n\nif (ISum == 0.0) FUZZ_BAIL();\n\n__Dest.x = (__Source.X) * ISum;\n__Dest.y = (__Source.Y) * ISum;\n__Dest.Y = __Source.Y;"
+    },
+    {
+      "name": "cmsSetAdaptationStateTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__d",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\nif (__d < 0.0) FUZZ_BAIL();\n\ncmsFloat64Number result = cmsSetAdaptationStateTHR(__ContextID, __d);\n\n// Here, we would usually do something with the result, but since the return value is unused, we're done."
+    },
+    {
+      "name": "cmsGetTransformContextID_v1",
+      "variables": [
+        {
+          "name": "__hTransform",
+          "dir": "*",
+          "typ": "cmsHTRANSFORM"
+        }
+      ],
+      "template": "if (__hTransform == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsContext contextID = cmsGetTransformContextID(__hTransform);\nif (contextID == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsGetTransformContextID_v2",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "new",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsHTRANSFORM transform = (cmsHTRANSFORM) FUZZ_PARAM_FILE(32);\n\nif (transform == NULL) FUZZ_BAIL();\n\n__ContextID = cmsGetTransformContextID(transform);\n\nif (__ContextID == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetTransformContextID_v3",
+      "variables": [
+        {
+          "name": "__hTransform",
+          "dir": "*",
+          "typ": "cmsHTRANSFORM"
+        },
+        {
+          "name": "__ContextID",
+          "dir": "new",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__hTransform == nullptr) FUZZ_BAIL();\n\n__ContextID = cmsGetTransformContextID(__hTransform);\nif (&__ContextID == nullptr) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsUnregisterPlugins_v0",
+      "variables": [],
+      "template": "\n    // Directly invoke the cmsUnregisterPlugins function as it doesn't take any parameters\n    cmsUnregisterPlugins();\n\n    // Since there are no output parameters or dynamic allocations,\n    // there's nothing to clean up or initialize.\n    \n    // No errors to check for, simply returning after the call.\n    // As per the instruction, FUZZ_BAIL() shouldn't be needed in this case."
+    },
+    {
+      "name": "cmsFloat2LabEncodedV2_v0",
+      "variables": [
+        {
+          "name": "__wLab",
+          "dir": "new",
+          "typ": "cmsUInt16Number"
+        },
+        {
+          "name": "__fLab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "    // Initialize output\n    __wLab = 0;\n\n    // Validate input parameters\n    if (__fLab.L < 0 || __fLab.L > 100.0) FUZZ_BAIL();\n    if (__fLab.a < -128.0 || __fLab.a > 127.0) FUZZ_BAIL();\n    if (__fLab.b < -128.0 || __fLab.b > 127.0) FUZZ_BAIL();\n\n    // Invoke the library API\n    cmsUInt16Number wLab[3];\n    cmsFloat2LabEncodedV2(wLab, &__fLab);\n\n    // Initialize the output reference\n    __wLab = wLab[0];  // Assuming you want the first component as output, adjust if needed\n"
+    },
+    {
+      "name": "cmsGetProfileIOhandler_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsIOHANDLER* handler = cmsGetProfileIOhandler(__hProfile);\nif (handler == NULL) FUZZ_BAIL();\n\n// Here we can use the handler if needed, but since the function merely retrieves it, we end with successful retrieval."
+    },
+    {
+      "name": "cmsLinkTag_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        },
+        {
+          "name": "__dest",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\nif (!cmsLinkTag(__hProfile, __sig, __dest)) FUZZ_BAIL();\n\n// Clean up or initialize any objects if necessary."
+    },
+    {
+      "name": "cmsSetAlarmCodesTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__AlarmCodesP",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsUInt16Number alarmCodes[cmsMAXCHANNELS];\nfor (int i = 0; i < cmsMAXCHANNELS; ++i) {\n    alarmCodes[i] = FUZZ_PARAM(cmsUInt16Number);\n}\n\ncmsSetAlarmCodesTHR(__ContextID, alarmCodes);"
+    },
+    {
+      "name": "cmsGetProfileContextID_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\n__return_value = cmsGetProfileContextID(__hProfile);\n\nif (__return_value == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8GetDataRowCol_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nint row = FUZZ_PARAM(int);\nint col = FUZZ_PARAM(int);\n\nconst char* result = cmsIT8GetDataRowCol(__hIT8, row, col);\nif (result == NULL) FUZZ_BAIL();\n\n// Assuming no additional cleanup is needed since we are not allocating any resources."
+    },
+    {
+      "name": "cmsCIE2000DeltaE_v0",
+      "variables": [
+        {
+          "name": "__Lab1",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__Lab2",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__Kl",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Kc",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Kh",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "cmsFloat64Number result = cmsCIE2000DeltaE(&__Lab1, &__Lab2, __Kl, __Kc, __Kh);\nif (result < 0) FUZZ_BAIL();  // assuming negative indicates an error in the API call\n// further use of result as needed, since it is outside the function scope, we are not losing the output\n"
+    },
+    {
+      "name": "cmsMLUsetASCII_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "\n    cmsMLU* mlu = (cmsMLU*)FUZZ_PARAM_FILE(64);\n    const char LanguageCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\n    const char CountryCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\n    const char* ASCIIString = FUZZ_PARAM_STR(64);\n\n    if (mlu == NULL) FUZZ_BAIL();\n\n    cmsBool result = cmsMLUsetASCII(mlu, LanguageCode, CountryCode, ASCIIString);\n    if (result != __return) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "cmsCreateProofingTransformTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__InputProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__ProofingProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nIntent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__ProofingIntent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __InputProfile == NULL || __OutputProfile == NULL || __ProofingProfile == NULL) FUZZ_BAIL();\n\ncmsHTRANSFORM transform = cmsCreateProofingTransformTHR(__ContextID, __InputProfile, __InputFormat, __OutputProfile, __OutputFormat, __ProofingProfile, __nIntent, __ProofingIntent, __dwFlags);\nif (transform == NULL) FUZZ_BAIL();\n\n// Use the transform for some processing here, if needed. (Placeholder for future use)\n\n// Clean up the transform using the appropriate API function\n// Assuming there's a cleanup function like cmsDeleteTransform to release resources\ncmsDeleteTransform(transform);"
+    },
+    {
+      "name": "cmsMLUgetUTF8_v0",
+      "variables": [
+        {
+          "name": "__BufferSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "const cmsMLU* mlu = (const cmsMLU*)FUZZ_PARAM_FILE(1024);\nconst char LanguageCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\nconst char CountryCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\nchar* Buffer = (char*)gf_malloc(__BufferSize);\nif (Buffer == NULL) FUZZ_BAIL();\n\n// Call the library function\ncmsUInt32Number result = cmsMLUgetUTF8(mlu, LanguageCode, CountryCode, Buffer, __BufferSize);\nif (result == 0) {\n    gf_free(Buffer);\n    FUZZ_BAIL();\n}\n\n// Example usage of Buffer if needed\n// ... process Buffer and result ...\n\ngf_free(Buffer);"
+    },
+    {
+      "name": "cmsIT8SetDataFormat_v0",
+      "variables": [
+        {
+          "name": "__h",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__h == NULL) FUZZ_BAIL();\n\nint n = FUZZ_PARAM(int);\nconst char* Sample = FUZZ_PARAM_STR(256);\n\nif (cmsIT8SetDataFormat(__h, n, Sample) != TRUE) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsPipelineAlloc_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__InputChannels",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputChannels",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__InputChannels == 0 || __OutputChannels == 0) FUZZ_BAIL();\n\ncmsPipeline* pipeline = cmsPipelineAlloc(__ContextID, __InputChannels, __OutputChannels);\nif (pipeline == NULL) FUZZ_BAIL();\n\n// If the pipeline is successfully created, we could do further processing here if required.\n\n// Clean up any temporary objects if created (not necessary in this case since no additional objects are created)."
+    },
+    {
+      "name": "cmsSaveProfileToMem_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__BytesNeeded",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__BytesNeeded = 0; // Initialize output argument\n\n// Since we want to calculate the needed space only, set MemPtr to NULL\nvoid* MemPtr = nullptr;\n\n// Call the cmsSaveProfileToMem to retrieve the size needed\ncmsBool result = cmsSaveProfileToMem(__hProfile, MemPtr, &__BytesNeeded);\nif (!result) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8LoadFromMem_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __len == 0) FUZZ_BAIL();\n\nconst char* input_data = FUZZ_PARAM_FILE(512); // Using a fixed size for the test input\nif (input_data == NULL) FUZZ_BAIL();\n\ncmsHANDLE handle = cmsIT8LoadFromMem(__ContextID, input_data, __len);\nif (handle == NULL) FUZZ_BAIL();\n\n// No memory cleanup is required as the library handles its own memory management."
+    },
+    {
+      "name": "cmsGetEncodedICCversion_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__return_value = cmsGetEncodedICCversion(__hProfile);\n\nif (__return_value == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsWhitePointFromTemp_v0",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "new",
+          "typ": "cmsCIExyY"
+        },
+        {
+          "name": "__TempK",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (___return_value_ != TRUE) FUZZ_BAIL();\n\n// Initialize output\n__WhitePoint = {};  // Initialize the struct\n\n// Call the library function\nif (cmsWhitePointFromTemp(&__WhitePoint, __TempK) != TRUE) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsPipelineOutputChannels_v0",
+      "variables": [
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "const cmsPipeline* lut = (const cmsPipeline*) FUZZ_PARAM_FILE(128);\n\nif (lut == NULL) FUZZ_BAIL();\n\n___return_value_ = cmsPipelineOutputChannels(lut);\n\n// Clean up the allocated resource if necessary, though from the invocation it appears we don't need to manage the lifetime of 'lut' here."
+    },
+    {
+      "name": "cmsDictDup_v0",
+      "variables": [
+        {
+          "name": "__hDict",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hDict == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsHANDLE newDict = cmsDictDup(__hDict);\nif (newDict == NULL) {\n    FUZZ_BAIL();\n}\n\n// Additional output can be initialized or logged if necessary."
+    },
+    {
+      "name": "cmsDictDup_v1",
+      "variables": [
+        {
+          "name": "__hDict",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__hNew",
+          "dir": "new",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hDict == NULL) FUZZ_BAIL();\n\n__hNew = cmsDictDup(__hDict);\nif (__hNew == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDetectBlackPoint_v0",
+      "variables": [
+        {
+          "name": "__BlackPoint",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\nif (__Intent != INTENT_PERCEPTUAL && __Intent != INTENT_RELATIVE_COLORIMETRIC && __Intent != INTENT_SATURATION) {\n    __BlackPoint.X = __BlackPoint.Y = __BlackPoint.Z = 0.0;\n    FUZZ_BAIL();\n}\n\ncmsBool result = cmsDetectBlackPoint(&__BlackPoint, __hProfile, __Intent, __dwFlags);\n\nif (!result) {\n    __BlackPoint.X = __BlackPoint.Y = __BlackPoint.Z = 0.0;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsLCh2Lab_v0",
+      "variables": [
+        {
+          "name": "__Lab",
+          "dir": "new",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__LCh",
+          "dir": "*",
+          "typ": "cmsCIELCh"
+        }
+      ],
+      "template": "// Initialize output Lab structure\n__Lab.L = 0; // assuming that L is a valid field, since it's defined as cmsFloat64Number\n__Lab.a = 0; // initializing to 0 as it will be set in the library call\n__Lab.b = 0; // initializing to 0 as it will be set in the library call\n\n// Invoke cmsLCh2Lab with appropriate arguments\ncmsCIELab* pLab = &__Lab;\ncmsCIELCh* pLCh = &__LCh;\ncmsLCh2Lab(pLab, pLCh);\n\n// Here no cleanup is needed as we haven't allocated memory but just used references directly."
+    },
+    {
+      "name": "cmsPipelineInsertStage_v0",
+      "variables": [],
+      "template": "cmsPipeline* lut = (cmsPipeline*)FUZZ_PARAM_FILE(1024);\ncmsStageLoc loc = FUZZ_PARAM(cmsStageLoc);\ncmsStage* mpe = (cmsStage*)FUZZ_PARAM_FILE(1024);\n\nif (lut == NULL || mpe == NULL) FUZZ_BAIL();\n\nif (!cmsPipelineInsertStage(lut, loc, mpe)) FUZZ_BAIL();\n\n// Clean up any temporary objects created\n// No dynamic memory with gf_malloc to clean up since we used FUZZ_PARAM_FILE for allocation here."
+    },
+    {
+      "name": "cmsMLUgetASCII_v0",
+      "variables": [
+        {
+          "name": "__mlu",
+          "dir": "*",
+          "typ": "cmsScreeningChannel"
+        },
+        {
+          "name": "__BufferSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "\n    // Validate input parameters\n    if (__BufferSize <= 0) {\n        FUZZ_BAIL();\n    }\n\n    // Prepare buffer for the ASCII output\n    char* Buffer = (char*) gf_malloc(__BufferSize);\n    if (Buffer == NULL) {\n        FUZZ_BAIL();\n    }\n\n    // Prepare language and country codes\n    const char LanguageCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\n    const char CountryCode[3] = { FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\n\n    // Here we cannot cast __mlu since it is of type cmsScreeningChannel\n    // Instead, we would ideally have a proper cmsMLU object to pass, for which additional logic would be needed.\n    // Since this was a misunderstanding of expectations, let’s indicate we find it invalid for now.\n    FUZZ_BAIL();\n\n    // Invoke the library API and handle output if a valid cmsMLU object was present\n    // cmsUInt32Number result = cmsMLUgetASCII(mlu, LanguageCode, CountryCode, Buffer, __BufferSize);\n    // Handle result and clean up appropriately\n    // gf_free(Buffer);\n"
+    },
+    {
+      "name": "cmsDupContext_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsContext newContext = cmsDupContext(__ContextID, NULL);\nif (newContext == NULL) FUZZ_BAIL();\n\n// Here you might want to initialize or work with newContext, but since no other output parameters are provided we will just return.\n// For example:\n// perform any other operations required with newContext\n\n// Clean up is handled by the library, no need for manual memory management for the context."
+    },
+    {
+      "name": "cmsDupContext_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == 0) FUZZ_BAIL();\n\nvoid* userData = NULL; // Placeholder, as we aren't using userData in this fuzzing\n\n__return_value = cmsDupContext(__ContextID, userData);\nif (__return_value == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8SaveToFile_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == nullptr) FUZZ_BAIL();\n\nconst char* filePath = FUZZ_PARAM_FILE(128);\nif (filePath == nullptr) FUZZ_BAIL();\n\ncmsBool result = cmsIT8SaveToFile(__hIT8, filePath);\nif (!result) FUZZ_BAIL();\n\n// Clean up happens automatically as no dynamic memory is allocated."
+    },
+    {
+      "name": "cmsSaveProfileToFile_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (!__hProfile) FUZZ_BAIL();\n\nconst char* file_path = FUZZ_PARAM_FILE(1024);\n\nif (!file_path) FUZZ_BAIL();\n\ncmsBool result = cmsSaveProfileToFile(__hProfile, file_path);\n\nif (result != __return) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsCreateInkLimitingDeviceLinkTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__ColorSpace",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        },
+        {
+          "name": "__Limit",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (__ColorSpace != cmsSigCmykData) {\n    FUZZ_BAIL();\n}\n\nif (__Limit < 1.0 || __Limit > 400) {\n    FUZZ_BAIL();\n}\n\ncmsHPROFILE profile = cmsCreateInkLimitingDeviceLinkTHR(__ContextID, __ColorSpace, __Limit);\nif (!profile) {\n    FUZZ_BAIL();\n}\n\n// Assuming that the function call executed successfully and we get a valid profile\n// Further cleanup or usage of `profile` can be done here if necessary."
+    },
+    {
+      "name": "cmsSetLogErrorHandlerTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "cmsLogErrorHandlerFunction handler = nullptr;\n\n// Invoke the cmsSetLogErrorHandlerTHR with a random context and handler\ncmsSetLogErrorHandlerTHR(__ContextID, handler);\n\nif (handler == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsIsToneCurveLinear_v0",
+      "variables": [],
+      "template": "cmsToneCurve* curve = cmsBuildTabulatedToneCurve16(NULL, FUZZ_PARAM(uint32_t), NULL);\nif (curve == NULL) FUZZ_BAIL();\n\ncmsBool result = cmsIsToneCurveLinear(curve);\nif (result == FALSE) FUZZ_BAIL();\n\ncmsFreeToneCurve(curve);"
+    },
+    {
+      "name": "cmsGetToneCurveParametricType_v0",
+      "variables": [
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsInt32Number"
+        }
+      ],
+      "template": "cmsToneCurve* curve = NULL;\n\n// Build a parametric tone curve.\ncurve = cmsBuildParametricToneCurve(NULL, FUZZ_PARAM(int), (cmsFloat64Number[]){FUZZ_PARAM(double), FUZZ_PARAM(double)});\nif (curve == NULL) FUZZ_BAIL();\n\n// Call the target function with the created curve and handle output.\n___return_value_ = cmsGetToneCurveParametricType(curve);\n\n// Clean up the tone curve after usage.\ncmsFreeToneCurve(curve);"
+    },
+    {
+      "name": "cmsD50_XYZ_v0",
+      "variables": [
+        {
+          "name": "__D50XYZ",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "// Initialize output parameter with the values from cmsD50_XYZ\nconst cmsCIEXYZ* d50xyz = cmsD50_XYZ();\nif (d50xyz == NULL) { FUZZ_BAIL(); }\n__D50XYZ = *d50xyz;"
+    },
+    {
+      "name": "cmsIT8SetTableByLabel_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char* cSet = FUZZ_PARAM_STR(20);\nconst char* cField = FUZZ_PARAM_STR(20);\nconst char* ExpectedType = FUZZ_PARAM_STR(20);\n\nint result = cmsIT8SetTableByLabel(__hIT8, cSet, cField, ExpectedType);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsPipelineUnlinkStage_v0",
+      "variables": [],
+      "template": "cmsPipeline* lut = (cmsPipeline*)FUZZ_PARAM_FILE(1024);\ncmsStageLoc loc = FUZZ_PARAM(cmsStageLoc);\ncmsStage** mpe = (cmsStage**)gf_malloc(sizeof(cmsStage*));\n\nif (mpe == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize output arguments to NULL\n*mpe = NULL;\n\n// Invoke cmsPipelineUnlinkStage\ncmsPipelineUnlinkStage(lut, loc, mpe);\n\n// Check if the unlinked stage pointer is valid\nif (*mpe == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up any temporary objects created\ngf_free(mpe);\n"
+    },
+    {
+      "name": "cmsGetHeaderAttributes_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Flags",
+          "dir": "new",
+          "typ": "cmsUInt64Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n// Initialize the output Flags to zero\n__Flags = 0;\n\n// Call the library API function to get header attributes\ncmsGetHeaderAttributes(__hProfile, &__Flags);"
+    },
+    {
+      "name": "cmsIT8SetIndexColumn_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char* randomSample = FUZZ_PARAM_STR(64);\n\nif (!cmsIT8SetIndexColumn(__hIT8, randomSample)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsCreateBCHSWabstractProfileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nLUTPoints",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Bright",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Contrast",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Hue",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__Saturation",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__TempSrc",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__TempDest",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "cmsHPROFILE profile = cmsCreateBCHSWabstractProfileTHR(__ContextID, __nLUTPoints, __Bright, __Contrast, __Hue, __Saturation, __TempSrc, __TempDest);\nif (profile == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDetectDestinationBlackPoint_v0",
+      "variables": [
+        {
+          "name": "__BlackPoint",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__result",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\nif (__Intent != INTENT_PERCEPTUAL &&\n    __Intent != INTENT_RELATIVE_COLORIMETRIC &&\n    __Intent != INTENT_SATURATION) {\n    __BlackPoint.X = __BlackPoint.Y = __BlackPoint.Z = 0.0;\n    FUZZ_BAIL();\n}\n\ncmsBool result = cmsDetectDestinationBlackPoint(&__BlackPoint, __hProfile, __Intent, 0);\nif (!result) {\n    __BlackPoint.X = __BlackPoint.Y = __BlackPoint.Z = 0.0;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsIT8SetTable_v0",
+      "variables": [
+        {
+          "name": "__IT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__nTable",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__IT8 == NULL || __nTable < 0) FUZZ_BAIL();\n\ncmsInt32Number result = cmsIT8SetTable(__IT8, __nTable);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetAlarmCodesTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__AlarmCodesP",
+          "dir": "new",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\n// Initialize output parameter\nmemset(&__AlarmCodesP, 0, sizeof(__AlarmCodesP));\n\n// Invoke the API function\ncmsGetAlarmCodesTHR(__ContextID, &__AlarmCodesP);"
+    },
+    {
+      "name": "cmsMLUtranslationsCodes_v0",
+      "variables": [
+        {
+          "name": "__idx",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__idx >= 3) FUZZ_BAIL();\n\nchar LanguageCode[3];\nchar CountryCode[3];\n\ncmsBool result = cmsMLUtranslationsCodes(NULL, __idx, LanguageCode, CountryCode);\n\nif (result == FALSE) FUZZ_BAIL();\n\n// Do something with LanguageCode and CountryCode if necessary\n"
+    },
+    {
+      "name": "cmsGDBAddPoint_v0",
+      "variables": [
+        {
+          "name": "__hGBD",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__Lab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hGBD == NULL) FUZZ_BAIL();\n\ncmsBool result;\nresult = cmsGDBAddPoint(__hGBD, &__Lab);\n\nif (result == FALSE) FUZZ_BAIL();\n\n___return_value_ = result;\n"
+    },
+    {
+      "name": "cmsCreateNULLProfile_v0",
+      "variables": [
+        {
+          "name": "__Return_value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "__Return_value = cmsCreateNULLProfile();\nif (__Return_value == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsCIE94DeltaE_v0",
+      "variables": [
+        {
+          "name": "__Lab1",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__Lab2",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "if (&__Lab1 == NULL || &__Lab2 == NULL) FUZZ_BAIL();\n\ncmsFloat64Number deltaE = cmsCIE94DeltaE(&__Lab1, &__Lab2);\n\nif (deltaE < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCIECAM02Reverse_v0",
+      "variables": [
+        {
+          "name": "__hModel",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__pIn",
+          "dir": "*",
+          "typ": "cmsJCh"
+        },
+        {
+          "name": "__pOut",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "if (__hModel == NULL) FUZZ_BAIL();\nif (&__pOut == NULL) FUZZ_BAIL();\n\ncmsCIEXYZ tempOut;\n\ncmsCIECAM02Reverse(__hModel, &__pIn, &tempOut);\n\n__pOut.X = tempOut.X;\n__pOut.Y = tempOut.Y;\n__pOut.Z = tempOut.Z;"
+    },
+    {
+      "name": "cmsAdaptToIlluminant_v0",
+      "variables": [
+        {
+          "name": "__Result",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__SourceWhitePt",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__Illuminant",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__Value",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "if (&__Result == nullptr) FUZZ_BAIL();\n\ncmsBool status = cmsAdaptToIlluminant(&__Result, &__SourceWhitePt, &__Illuminant, &__Value);\nif (!status) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDictNextEntry_v2",
+      "variables": [
+        {
+          "name": "__Return_Value",
+          "dir": "new",
+          "typ": "cmsDICTentry"
+        }
+      ],
+      "template": "cmsDICTentry entry_temp;\nconst cmsDICTentry* entry = &entry_temp;\n\n// Prepare the input, entry should not be null\nif (entry == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call cmsDictNextEntry API\nconst cmsDICTentry* nextEntry = cmsDictNextEntry(entry);\n\n// Check the return status\nif (nextEntry == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output argument\n__Return_Value = *nextEntry;"
+    },
+    {
+      "name": "cmsLab2LCh_v0",
+      "variables": [
+        {
+          "name": "__LCh",
+          "dir": "new",
+          "typ": "cmsCIELCh"
+        },
+        {
+          "name": "__Lab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "if (&__Lab == nullptr) FUZZ_BAIL();\n\n// Initialize output structure\n__LCh.L = 0;\n__LCh.C = 0;\n__LCh.h = 0;\n\n// Invoke the cmsLab2LCh function\ncmsLab2LCh(&__LCh, &__Lab);"
+    },
+    {
+      "name": "cmsGetHeaderCreationDateTime_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "struct tm creationDateTime;\n\nif (__hProfile == nullptr) FUZZ_BAIL();\n\nif (!cmsGetHeaderCreationDateTime(__hProfile, &creationDateTime)) FUZZ_BAIL();\n\n// Here you can process the creationDateTime if necessary, but currently we just fulfill the requirement."
+    },
+    {
+      "name": "cmsFormatterForColorspaceOfProfile_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nBytes",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__lIsFloat",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "cmsColorSpaceSignature colorSpace = cmsGetColorSpace(__hProfile);\nif (colorSpace == 0) FUZZ_BAIL(); // Ensure the color space is valid\n\ncmsUInt32Number colorSpaceBits = (cmsUInt32Number)_cmsLCMScolorSpace(colorSpace);\nif (colorSpaceBits == 0) FUZZ_BAIL(); // Check if colorSpaceBits is valid\n\ncmsInt32Number nOutputChans = cmsChannelsOfColorSpace(colorSpace);\nif (nOutputChans < 0) FUZZ_BAIL(); // Ensure valid number of output channels\n\n__nBytes &= 7; // Ensure bytes value is valid\n\ncmsUInt32Number formatter = cmsFormatterForColorspaceOfProfile(__hProfile, __nBytes, __lIsFloat);\nif (formatter == 0) FUZZ_BAIL(); // Check that formatter is valid\n"
+    },
+    {
+      "name": "cmsLab2XYZ_v0",
+      "variables": [
+        {
+          "name": "__xyz",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__Lab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "if (__Lab.L < -100 || __Lab.L > 100 || __Lab.a < -100 || __Lab.a > 100 || __Lab.b < -100 || __Lab.b > 100) FUZZ_BAIL();\n\n// Initialize the output variable\nmemset(&__xyz, 0, sizeof(__xyz));\n\n// Call the cmsLab2XYZ function with default WhitePoint as NULL\ncmsLab2XYZ(NULL, &__xyz, &__Lab);\n\n// Check output values for validity; replace with appropriate conditions for your context\nif (__xyz.X < 0 || __xyz.Y < 0 || __xyz.Z < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsLab2XYZ_v1",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__xyz",
+          "dir": "new",
+          "typ": "cmsCIEXYZ"
+        },
+        {
+          "name": "__Lab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "const cmsCIEXYZ* whitePoint = &__WhitePoint;\n\nif (&__WhitePoint == NULL) {\n    whitePoint = cmsD50_XYZ();\n}\n\ncmsLab2XYZ(whitePoint, &__xyz, &__Lab);\n\n__xyz.X = 0;  // Initialize for safety\n__xyz.Y = 0;\n__xyz.Z = 0;"
+    },
+    {
+      "name": "cmsOpenIOhandlerFromMem_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__size",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == nullptr || __size == 0) FUZZ_BAIL();\n\nchar* tempDataBuffer = (char*) gf_malloc(__size);\nif (tempDataBuffer == nullptr) FUZZ_BAIL();\n\n// Generate random data for the temporary buffer\nmemset(tempDataBuffer, 'A', __size);  // Fill with 'A' or similar placeholder data\n\nconst char* accessMode = \"r\";\n\ncmsIOHANDLER* handler = cmsOpenIOhandlerFromMem(__ContextID, (void*)tempDataBuffer, __size, accessMode);\nif (handler == nullptr) {\n    gf_free(tempDataBuffer);\n    FUZZ_BAIL();\n}\n\n// Normally, we would use the handler here. Check if we need to cleanup later."
+    },
+    {
+      "name": "cmsSetHeaderFlags_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Flags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetHeaderFlags(__hProfile, __Flags);"
+    },
+    {
+      "name": "cmsPipelineEvalFloat_v0",
+      "variables": [
+        {
+          "name": "__In",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        },
+        {
+          "name": "__Out",
+          "dir": "new",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "const cmsPipeline* lut = (const cmsPipeline*)FUZZ_PARAM_FILE(32);\n\nif (lut == NULL) FUZZ_BAIL();\n\n__Out = 0.0f;\n\ncmsPipelineEvalFloat(&__In, &__Out, lut);\n\nif (__Out < -10000.0f || __Out > 10000.0f) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8GetProperty_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char* key = FUZZ_PARAM_STR(10);\n\nconst char* property = cmsIT8GetProperty(__hIT8, key);\n\nif (property == NULL) FUZZ_BAIL();\n\n// Use the property as needed, if necessary\n"
+    },
+    {
+      "name": "cmsCMCdeltaE_v0",
+      "variables": [
+        {
+          "name": "__Lab1",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__Lab2",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__l",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__c",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "if (&__Lab1 == NULL || &__Lab2 == NULL) FUZZ_BAIL();\nif (__l <= 0 || __c <= 0) FUZZ_BAIL();\n\ncmsFloat64Number result = cmsCMCdeltaE(&__Lab1, &__Lab2, __l, __c);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetHeaderProfileID_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__ProfileID",
+          "dir": "new",
+          "typ": "cmsUInt8Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\ncmsUInt8Number profileID;\nmemset(&profileID, 0, sizeof(profileID));\n\ncmsGetHeaderProfileID(__hProfile, &profileID);\n\n__ProfileID = profileID;"
+    },
+    {
+      "name": "cmsTransform2DeviceLink_v0",
+      "variables": [
+        {
+          "name": "__hTransform",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__Version",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hTransform == NULL) FUZZ_BAIL();\n\n// Invoke the cmsTransform2DeviceLink function\ncmsHPROFILE result = cmsTransform2DeviceLink(__hTransform, __Version, __dwFlags);\n\nif (result == NULL) FUZZ_BAIL();\n\n// Additional code can be added here to utilize the result if necessary\nif (result != NULL) {\n    // Clean up the profile if we created one\n    // Assuming we have a function to close or free the profile, such as cmsCloseProfile\n    cmsCloseProfile(result);\n}"
+    },
+    {
+      "name": "cmsGetContextUserData_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\nvoid* userData = cmsGetContextUserData(__ContextID);\nif (userData == NULL) FUZZ_BAIL();\n\n// additional processing can be done with userData if needed"
+    },
+    {
+      "name": "cmsCreate_sRGBProfile_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "__return_value = cmsCreate_sRGBProfile();\nif (__return_value == NULL) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "cmsGBDFree_v0",
+      "variables": [
+        {
+          "name": "__hGBD",
+          "dir": "del",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hGBD == NULL) FUZZ_BAIL();\n\ncmsGBDFree(__hGBD);"
+    },
+    {
+      "name": "cmsOpenProfileFromMem_v0",
+      "variables": [
+        {
+          "name": "__dwSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__dwSize == 0) FUZZ_BAIL();\n\nconst char* MemPtr = FUZZ_PARAM_FILE(4096); // Assuming a reasonable size for the file\nif (!MemPtr) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsOpenProfileFromMem((void*)MemPtr, __dwSize);\nif (profile == NULL) FUZZ_BAIL();\n\n// No additional cleanup is required after invoking the API."
+    },
+    {
+      "name": "cmsSetHeaderProfileID_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__ProfileID",
+          "dir": "new",
+          "typ": "cmsUInt8Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__ProfileID = FUZZ_PARAM(cmsUInt8Number);\n\ncmsSetHeaderProfileID(__hProfile, &__ProfileID);"
+    },
+    {
+      "name": "cmsGBDAlloc_v0",
+      "variables": [],
+      "template": "cmsContext contextID = cmsCreateContext(NULL, NULL);\nif (contextID == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsHANDLE handle = cmsGBDAlloc(contextID);\nif (handle == NULL) {\n    cmsDeleteContext(contextID);\n    FUZZ_BAIL();\n}\n\n// Assume successful allocation, you would normally initialize any other output variables or state here.\n// As no other outputs are specified, no further action is needed here.\n\n// Clean up the context after use\ncmsDeleteContext(contextID);"
+    },
+    {
+      "name": "cmsIT8Free_v0",
+      "variables": [],
+      "template": "cmsHANDLE hIT8 = (cmsHANDLE) FUZZ_PARAM_FILE(128);\n\nif (hIT8 == NULL) FUZZ_BAIL();\n\ncmsIT8Free(hIT8);\n\n// No output parameters to initialize or clean up."
+    },
+    {
+      "name": "cmsIT8Free_v1",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "del",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) { FUZZ_BAIL(); }\n\ncmsIT8Free(__hIT8);"
+    },
+    {
+      "name": "cmsLabEncoded2Float_v0",
+      "variables": [
+        {
+          "name": "__Lab",
+          "dir": "new",
+          "typ": "cmsCIELab"
+        },
+        {
+          "name": "__wLab",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "    // Initialize output parameter\n    __Lab = {}; // Ensure the structure is initialized\n\n    // Validate input parameter\n    if (__wLab == 0) FUZZ_BAIL(); // Example of validation, assuming 0 is invalid.\n\n    // Prepare input array for cmsLabEncoded2Float\n    cmsUInt16Number wLab[3] = {__wLab, FUZZ_PARAM(cmsUInt16Number), FUZZ_PARAM(cmsUInt16Number)};\n\n    // Call the library function\n    cmsLabEncoded2Float(&__Lab, wLab);\n\n    // Check the output (if needed, some libraries might expect certain ranges)\n    if (__Lab.L < 0 || __Lab.L > 100) FUZZ_BAIL(); // Example range check\n    if (__Lab.a < -128 || __Lab.a > 127) FUZZ_BAIL(); // Example range check\n    if (__Lab.b < -128 || __Lab.b > 127) FUZZ_BAIL(); // Example range check\n"
+    },
+    {
+      "name": "cmsPipelineEval16_v0",
+      "variables": [
+        {
+          "name": "__In",
+          "dir": "*",
+          "typ": "cmsUInt16Number"
+        },
+        {
+          "name": "__Out",
+          "dir": "new",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "if (__In == 0) FUZZ_BAIL();\n\ncmsPipeline* lut = cmsPipelineAlloc(0, 1, 1);\nif (lut == NULL) FUZZ_BAIL();\n\n// Initialize output value\n__Out = 0;\n\n// Call the actual API function\ncmsPipelineEval16(&__In, &__Out, lut);\n\n// Clean up\ncmsPipelineFree(lut);"
+    },
+    {
+      "name": "cmsReadRawTag_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        },
+        {
+          "name": "__BufferSize",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\nif (__BufferSize == 0) FUZZ_BAIL();\n\n// Create a buffer for the tag data\nvoid* buffer = gf_malloc(__BufferSize);\nif (buffer == NULL) FUZZ_BAIL();\n\n// Call cmsReadRawTag\n__return_value = cmsReadRawTag(__hProfile, __sig, buffer, __BufferSize);\nif (__return_value == 0) {\n    gf_free(buffer);\n    FUZZ_BAIL();\n}\n\n// Clean up\ngf_free(buffer);"
+    },
+    {
+      "name": "cmsPipelineEvalReverseFloat_v0",
+      "variables": [
+        {
+          "name": "__Target",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        },
+        {
+          "name": "__Result",
+          "dir": "new",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "    // Initialize the result\n    __Result = 0.0f;\n\n    // Validate input parameters\n    if (__Target < 0) FUZZ_BAIL(); // Assuming negative values are invalid\n\n    // Call the API function, the API requires an array for the Target argument\n    cmsFloat32Number TargetArr[1] = {__Target};\n    cmsFloat32Number ResultArr[1];\n    if (!cmsPipelineEvalReverseFloat(TargetArr, ResultArr, NULL, NULL)) FUZZ_BAIL();\n\n    // Store result\n    __Result = ResultArr[0];"
+    },
+    {
+      "name": "cmsPipelineEvalReverseFloat_v1",
+      "variables": [
+        {
+          "name": "__Target",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        },
+        {
+          "name": "__Result",
+          "dir": "new",
+          "typ": "cmsFloat32Number"
+        },
+        {
+          "name": "__Hint",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "cmsFloat32Number x[3];\n\n// Initialize __Result\n__Result = 0.0f;\n\n// Validate inputs: Check if __Target and __Hint are finite numbers\nif (__Target < -1e6 || __Target > 1e6 || __Hint < -1e6 || __Hint > 1e6) {\n    FUZZ_BAIL();\n}\n\n// Prepare the hint array from __Hint\nx[0] = __Hint;\n// Invoke the target library API\ncmsBool success = cmsPipelineEvalReverseFloat(&__Target, &__Result, x, nullptr);\n\nif (!success) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsDesaturateLab_v0",
+      "variables": [
+        {
+          "name": "__Lab",
+          "dir": "*",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "double amax = FUZZ_PARAM(double);\ndouble amin = FUZZ_PARAM(double);\ndouble bmax = FUZZ_PARAM(double);\ndouble bmin = FUZZ_PARAM(double);\n\ncmsBool result = cmsDesaturateLab(&__Lab, amax, amin, bmax, bmin);\nif (result == FALSE) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsCreateMultiprofileTransformTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__hProfiles",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nProfiles",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nProfiles <= 0 || __nProfiles > 255) FUZZ_BAIL();\n\ncmsHTRANSFORM transform = cmsCreateMultiprofileTransformTHR(__ContextID, &__hProfiles, __nProfiles, __InputFormat, __OutputFormat, __Intent, __dwFlags);\nif (transform == NULL) FUZZ_BAIL();\n\n// Normally perform operations with the transform here, but since this is a fuzzing environment, we are only testing the API invocation."
+    },
+    {
+      "name": "cmsSaveProfileToStream_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "FILE* tempStream = tmpfile();\nif (!tempStream) { FUZZ_BAIL(); }\n\nif (!cmsSaveProfileToStream(__hProfile, tempStream)) { FUZZ_BAIL(); }\n\nif (fclose(tempStream) != 0) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "cmsPipelineFree_v0",
+      "variables": [],
+      "template": "const char* lut_file_path = FUZZ_PARAM_FILE(32);\nif (lut_file_path == NULL) {\n    FUZZ_BAIL();\n}\n\n// Here we will assume we can call cmsPipelineFree directly with a nullptr, as we cannot use the file directly\ncmsPipelineFree(NULL); // For demonstration. Replace with actual allocation in practical use."
+    },
+    {
+      "name": "cmsAllocProfileSequenceDescription_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__n",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__n == 0 || __n > 255) FUZZ_BAIL();\n\ncmsSEQ* Seq = (cmsSEQ*) gf_malloc(sizeof(cmsSEQ));\nif (Seq == NULL) FUZZ_BAIL();\n\nSeq->ContextID = __ContextID;\nSeq->seq = (cmsPSEQDESC*) gf_malloc(__n * sizeof(cmsPSEQDESC));\nif (Seq->seq == NULL) {\n    gf_free(Seq);\n    FUZZ_BAIL();\n}\n\nSeq->n = __n;\n\nfor (cmsUInt32Number i = 0; i < __n; i++) {\n    Seq->seq[i].Manufacturer = NULL;\n    Seq->seq[i].Model = NULL;\n}"
+    },
+    {
+      "name": "cmsAllocProfileSequenceDescription_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__n",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "cmsSEQ"
+        }
+      ],
+      "template": "if (__n == 0 || __n > 255) FUZZ_BAIL();\n\ncmsSEQ* seq = (cmsSEQ*) gf_malloc(sizeof(cmsSEQ));\nif (seq == NULL) FUZZ_BAIL();\n\nseq->ContextID = __ContextID;\nseq->seq = (cmsPSEQDESC*) gf_malloc(__n * sizeof(cmsPSEQDESC));\nif (seq->seq == NULL) {\n    gf_free(seq);\n    FUZZ_BAIL();\n}\n\nseq->n = __n;\n\nfor (cmsUInt32Number i = 0; i < __n; i++) {\n    seq->seq[i].Manufacturer = NULL;\n    seq->seq[i].Model = NULL;\n}\n\n___return_value_ = *seq;\n\ngf_free(seq->seq);\ngf_free(seq);"
+    },
+    {
+      "name": "cmsDoTransform_v0",
+      "variables": [
+        {
+          "name": "__Transform",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__Size",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (!__Transform || __Size == 0) FUZZ_BAIL();\n\nvoid* InputBuffer = gf_malloc(__Size);\nvoid* OutputBuffer = gf_malloc(__Size);\n\nif (!InputBuffer || !OutputBuffer) FUZZ_BAIL();\n\ncmsDoTransform(__Transform, InputBuffer, OutputBuffer, __Size);\n\ngf_free(InputBuffer);\ngf_free(OutputBuffer);"
+    },
+    {
+      "name": "cmsIT8DefineDblFormat_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char* formatter = FUZZ_PARAM_STR(32);\n\ncmsIT8DefineDblFormat(__hIT8, formatter);\n\n// No additional cleanup necessary as the function uses only primitive types and the handling is done by the API itself."
+    },
+    {
+      "name": "cmsIT8SetPropertyHex_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__Val",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "*",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) {\n    FUZZ_BAIL();\n}\n\n// Generate a temporary file path with fuzzable content\nconst char* cProp = FUZZ_PARAM_FILE(20);\n\n// Now invoke the cmsIT8SetPropertyHex function\nif (!cmsIT8SetPropertyHex(__hIT8, cProp, __Val)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "cmsGetEncodedCMMversion_v0",
+      "variables": [],
+      "template": "int version = cmsGetEncodedCMMversion();\nif (version < 0) FUZZ_BAIL();\n// Output the version or perform any further processing if needed."
+    },
+    {
+      "name": "cmsOpenIOhandlerFromNULL_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsIOHANDLER* handler = cmsOpenIOhandlerFromNULL(__ContextID);\nif (handler == NULL) FUZZ_BAIL();\n\n// Additional initialization or operations can be performed here if needed.\n"
+    },
+    {
+      "name": "cmsCreateDeviceLinkFromCubeFile_v0",
+      "variables": [],
+      "template": "cmsContext contextID = NULL; // Get a valid context or use the default one\n\nconst char* cubeFilePath = FUZZ_PARAM_FILE(100);\n\nif (cubeFilePath == NULL) FUZZ_BAIL();\n\n// Call the API function with the generated file path\ncmsHPROFILE profile = cmsCreateDeviceLinkFromCubeFileTHR(contextID, cubeFilePath);\n\n// Validate the result\nif (profile == NULL) FUZZ_BAIL();\n\n// Cleanup is managed by the API, but we might want to free resources using custom functions if created\n// In this case, there is no indication to free anything for provided contexts or profiles; assume it is handled internally.\n// If there were temporary allocations made in our code, we would free them here as well."
+    },
+    {
+      "name": "cmsCreateDeviceLinkFromCubeFile_v1",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "__return_value = nullptr;\n\nconst char* cubeFileName = FUZZ_PARAM_FILE(256);\n\nif (!cubeFileName) FUZZ_BAIL();\n\n__return_value = cmsCreateDeviceLinkFromCubeFile(cubeFileName);\n\nif (!__return_value) FUZZ_BAIL();\n\n// Note: There are no temporary objects to clean up since we are using the API directly."
+    },
+    {
+      "name": "cmsCreateDeviceLinkFromCubeFileTHR_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "const char* fileName = FUZZ_PARAM_FILE(100);\n\nif (!fileName) FUZZ_BAIL();\n\ncmsHPROFILE result = cmsCreateDeviceLinkFromCubeFileTHR(__ContextID, fileName);\n\nif (!result) FUZZ_BAIL();\n\n// Clean-up any temporary file created during the fuzzing."
+    },
+    {
+      "name": "cmsCreateProofingTransform_v0",
+      "variables": [
+        {
+          "name": "__InputProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__ProofingProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nIntent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__ProofingIntent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__InputProfile == NULL || __OutputProfile == NULL || __ProofingProfile == NULL) {\n    FUZZ_BAIL();\n}\n\ncmsHTRANSFORM transform = cmsCreateProofingTransform(\n    __InputProfile,\n    __InputFormat,\n    __OutputProfile,\n    __OutputFormat,\n    __ProofingProfile,\n    __nIntent,\n    __ProofingIntent,\n    __dwFlags\n);\n\nif (transform == NULL) {\n    FUZZ_BAIL();\n}\n\n// Normally, we'd use the transform for further processing here.\n// However, in a fuzzing context, we primarily validate\n// the successful creation of the transform.\n\n// Clean up: this would typically involve freeing the transform\n// when done, but since we're only testing creation, we skip this.\n// In realistic usage, you'd often call cmsDeleteTransform(transform);\n"
+    },
+    {
+      "name": "cmsGetTransformOutputFormat_v0",
+      "variables": [
+        {
+          "name": "__hTransform",
+          "dir": "*",
+          "typ": "cmsHTRANSFORM"
+        },
+        {
+          "name": "__outputFormat",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hTransform == nullptr) FUZZ_BAIL();\n\n__outputFormat = cmsGetTransformOutputFormat(__hTransform);\n\nif (__outputFormat == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDictAlloc_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsHANDLE handle = cmsDictAlloc(__ContextID);\nif (handle == NULL) FUZZ_BAIL();\n\n// Assuming handle doesn't require additional initialization, no cleanup necessary as per library requirements."
+    },
+    {
+      "name": "cmsDictAlloc_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\n__return = cmsDictAlloc(__ContextID);\nif (__return == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8Alloc_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\n\ncmsHANDLE handle = cmsIT8Alloc(__ContextID);\nif (handle == NULL) FUZZ_BAIL();\n\n// If needed, any other initialization or setup can be done here.\n\n// Clean up is handled by the library when the handle is done with."
+    },
+    {
+      "name": "cmsCreateExtendedTransform_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nProfiles",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__hProfiles",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__BPC",
+          "dir": "*",
+          "typ": "cmsBool"
+        },
+        {
+          "name": "__Intents",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__nGamutPCSposition",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL) FUZZ_BAIL();\nif (__nProfiles == 0) FUZZ_BAIL();\n\ncmsHPROFILE *profiles = (cmsHPROFILE*) gf_malloc(__nProfiles * sizeof(cmsHPROFILE));\nif (profiles == NULL) FUZZ_BAIL();\n\nfor (cmsUInt32Number i = 0; i < __nProfiles; i++) {\n    profiles[i] = __hProfiles; // Use the profile directly\n}\n\ncmsBool *bpc = (cmsBool*) gf_malloc(__nProfiles * sizeof(cmsBool));\nif (bpc == NULL) {\n    gf_free(profiles);\n    FUZZ_BAIL();\n}\n\nfor (cmsUInt32Number i = 0; i < __nProfiles; i++) {\n    bpc[i] = __BPC;\n}\n\ncmsUInt32Number *intents = (cmsUInt32Number*) gf_malloc(__nProfiles * sizeof(cmsUInt32Number));\nif (intents == NULL) {\n    gf_free(profiles);\n    gf_free(bpc);\n    FUZZ_BAIL();\n}\n\nfor (cmsUInt32Number i = 0; i < __nProfiles; i++) {\n    intents[i] = __Intents;\n}\n\ncmsFloat64Number *adaptationStates = NULL;  // Assuming NULL since it's not provided\ncmsHPROFILE hGamutProfile = NULL;  // Assuming no specific gamut profile is provided\n\ncmsHTRANSFORM hTransform = cmsCreateExtendedTransform(__ContextID, __nProfiles, profiles, bpc, intents, adaptationStates, hGamutProfile, __nGamutPCSposition, __InputFormat, __OutputFormat, __dwFlags);\n\nif (hTransform == NULL) {\n    gf_free(profiles);\n    gf_free(bpc);\n    gf_free(intents);\n    FUZZ_BAIL();\n}\n\n// Clean up\n    gf_free(profiles);\n    gf_free(bpc);\n    gf_free(intents);\n"
+    },
+    {
+      "name": "cmsCreateExtendedTransform_v3",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nProfiles",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__hProfiles",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__BPC",
+          "dir": "*",
+          "typ": "cmsBool"
+        },
+        {
+          "name": "__Intents",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__AdaptationStates",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__nGamutPCSposition",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nProfiles == 0) FUZZ_BAIL();\n\n// Create array of profiles\ncmsHPROFILE* profilesArray = (cmsHPROFILE*) gf_malloc(__nProfiles * sizeof(cmsHPROFILE));\nif (profilesArray == NULL) FUZZ_BAIL();\n\n// Fill the profiles array\nfor (cmsUInt32Number i = 0; i < __nProfiles; i++) {\n    profilesArray[i] = __hProfiles;\n}\n\n// Allocate memory for BPC, Intents, and Adaptation States arrays\ncmsBool* bpcArray = (cmsBool*) gf_malloc(__nProfiles * sizeof(cmsBool));\nif (bpcArray == NULL) { gf_free(profilesArray); FUZZ_BAIL(); }\n\ncmsUInt32Number* intentsArray = (cmsUInt32Number*) gf_malloc(__nProfiles * sizeof(cmsUInt32Number));\nif (intentsArray == NULL) { gf_free(profilesArray); gf_free(bpcArray); FUZZ_BAIL(); }\n\ncmsFloat64Number* adaptationStatesArray = (cmsFloat64Number*) gf_malloc(__nProfiles * sizeof(cmsFloat64Number));\nif (adaptationStatesArray == NULL) { gf_free(profilesArray); gf_free(bpcArray); gf_free(intentsArray); FUZZ_BAIL(); }\n\n// Initialize arrays\nfor (cmsUInt32Number i = 0; i < __nProfiles; i++) {\n    bpcArray[i] = __BPC;\n    intentsArray[i] = FUZZ_PARAM(cmsUInt32Number);\n    adaptationStatesArray[i] = __AdaptationStates;\n}\n\n// Invoke the API\ncmsHPROFILE gamutProfile = NULL; // Assuming no gamut profile is passed\ncmsHTRANSFORM transform = cmsCreateExtendedTransform(__ContextID, __nProfiles, profilesArray, bpcArray, intentsArray, adaptationStatesArray, gamutProfile, __nGamutPCSposition, __InputFormat, __OutputFormat, __dwFlags);\nif (transform == NULL) {\n    gf_free(profilesArray);\n    gf_free(bpcArray);\n    gf_free(intentsArray);\n    gf_free(adaptationStatesArray);\n    FUZZ_BAIL();\n}\n\n// Use the transform...\n\n// Clean up\ncmsDeleteTransform(transform);\n\ngf_free(profilesArray);\ngf_free(bpcArray);\ngf_free(intentsArray);\ngf_free(adaptationStatesArray);"
+    },
+    {
+      "name": "cmsCreateExtendedTransform_v4",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nProfiles",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__hProfiles",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intents",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__hGamutProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nGamutPCSposition",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __hProfiles == NULL || __hGamutProfile == NULL) FUZZ_BAIL();\n\nif (__nProfiles == 0 || __nProfiles > 255 || __Intents > 5 || __nGamutPCSposition >= 3) FUZZ_BAIL();\n\ncmsHPROFILE hProfilesArray[__nProfiles];\nmemcpy(hProfilesArray, &__hProfiles, __nProfiles * sizeof(cmsHPROFILE));\n\ncmsBool BPCArray[__nProfiles];\nmemset(BPCArray, 0, __nProfiles * sizeof(cmsBool)); // Set to false for all profiles\n\ncmsUInt32Number IntentsArray[__nProfiles];\nmemset(IntentsArray, 0, __nProfiles * sizeof(cmsUInt32Number));\nIntentsArray[__nProfiles - 1] = __Intents;\n\ncmsHTRANSFORM transform = cmsCreateExtendedTransform(__ContextID, __nProfiles, hProfilesArray, BPCArray, IntentsArray, NULL, __hGamutProfile, __nGamutPCSposition, __InputFormat, __OutputFormat, __dwFlags);\n\nif (transform == NULL) FUZZ_BAIL();\n\n// Use the transform as needed\n\n// Clean up\ncmsDeleteTransform(transform);"
+    },
+    {
+      "name": "cmsCreateExtendedTransform_v7",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nProfiles",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__hProfiles",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__BPC",
+          "dir": "*",
+          "typ": "cmsBool"
+        },
+        {
+          "name": "__Intents",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__AdaptationStates",
+          "dir": "*",
+          "typ": "cmsFloat64Number"
+        },
+        {
+          "name": "__hGamutProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__nGamutPCSposition",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__InputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__OutputFormat",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ContextID == NULL || __nProfiles == 0 || __hProfiles == NULL || __hGamutProfile == NULL) FUZZ_BAIL();\n\ncmsHPROFILE *profiles = (cmsHPROFILE *)gf_malloc(__nProfiles * sizeof(cmsHPROFILE));\nif (profiles == NULL) FUZZ_BAIL();\n\nfor (cmsUInt32Number i = 0; i < __nProfiles; i++) {\n    profiles[i] = __hProfiles; // Using the provided handle as it's assumed to be an array\n}\n\ncmsHTRANSFORM hTransform = cmsCreateExtendedTransform(__ContextID, __nProfiles, profiles, &__BPC, &__Intents, &__AdaptationStates, __hGamutProfile, __nGamutPCSposition, __InputFormat, __OutputFormat, __dwFlags);\n\nif (hTransform == NULL) {\n    gf_free(profiles); // Clean up allocated memory on failure\n    FUZZ_BAIL();\n}\n\n// Here we would typically do something with the created transform if needed\n\ncmsDeleteTransform(hTransform); // clean up to prevent memory leaks\n\ngf_free(profiles); // Clean up the memory allocated for profiles"
+    },
+    {
+      "name": "cmsGetHeaderModel_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\nif (&__return == nullptr) FUZZ_BAIL();\n\n__return = cmsGetHeaderModel(__hProfile);\n"
+    },
+    {
+      "name": "cmsGetDeviceClass_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsProfileClassSignature"
+        }
+      ],
+      "template": "if (__hProfile == nullptr) FUZZ_BAIL();\n\n__return_value = cmsGetDeviceClass(__hProfile);\n\nif (__return_value == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIsIntentSupported_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__UsedDirection",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "if (!__hProfile) FUZZ_BAIL();\n\n__ = cmsIsIntentSupported(__hProfile, __Intent, __UsedDirection);\n"
+    },
+    {
+      "name": "cmsOpenProfileFromFile_v0",
+      "variables": [],
+      "template": "const char *iccProfilePath = FUZZ_PARAM_FILE(32);\nconst char *accessType = FUZZ_PARAM_STR(4); // e.g. \"r\" or \"w\"\n\nif (iccProfilePath == NULL || accessType == NULL) FUZZ_BAIL();\n\ncmsHPROFILE profile = cmsOpenProfileFromFile(iccProfilePath, accessType);\n\nif (profile == NULL) FUZZ_BAIL();\n\n// Clean up if needed (no explicit cleanup required here as cmsOpenProfileFromFile handles its own memory)"
+    },
+    {
+      "name": "cmsOpenProfileFromFile_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "const char* filePath = FUZZ_PARAM_FILE(100); // Change 100 to the desired max file path length\nconst char* accessMode = FUZZ_PARAM_STR(2); // Access mode (e.g., \"r\", \"w\")\n\n// Initialize __return to NULL to ensure it has a valid state\n__return = NULL;\n\n// Call the library function to open the profile from file\n__return = cmsOpenProfileFromFile(filePath, accessMode);\n\n// Check for failure in opening the profile\nif (__return == NULL) {\n    FUZZ_BAIL();\n}\n// No need for additional cleanup, as no dynamic memory is allocated in this context."
+    },
+    {
+      "name": "cmsWriteTag_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__sig",
+          "dir": "*",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\nconst char* data_file = FUZZ_PARAM_FILE(100);\n\nif (!cmsWriteTag(__hProfile, __sig, data_file)) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsFreeProfileSequenceDescription_v0",
+      "variables": [],
+      "template": "cmsSEQ* seq = (cmsSEQ*) FUZZ_PARAM_FILE(256);\nif (seq == NULL) FUZZ_BAIL();\n\n// Here we would normally validate the contents of 'seq', assuming it was successfully read from the file.\n// If 'seq' lacks essential data, we should also call FUZZ_BAIL()\n\n// Invoke the library function to free the sequence description.\ncmsFreeProfileSequenceDescription(seq);\n\n// No cleanup necessary, as the memory will be managed by the library API itself."
+    },
+    {
+      "name": "cmsFreeProfileSequenceDescription_v1",
+      "variables": [
+        {
+          "name": "__pseq",
+          "dir": "del",
+          "typ": "cmsSEQ"
+        }
+      ],
+      "template": "if (&__pseq == NULL) FUZZ_BAIL();\n\ncmsFreeProfileSequenceDescription(&__pseq);\n"
+    },
+    {
+      "name": "cmsPipelineCat_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "    cmsPipeline* pipeline1 = (cmsPipeline*) FUZZ_PARAM_FILE(128);\n    cmsPipeline* pipeline2 = (cmsPipeline*) FUZZ_PARAM_FILE(128);\n\n    if (pipeline1 == NULL || pipeline2 == NULL) {\n        FUZZ_BAIL();\n    }\n\n    __return = cmsPipelineCat(pipeline1, pipeline2);\n\n    cmsPipelineFree(pipeline1);\n    cmsPipelineFree(pipeline2);\n"
+    },
+    {
+      "name": "cmsBuildTabulatedToneCurveFloat_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nEntries",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__nEntries == 0) FUZZ_BAIL();\n\ncmsFloat32Number* values = (cmsFloat32Number*) gf_malloc(__nEntries * sizeof(cmsFloat32Number));\nif (values == NULL) FUZZ_BAIL();\n\n// Populate the values array with random data\nfor (cmsUInt32Number i = 0; i < __nEntries; i++) {\n    values[i] = FUZZ_PARAM(float);\n}\n\ncmsToneCurve* curve = cmsBuildTabulatedToneCurveFloat(__ContextID, __nEntries, values);\nif (curve == NULL) {\n    gf_free(values);\n    FUZZ_BAIL();\n}\n\ngf_free(values);"
+    },
+    {
+      "name": "cmsBuildTabulatedToneCurveFloat_v1",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__nEntries",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__values",
+          "dir": "*",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "if (__nEntries == 0 || __values == NULL) FUZZ_BAIL();\n\ncmsFloat32Number* values = (cmsFloat32Number*) gf_malloc(__nEntries * sizeof(cmsFloat32Number));\nif (values == NULL) FUZZ_BAIL();\n\nfor (cmsUInt32Number i = 0; i < __nEntries; i++) {\n    values[i] = FUZZ_PARAM(cmsFloat32Number);\n}\n\ncmsToneCurve* result = cmsBuildTabulatedToneCurveFloat(__ContextID, __nEntries, values);\nif (result == NULL) {\n    gf_free(values);\n    FUZZ_BAIL();\n}\n\ngf_free(values);"
+    },
+    {
+      "name": "cmsGetPostScriptColorResource_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__Intent",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "cmsPSResourceType type = FUZZ_PARAM(cmsPSResourceType);\n\nif (__ContextID == NULL || __hProfile == NULL) FUZZ_BAIL();\n\ncmsUInt32Number result = cmsGetPostScriptColorResource(__ContextID, type, __hProfile, __Intent, __dwFlags, NULL);\n\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsGetTagCount_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\n__return = cmsGetTagCount(__hProfile);\nif (__return < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsIT8SetPropertyMulti_v0",
+      "variables": [
+        {
+          "name": "__hIT8",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hIT8 == NULL) FUZZ_BAIL();\n\nconst char* key = FUZZ_PARAM_STR(32);\nconst char* subKey = FUZZ_PARAM_STR(32);\nconst char* buffer = FUZZ_PARAM_STR(64);\n\ncmsBool result = cmsIT8SetPropertyMulti(__hIT8, key, subKey, buffer);\nif (!result) FUZZ_BAIL();"
+    },
+    {
+      "name": "cmsDictGetEntryList_v0",
+      "variables": [
+        {
+          "name": "__hDict",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "if (__hDict == NULL) FUZZ_BAIL();\n\nconst cmsDICTentry* entryList = cmsDictGetEntryList(__hDict);\n\nif (entryList == NULL) FUZZ_BAIL();\n\n// Perform any other necessary operations with entryList here\n// No need for cleanup as we do not allocate memory in this function."
+    },
+    {
+      "name": "cmsDictGetEntryList_v1",
+      "variables": [
+        {
+          "name": "__hDict",
+          "dir": "*",
+          "typ": "cmsHANDLE"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "cmsDICTentry"
+        }
+      ],
+      "template": "if (__hDict == NULL) FUZZ_BAIL();\n\nconst cmsDICTentry* entryList = cmsDictGetEntryList(__hDict);\nif (entryList == NULL) FUZZ_BAIL();\n\n__return = *entryList;"
+    },
+    {
+      "name": "cmsChannelsOfColorSpace_v0",
+      "variables": [
+        {
+          "name": "__ColorSpace",
+          "dir": "*",
+          "typ": "cmsColorSpaceSignature"
+        },
+        {
+          "name": "___returns_",
+          "dir": "new",
+          "typ": "cmsInt32Number"
+        }
+      ],
+      "template": "if (!(__ColorSpace >= 0 && __ColorSpace <= 255)) FUZZ_BAIL();\n\n___returns_ = cmsChannelsOfColorSpace(__ColorSpace);\n\nif (___returns_ < 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "cmsSetHeaderManufacturer_v0",
+      "variables": [
+        {
+          "name": "__hProfile",
+          "dir": "*",
+          "typ": "cmsHPROFILE"
+        },
+        {
+          "name": "__manufacturer",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__hProfile == NULL) FUZZ_BAIL();\n\ncmsSetHeaderManufacturer(__hProfile, __manufacturer);"
+    },
+    {
+      "name": "cmsAllocNamedColorList_v0",
+      "variables": [
+        {
+          "name": "__ContextID",
+          "dir": "*",
+          "typ": "cmsContext"
+        },
+        {
+          "name": "__n",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        },
+        {
+          "name": "__ColorantCount",
+          "dir": "*",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "if (__ColorantCount > cmsMAXCHANNELS) FUZZ_BAIL();\n\ncmsNAMEDCOLORLIST* buffer = cmsAllocNamedColorList(__ContextID, __n, __ColorantCount, FUZZ_PARAM_STR(32), FUZZ_PARAM_STR(32));\nif (buffer == NULL) FUZZ_BAIL();\n\n// Assuming no output arguments to initialize or clean up required."
+    },
+    {
+      "name": "cmsCreateLab4Profile_v0",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "cmsHPROFILE profile = cmsCreateLab4Profile(&__WhitePoint);\nif (profile == NULL) FUZZ_BAIL();\n\n// Assuming the above call is successful, we may want to clean up any temp objects created, if applicable.\n// For this API, we do not create any temporary objects, so nothing else is needed to clean up."
+    },
+    {
+      "name": "cmsCreateLab4Profile_v1",
+      "variables": [
+        {
+          "name": "__WhitePoint",
+          "dir": "*",
+          "typ": "cmsCIExyY"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "__return_value = cmsCreateLab4Profile(&__WhitePoint);\nif (__return_value == NULL) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "new cmsMHC2Type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsMHC2Type"
+        }
+      ],
+      "template": "cmsContext context = cmsCreateContext(NULL, NULL);\nif (context == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming the object needs to be zero-initialized\nmemset(&object, 0, sizeof(cmsMHC2Type));\n\n// Additional initialization logic can go here for object if required by the library.\n\n// Clean up: Destroy the context after usage\ncmsDeleteContext(context);"
+    },
+    {
+      "name": "new cmsPSEQDESC",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsPSEQDESC"
+        }
+      ],
+      "template": "cmsUInt32Number n = FUZZ_PARAM(cmsUInt32Number);\n\n// Allocate a cmsSEQ object using the library API.\ncmsSEQ* seq = cmsAllocProfileSequenceDescription(NULL, n);\nif (seq == NULL) FUZZ_BAIL();\n\n// Initialize the output object (copy the first profile description).\nif (n > 0) {\n    object = seq->seq[0];\n} else {\n    object = {}; // Initialize to an empty state if n is 0\n}\n\n// Free the allocated sequence after using it.\ncmsFreeProfileSequenceDescription(seq);\n"
+    },
+    {
+      "name": "new cmsCIELCh",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsCIELCh"
+        }
+      ],
+      "template": "object.L = FUZZ_PARAM(cmsFloat64Number);\nobject.C = FUZZ_PARAM(cmsFloat64Number);\nobject.h = FUZZ_PARAM(cmsFloat64Number);\nif (object.L < 0 || object.C < 0 || object.h < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new cmsViewingConditions",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsViewingConditions"
+        }
+      ],
+      "template": "cmsViewingConditions *vc = (cmsViewingConditions *)gf_malloc(sizeof(cmsViewingConditions));\nif (!vc) FUZZ_BAIL();\n\n// Initialize the fields of cmsViewingConditions with fuzzable parameters\nvc->La = FUZZ_PARAM(double);\nvc->D_value = FUZZ_PARAM(double);\nvc->surround = FUZZ_PARAM(uint32_t);\n\n// Call the library API to construct the object\ncmsHANDLE handle = cmsCIECAM02Init(NULL, vc);\nif (handle == NULL) {\n    gf_free(vc);\n    FUZZ_BAIL();\n}\n\n// Assume object is a reference or pointer type that can be initialized like this\nobject = *vc;\n// Clean up\ngf_free(vc);"
+    },
+    {
+      "name": "new cmsHTRANSFORM",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsHTRANSFORM"
+        }
+      ],
+      "template": "cmsHPROFILE inputProfile = cmsOpenProfileFromFile(FUZZ_PARAM_FILE(32), \"r\");\nif (inputProfile == NULL) FUZZ_BAIL();\n\ncmsHPROFILE outputProfile = cmsOpenProfileFromFile(FUZZ_PARAM_FILE(32), \"r\");\nif (outputProfile == NULL) {\n    gf_free(inputProfile);\n    FUZZ_BAIL();\n}\n\ncmsUInt32Number inputFormat = FUZZ_PARAM(cmsUInt32Number);\ncmsUInt32Number outputFormat = FUZZ_PARAM(cmsUInt32Number);\ncmsUInt32Number intent = FUZZ_PARAM(cmsUInt32Number);\ncmsUInt32Number dwFlags = FUZZ_PARAM(cmsUInt32Number);\n\nobject = cmsCreateTransform(inputProfile, inputFormat, outputProfile, outputFormat, intent, dwFlags);\nif (object == NULL) {\n    gf_free(inputProfile);\n    gf_free(outputProfile);\n    FUZZ_BAIL();\n}\n\ngf_free(inputProfile);\ngf_free(outputProfile);"
+    },
+    {
+      "name": "new cmsCurveSegment",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsCurveSegment"
+        }
+      ],
+      "template": "cmsFloat64Number params[10];\n\n// Initialize parameters with random values\nfor (int i = 0; i < 10; i++) {\n    params[i] = FUZZ_PARAM(double);\n}\n\n// Call the API to construct the object using the parameters\ncmsToneCurve* toneCurve = cmsBuildParametricToneCurve(NULL, FUZZ_PARAM(int), params);\n\nif (toneCurve == NULL) FUZZ_BAIL();\n\n// Now, initialize `object` appropriately (assuming it needs to be filled out)\nmemset(&object, 0, sizeof(cmsCurveSegment));\nmemmove(object.Params, params, sizeof(params));\nobject.nGridPoints = 0; // Example, adjust based on actual logic\n\n// Clean up the allocated tone curve object\ncmsFreeToneCurve(toneCurve);"
+    },
+    {
+      "name": "new cmsSEQ",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "cmsSEQ"
+        }
+      ],
+      "template": "cmsUInt32Number n = FUZZ_PARAM(cmsUInt32Number);\nif (n == 0 || n > 255) FUZZ_BAIL();\n\n// Call the API to allocate the object\ncmsSEQ* seq = cmsAllocProfileSequenceDescription(NULL, n);\nif (seq == NULL) FUZZ_BAIL();\n\nobject = *seq;\n// Cleanup\ncmsFreeProfileSequenceDescription(seq);"
+    },
+    {
+      "name": "delete cmsScreeningChannel",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsScreeningChannel"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsMHC2Type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsMHC2Type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsPSEQDESC",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsPSEQDESC"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsUInt16Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsUInt16Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsHANDLE",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsHANDLE"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsBool",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsBool"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsColorSpaceSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsColorSpaceSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCIELCh",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCIELCh"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsUInt32Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsUInt32Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsProfileID",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsProfileID"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsS15Fixed16Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsS15Fixed16Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsHPROFILE",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsHPROFILE"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsInt32Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsInt32Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsICCViewingConditions",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsICCViewingConditions"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsViewingConditions",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsViewingConditions"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsInt8Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsInt8Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsInt64Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsInt64Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCIEXYZ",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCIEXYZ"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsU16Fixed16Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsU16Fixed16Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCIEXYZTRIPLE",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCIEXYZTRIPLE"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsU8Fixed8Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsU8Fixed8Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsScreening",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsScreening"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsUInt64Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsUInt64Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCIELab",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCIELab"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCIExyYTRIPLE",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCIExyYTRIPLE"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsProfileClassSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsProfileClassSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsTagEntry",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsTagEntry"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsICCData",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsICCData"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsFloat32Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsFloat32Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsInt16Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsInt16Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsContext",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsContext"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsICCMeasurementConditions",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsICCMeasurementConditions"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsFloat64Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsFloat64Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsVideoSignalType",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsVideoSignalType"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsHTRANSFORM",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsHTRANSFORM"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsDICTentry",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsDICTentry"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsUInt8Number",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsUInt8Number"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCurveSegment",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCurveSegment"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCIExyY",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCIExyY"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsPlatformSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsPlatformSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsUcrBg",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsUcrBg"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsCurveSegSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsCurveSegSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsICCHeader",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsICCHeader"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsTagTypeSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsTagTypeSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsStageSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsStageSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsEncodedXYZNumber",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsEncodedXYZNumber"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsJCh",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsJCh"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsDateTimeNumber",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsDateTimeNumber"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsTagBase",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsTagBase"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsTagSignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsTagSignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsTechnologySignature",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsTechnologySignature"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete cmsSEQ",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "cmsSEQ"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

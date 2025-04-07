@@ -1,0 +1,29 @@
+{
+    "name": "pcre2",
+    "codebase": "/fuzz/pcre2",
+    "build": {
+        "source_files": [
+            "/fuzz/pcre2/.libs/libpcre2-8.a"
+        ],
+        "include_paths": [
+            "/fuzz/pcre2/src"
+        ],
+        "lib_paths": [],
+        "libs": [],
+        "flags": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "pcre2.h",
+                "language": "c"
+            }
+        ],
+        "defines": [
+            {
+                "name": "PCRE2_CODE_UNIT_WIDTH",
+                "value": "8"
+            }
+        ]
+    }
+}

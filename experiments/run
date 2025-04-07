@@ -44,7 +44,7 @@ def run(args):
         mount_path = Path('..') / args.mount
         if not mount_path.exists():
             raise RuntimeError(f'Mount path {mount_path} does not exist')
-        cmd += ['-v', f'{mount_path.absolute()}:/live/{args.mount}']
+        cmd += ['-v', f'{mount_path.absolute()}:/src/{args.mount}']
     cmd += ['--rm', f'gfafl_{args.experiment}', '/bin/bash', '-c', f'agf serve {args.port} >/dev/null 2>&1 & /bin/bash']
     
     result = subprocess.run(cmd)

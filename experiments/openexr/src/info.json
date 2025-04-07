@@ -1,0 +1,39 @@
+{
+    "name": "openexr",
+    "codebase": "/fuzz/openexr",
+    "build": {
+        "source_files": [
+            "/fuzz/openexr/src/lib/OpenEXRUtil/libOpenEXRUtil.a",
+            "/fuzz/openexr/src/lib/OpenEXR/libOpenEXR.a",
+            "/fuzz/openexr/src/lib/OpenEXRCore/libOpenEXRCore.a",
+            "/fuzz/openexr/src/lib/IlmThread/libIlmThread.a",
+            "/fuzz/openexr/src/lib/Iex/libIex.a",
+            "/fuzz/openexr/_deps/imath-build/src/Imath/libImath-3_1.a"
+        ],
+        "include_paths": [
+            "/fuzz/openexr/src/lib/OpenEXRCore",
+            "/fuzz/openexr/src/lib/OpenEXR",
+            "/fuzz/openexr/src/lib/OpenEXRUtil",
+            "/fuzz/openexr/cmake",
+            "/fuzz/openexr/_deps/imath-src/src/Imath",
+            "/fuzz/openexr/_deps/imath-build/config/",
+            "/fuzz/openexr/src/lib/Iex/"
+        ],
+        "lib_paths": [],
+        "libs": [
+            "stdc++",
+            "m"
+        ],
+        "flags": [
+            "-pthread"
+        ]
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "ImfCRgbaFile.h",
+                "language": "cpp"
+            }
+        ]
+    }
+}

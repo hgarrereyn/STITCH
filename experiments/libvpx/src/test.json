@@ -1,0 +1,988 @@
+{
+  "endpoints": [
+    {
+      "name": "vpx_codec_build_config_v0",
+      "variables": [],
+      "template": "const char *config = vpx_codec_build_config();\nif (!config) FUZZ_BAIL();\n\nsize_t config_length = strlen(config);\nif (config_length == 0) FUZZ_BAIL();\n\n// Here we can assume that the config string is used for further processing,\n// but for fuzzing, we primarily ensure that we get a valid response."
+    },
+    {
+      "name": "vpx_img_free_v0",
+      "variables": [
+        {
+          "name": "__img",
+          "dir": "del",
+          "typ": "vpx_image_t *"
+        }
+      ],
+      "template": "if (__img == NULL) {\n    FUZZ_BAIL();\n}\n\nvpx_img_free(__img);\n"
+    },
+    {
+      "name": "vpx_codec_version_str_v0",
+      "variables": [],
+      "template": "const char *version_str = vpx_codec_version_str();\nif (version_str == NULL) {\n    FUZZ_BAIL();\n}\n\nchar *output_buffer = (char *)gf_malloc(strlen(version_str) + 1);\nif (output_buffer == NULL) {\n    FUZZ_BAIL();\n}\n\nstrcpy(output_buffer, version_str);\n\n// Normally, you'd do something with output_buffer here.\n\n// Clean up temporary objects created.\ngf_free(output_buffer);"
+    },
+    {
+      "name": "vpx_img_set_rect_v0",
+      "variables": [
+        {
+          "name": "__img",
+          "dir": "*",
+          "typ": "vpx_image_t *"
+        }
+      ],
+      "template": "if (__img == NULL) FUZZ_BAIL();\nunsigned int x = FUZZ_PARAM(unsigned int);\nunsigned int y = FUZZ_PARAM(unsigned int);\nunsigned int w = FUZZ_PARAM(unsigned int);\nunsigned int h = FUZZ_PARAM(unsigned int);\n\nint result = vpx_img_set_rect(__img, x, y, w, h);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "vpx_codec_dec_init_ver_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "new",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__iface",
+          "dir": "*",
+          "typ": "vpx_codec_iface_t *"
+        }
+      ],
+      "template": "if (!__iface) FUZZ_BAIL();\n\n// Allocate memory for the codec context\n__ctx = (vpx_codec_ctx_t *)gf_malloc(sizeof(vpx_codec_ctx_t));\nif (!__ctx) FUZZ_BAIL();\n\n// Initialize the context memory\nmemset(__ctx, 0, sizeof(vpx_codec_ctx_t));\n\n// Additional configuration\nvpx_codec_dec_cfg_t cfg;\nmemset(&cfg, 0, sizeof(cfg)); // Assuming no special config for fuzzing\n\nvpx_codec_flags_t flags = FUZZ_PARAM(vpx_codec_flags_t);\nint version = VPX_DECODER_ABI_VERSION;  // Use the expected version\n\nvpx_codec_err_t res = vpx_codec_dec_init_ver(__ctx, __iface, &cfg, flags, version);\n\nif (res != VPX_CODEC_OK) {\n    gf_free(__ctx);\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "vpx_codec_dec_init_ver_v1",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "new",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__iface",
+          "dir": "*",
+          "typ": "vpx_codec_iface_t *"
+        },
+        {
+          "name": "__cfg",
+          "dir": "*",
+          "typ": "vpx_codec_dec_cfg_t *"
+        }
+      ],
+      "template": "if (!__iface || !__cfg) FUZZ_BAIL();\n\n__ctx = (vpx_codec_ctx_t *)gf_malloc(sizeof(vpx_codec_ctx_t));\nif (__ctx == NULL) FUZZ_BAIL();\n\nvpx_codec_flags_t flags = 0;\nint version = VPX_DECODER_ABI_VERSION;\n\nvpx_codec_err_t res = vpx_codec_dec_init_ver(__ctx, __iface, __cfg, flags, version);\nif (res != VPX_CODEC_OK) {\n    gf_free(__ctx);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_img_alloc_v0",
+      "variables": [
+        {
+          "name": "__fmt",
+          "dir": "*",
+          "typ": "vpx_img_fmt_t"
+        }
+      ],
+      "template": "vpx_image_t *img = NULL;\nunsigned int d_w = FUZZ_PARAM(unsigned int);\nunsigned int d_h = FUZZ_PARAM(unsigned int);\nunsigned int align = FUZZ_PARAM(unsigned int);\n\nimg = vpx_img_alloc(img, __fmt, d_w, d_h, align);\nif (img == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_img_alloc_v1",
+      "variables": [
+        {
+          "name": "__img",
+          "dir": "*",
+          "typ": "vpx_image_t *"
+        },
+        {
+          "name": "__fmt",
+          "dir": "*",
+          "typ": "vpx_img_fmt_t"
+        }
+      ],
+      "template": "if (__img == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int width = FUZZ_PARAM(unsigned int);\nunsigned int height = FUZZ_PARAM(unsigned int);\nunsigned int alignment = FUZZ_PARAM(unsigned int);\n\nif (width == 0 || height == 0 || alignment == 0 || alignment > 65536) {\n    FUZZ_BAIL();\n}\n\nvpx_image_t *result = vpx_img_alloc(__img, __fmt, width, height, alignment);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming __img is already initialized, we skip initializing it here."
+    },
+    {
+      "name": "vpx_img_wrap_v0",
+      "variables": [
+        {
+          "name": "__img",
+          "dir": "*",
+          "typ": "vpx_image_t *"
+        },
+        {
+          "name": "__fmt",
+          "dir": "*",
+          "typ": "vpx_img_fmt_t"
+        }
+      ],
+      "template": "if (__img == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int d_w = FUZZ_PARAM(unsigned int);\nunsigned int d_h = FUZZ_PARAM(unsigned int);\nunsigned int stride_align = 1; // Typically 1, adjusted if necessary\nunsigned char *img_data = NULL; // img_data must be handled correctly\n\n// Call the vpx_img_wrap function\nvpx_image_t *result = vpx_img_wrap(__img, __fmt, d_w, d_h, stride_align, img_data);\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_img_wrap_v1",
+      "variables": [
+        {
+          "name": "__img",
+          "dir": "*",
+          "typ": "vpx_image_t *"
+        },
+        {
+          "name": "__fmt",
+          "dir": "*",
+          "typ": "vpx_img_fmt_t"
+        },
+        {
+          "name": "__img_data",
+          "dir": "*",
+          "typ": "void *"
+        }
+      ],
+      "template": "if (!__img || __fmt == VPX_IMG_FMT_NONE || !__img_data) FUZZ_BAIL();\n\nvpx_image_t *result = vpx_img_wrap(__img, __fmt, 0, 0, 1, (unsigned char *)__img_data);\n\nif (!result) FUZZ_BAIL();\n\n// Assuming there are any necessary output initializations here, if needed."
+    },
+    {
+      "name": "vpx_codec_register_put_frame_cb_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__cb",
+          "dir": "*",
+          "typ": "vpx_codec_put_frame_cb_fn_t"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (!__ctx || !__cb) FUZZ_BAIL();\n\nvpx_codec_err_t result = vpx_codec_register_put_frame_cb(__ctx, __cb, NULL);\n\nif (result != VPX_CODEC_OK) FUZZ_BAIL();\n\n__return = result;"
+    },
+    {
+      "name": "vpx_codec_register_put_frame_cb_v1",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__cb",
+          "dir": "*",
+          "typ": "vpx_codec_put_frame_cb_fn_t"
+        },
+        {
+          "name": "__user_priv",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (!__ctx || !__cb || __return != VPX_CODEC_OK) FUZZ_BAIL();\n\nvpx_codec_err_t result = vpx_codec_register_put_frame_cb(__ctx, __cb, __user_priv);\n\nif (result != VPX_CODEC_OK) FUZZ_BAIL();\n\n__return = result;"
+    },
+    {
+      "name": "vpx_codec_error_detail_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        }
+      ],
+      "template": "if (!__ctx) FUZZ_BAIL();\n\nconst char *error_detail = vpx_codec_error_detail(__ctx);\n\nif (error_detail == NULL) {\n    // Handle the case where there is no error detail available (could be no error)\n    FUZZ_BAIL();\n}\n\nchar *fuzzable_error_detail = (char *)gf_malloc(strlen(error_detail) + 1);\nif (!fuzzable_error_detail) FUZZ_BAIL();\n\nstrcpy(fuzzable_error_detail, error_detail);\n// Here you can use the fuzzable_error_detail for further processing or testing\n\ngf_free(fuzzable_error_detail);"
+    },
+    {
+      "name": "vpx_codec_iface_name_v0",
+      "variables": [
+        {
+          "name": "__iface",
+          "dir": "*",
+          "typ": "vpx_codec_iface_t *"
+        }
+      ],
+      "template": "if (__iface == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char* name = vpx_codec_iface_name(__iface);\nif (name == NULL) {\n    FUZZ_BAIL();\n}\n\n// This function does not require output arguments or cleanup, so we just return."
+    },
+    {
+      "name": "vpx_codec_destroy_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (__ctx == NULL) {\n    FUZZ_BAIL();\n}\n\nvpx_codec_err_t result = vpx_codec_destroy(__ctx);\n\nif (result != VPX_CODEC_OK) {\n    FUZZ_BAIL();\n} \n\n__return = result;"
+    },
+    {
+      "name": "vpx_codec_error_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        }
+      ],
+      "template": "if (!__ctx) {\n    FUZZ_BAIL();\n}\n\nconst char *error_message = vpx_codec_error(__ctx);\nif (!error_message) {\n    FUZZ_BAIL();\n}\n\n// Use error_message or store it as needed, but based on the context, we may just ensure it's valid.\n"
+    },
+    {
+      "name": "vpx_codec_register_put_slice_cb_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__cb",
+          "dir": "*",
+          "typ": "vpx_codec_put_slice_cb_fn_t"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (!__ctx || !__cb) FUZZ_BAIL();\n\nvpx_codec_err_t result = vpx_codec_register_put_slice_cb(__ctx, __cb, NULL);\nif (result != VPX_CODEC_OK) FUZZ_BAIL();\n\n__return = result;"
+    },
+    {
+      "name": "vpx_codec_register_put_slice_cb_v1",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__cb",
+          "dir": "*",
+          "typ": "vpx_codec_put_slice_cb_fn_t"
+        },
+        {
+          "name": "__user_priv",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (!__ctx || !__cb || __return != VPX_CODEC_OK) FUZZ_BAIL();\n\nvpx_codec_err_t result = vpx_codec_register_put_slice_cb(__ctx, __cb, __user_priv);\nif (result != VPX_CODEC_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "vpx_codec_peek_stream_info_v0",
+      "variables": [
+        {
+          "name": "__iface",
+          "dir": "*",
+          "typ": "vpx_codec_iface_t *"
+        },
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__si",
+          "dir": "new",
+          "typ": "vpx_codec_stream_info_t *"
+        },
+        {
+          "name": "__res",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (!__iface || !__data || !__si) FUZZ_BAIL();\n\n__si = (vpx_codec_stream_info_t *) gf_malloc(sizeof(vpx_codec_stream_info_t));\nif (!__si) FUZZ_BAIL();\n\n__si->sz = sizeof(vpx_codec_stream_info_t);\n__si->w = 0;\n__si->h = 0;\n__si->is_kf = 0;\n\nvpx_codec_err_t result = vpx_codec_peek_stream_info(__iface, (const uint8_t *)__data, __res, __si);\nif (result != VPX_CODEC_OK) {\n    gf_free(__si);\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "vpx_codec_control__v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "if (!__ctx) FUZZ_BAIL();\n\nint ctrl_id = FUZZ_PARAM(int);\n\n__result = vpx_codec_control_(__ctx, ctrl_id);\n\nif (__result != VPX_CODEC_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_codec_err_to_string_v0",
+      "variables": [
+        {
+          "name": "__err",
+          "dir": "*",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "const char *error_string = vpx_codec_err_to_string(__err);\n\nif (error_string == NULL) {\n    FUZZ_BAIL();\n}\n\n// Optionally, you may do something with error_string, e.g., logging or further processing\n// However, as per the task, no further operations are specified."
+    },
+    {
+      "name": "vpx_codec_get_frame_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__iter",
+          "dir": "*",
+          "typ": "vpx_codec_iter_t *"
+        }
+      ],
+      "template": "if (!__ctx || !__iter) { FUZZ_BAIL(); }\n\nvpx_image_t *frame = vpx_codec_get_frame(__ctx, __iter);\n\nif (!frame) { FUZZ_BAIL(); }\n// Additional processing with the retrieved frame can be done here if needed."
+    },
+    {
+      "name": "vpx_codec_get_frame_v1",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__iter",
+          "dir": "*",
+          "typ": "vpx_codec_iter_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "vpx_image_t"
+        }
+      ],
+      "template": "if (!__ctx || !__iter) {\n    FUZZ_BAIL();\n}\n\n__return = *vpx_codec_get_frame(__ctx, __iter);\nif (__return.img_data == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_codec_get_stream_info_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__si",
+          "dir": "new",
+          "typ": "vpx_codec_stream_info_t *"
+        }
+      ],
+      "template": "if (!__ctx || !__si) FUZZ_BAIL();\n\n__si = (vpx_codec_stream_info_t *)gf_malloc(sizeof(vpx_codec_stream_info_t));\nif (!__si) FUZZ_BAIL();\n\n__si->sz = sizeof(vpx_codec_stream_info_t);\n\nvpx_codec_err_t err = vpx_codec_get_stream_info(__ctx, __si);\nif (err != VPX_CODEC_OK) {\n    gf_free(__si);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_codec_version_v0",
+      "variables": [],
+      "template": "int version = vpx_codec_version();\nif (version <= 0) {\n    FUZZ_BAIL();\n}\n// Output version as needed or store it in a specific variable for further processing."
+    },
+    {
+      "name": "vpx_codec_decode_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        }
+      ],
+      "template": "const char *data = FUZZ_PARAM_FILE(1024); // Generate random data\nunsigned int data_sz = 1024; // Size of data to decode\nvoid *user_priv = NULL;  // Private user data\nlong deadline = 0; // No deadline for fuzzing\n\n// Validate the input context\nif (!__ctx) {\n    FUZZ_BAIL();\n}\n\n// Call the vpx_codec_decode function\nvpx_codec_err_t result = vpx_codec_decode(__ctx, (const uint8_t *)data, data_sz, user_priv, deadline);\n\n// Check the result of the decoding operation\nif (result != VPX_CODEC_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_codec_get_caps_v0",
+      "variables": [
+        {
+          "name": "__iface",
+          "dir": "*",
+          "typ": "vpx_codec_iface_t *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "vpx_codec_caps_t"
+        }
+      ],
+      "template": "if (__iface == nullptr) {\n    FUZZ_BAIL();\n}\n\n__return_value = vpx_codec_get_caps(__iface);\nif (__return_value < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_codec_version_extra_str_v0",
+      "variables": [],
+      "template": "const char *version_extra = vpx_codec_version_extra_str();\nif (version_extra == NULL) {\n    FUZZ_BAIL();\n}\n\n// Potentially log or use `version_extra` if needed\n// Since the function returns a constant string, no further processing is necessary.\n\n// Cleanup is not necessary here as the return is from a static string."
+    },
+    {
+      "name": "vpx_codec_set_frame_buffer_functions_v1",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "vpx_codec_ctx_t *"
+        },
+        {
+          "name": "__cb_get",
+          "dir": "*",
+          "typ": "vpx_get_frame_buffer_cb_fn_t"
+        },
+        {
+          "name": "__cb_release",
+          "dir": "*",
+          "typ": "vpx_release_frame_buffer_cb_fn_t"
+        },
+        {
+          "name": "__cb_priv",
+          "dir": "*",
+          "typ": "void *"
+        }
+      ],
+      "template": "if (__ctx == NULL || __cb_get == NULL || __cb_release == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = vpx_codec_set_frame_buffer_functions(__ctx, __cb_get, __cb_release, __cb_priv);\nif (result != VPX_CODEC_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "vpx_img_flip_v0",
+      "variables": [
+        {
+          "name": "__img",
+          "dir": "*",
+          "typ": "vpx_image_t *"
+        }
+      ],
+      "template": "if (__img == NULL) FUZZ_BAIL();\n\nvpx_img_flip(__img);\n// No output variables to initialize or clean up since we directly modify the passed image."
+    },
+    {
+      "name": "new vpx_ref_frame_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_ref_frame_t"
+        }
+      ],
+      "template": "vpx_image_t *img = NULL;\nvpx_img_fmt_t fmt = FUZZ_PARAM(vpx_img_fmt_t);\nunsigned int width = FUZZ_PARAM(unsigned int);\nunsigned int height = FUZZ_PARAM(unsigned int);\nunsigned int align = FUZZ_PARAM(unsigned int);\n\n// Attempt to allocate the image\nimg = vpx_img_alloc(img, fmt, width, height, align);\n\nif (!img) {\n    FUZZ_BAIL();\n}\n\n// Initialize the reference frame object\nobject.frame_type = FUZZ_PARAM(vpx_ref_frame_type_t);\nobject.img = *img;\n\n// Cleanup: Free the allocated image\nvpx_img_free(img);"
+    },
+    {
+      "name": "new vpx_image_rect_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_image_rect_t *"
+        }
+      ],
+      "template": "vpx_image_t *img = vpx_img_alloc(NULL, FUZZ_PARAM(vpx_img_fmt_t), FUZZ_PARAM(unsigned int), FUZZ_PARAM(unsigned int), FUZZ_PARAM(unsigned int));\nif (img == NULL) {\n    FUZZ_BAIL();\n}\n\nobject = reinterpret_cast<vpx_image_rect_t *>(img);\n"
+    },
+    {
+      "name": "new vpx_image_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_image_t"
+        }
+      ],
+      "template": "vpx_img_fmt_t fmt = FUZZ_PARAM(vpx_img_fmt_t);\nunsigned int width = FUZZ_PARAM(unsigned int);\nunsigned int height = FUZZ_PARAM(unsigned int);\nunsigned int align = FUZZ_PARAM(unsigned int);\n\n// Attempt to allocate the image using the library API\nif (vpx_img_alloc(&object, fmt, width, height, align) == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new vpx_image_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_image_t *"
+        }
+      ],
+      "template": "vpx_img_fmt_t fmt = FUZZ_PARAM(vpx_img_fmt_t);\nunsigned int d_w = FUZZ_PARAM(unsigned int);\nunsigned int d_h = FUZZ_PARAM(unsigned int);\nunsigned int align = 16; // Common default alignment\n\nobject = vpx_img_alloc(NULL, fmt, d_w, d_h, align);\nif (!object) FUZZ_BAIL();"
+    },
+    {
+      "name": "new vpx_color_space_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_color_space_t"
+        }
+      ],
+      "template": "object = static_cast<vpx_color_space_t>(FUZZ_PARAM(int));\nif(object < VPX_CS_UNKNOWN || object > VPX_CS_SRGB) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new vpx_img_fmt_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_img_fmt_t"
+        }
+      ],
+      "template": "vpx_image_t* img = vpx_img_alloc(NULL, VPX_IMG_FMT_I420, FUZZ_PARAM(unsigned int), FUZZ_PARAM(unsigned int), 64);\nif (!img) FUZZ_BAIL();\n\n// The object is initialized to a valid type.\nobject = VPX_IMG_FMT_I420;\n\n// After using img, free it\nvpx_img_free(img);"
+    },
+    {
+      "name": "new vp9_ref_frame_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vp9_ref_frame_t"
+        }
+      ],
+      "template": "vpx_img_fmt_t format = FUZZ_PARAM(vpx_img_fmt_t); \nunsigned int width = FUZZ_PARAM(unsigned int); \nunsigned int height = FUZZ_PARAM(unsigned int); \n\n// Initialize the image structure. \nvpx_image_t *img = vpx_img_alloc(NULL, format, width, height, 1); \nif (!img) FUZZ_BAIL(); \n\n// Populate the output object. \nobject.idx = FUZZ_PARAM(int); \nobject.img = *img; \n\n// Free the temporary image allocation. \nvpx_img_free(img);"
+    },
+    {
+      "name": "new vpx_image_rect_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_image_rect_t"
+        }
+      ],
+      "template": "vpx_img_fmt_t fmt = FUZZ_PARAM(vpx_img_fmt_t);\nunsigned int width = FUZZ_PARAM(unsigned int);\nunsigned int height = FUZZ_PARAM(unsigned int);\nunsigned int alignment = FUZZ_PARAM(unsigned int);\n\n// Initialize the object using the library API\nif (vpx_img_alloc(NULL, fmt, width, height, alignment) == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up if necessary, however in this case we don't need to free anything\n// since the library function allocates memory for the image internally."
+    },
+    {
+      "name": "new vpx_codec_dec_cfg_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_codec_dec_cfg_t *"
+        }
+      ],
+      "template": "if (!object) {\n    object = (vpx_codec_dec_cfg_t *)gf_malloc(sizeof(vpx_codec_dec_cfg_t));\n    if (!object) {\n        FUZZ_BAIL();\n    }\n    object->threads = FUZZ_PARAM(unsigned int);\n    object->h = FUZZ_PARAM(unsigned int);\n    object->w = FUZZ_PARAM(unsigned int);\n} else {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new vpx_color_range_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "vpx_color_range_t"
+        }
+      ],
+      "template": "object = static_cast<vpx_color_range_t>(FUZZ_PARAM(uint8_t) % 2); // Assuming the library API allows us to use the enum values directly\nif (!(object == VPX_CR_STUDIO_RANGE || object == VPX_CR_FULL_RANGE)) { FUZZ_BAIL(); } // Check to ensure valid enum value"
+    },
+    {
+      "name": "delete vpx_release_frame_buffer_cb_fn_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_release_frame_buffer_cb_fn_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_bit_depth_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_bit_depth_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_ref_frame_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_ref_frame_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_put_frame_cb_fn_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_put_frame_cb_fn_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete const struct vpx_codec_dec_cfg *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "const struct vpx_codec_dec_cfg *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_image_rect_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_image_rect_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_ref_frame_type_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_ref_frame_type_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_image_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_image_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete void *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "void *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete enum vpx_bit_depth",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "enum vpx_bit_depth"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct vp9_ref_frame *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct vp9_ref_frame *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_image_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_image_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_put_slice_cb_fn_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_put_slice_cb_fn_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct vpx_codec_ctx *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct vpx_codec_ctx *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct vpx_codec_iface *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct vpx_codec_iface *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_stream_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_stream_info_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct vp8_postproc_cfg *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct vp8_postproc_cfg *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_priv_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_priv_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_iter_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_iter_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_color_space_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_color_space_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_iter_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_iter_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vp8_postproc_cfg_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vp8_postproc_cfg_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_err_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_err_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_iface_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_iface_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_img_fmt_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_img_fmt_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vp9_ref_frame_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vp9_ref_frame_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_ctx_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_ctx_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_flags_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_flags_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_decrypt_cb",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_decrypt_cb"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_frame_buffer_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_frame_buffer_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_image_rect_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_image_rect_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete const struct vpx_codec_enc_cfg *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "const struct vpx_codec_enc_cfg *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_decrypt_init *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_decrypt_init *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_caps_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_caps_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_codec_dec_cfg_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_codec_dec_cfg_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_get_frame_buffer_cb_fn_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_get_frame_buffer_cb_fn_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete vpx_color_range_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "vpx_color_range_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct vpx_ref_frame *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct vpx_ref_frame *"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

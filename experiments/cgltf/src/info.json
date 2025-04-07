@@ -1,0 +1,27 @@
+{
+    "name": "cgltf",
+    "codebase": "/fuzz/cgltf",
+    "build": {
+        "source_files": [],
+        "include_paths": [
+            "/fuzz/cgltf"
+        ],
+        "lib_paths": [],
+        "libs": [],
+        "flags": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "cgltf.h",
+                "language": "c"
+            }
+        ],
+        "defines": [
+            {
+                "name": "CGLTF_IMPLEMENTATION",
+                "value": "1"
+            }
+        ]
+    }
+}

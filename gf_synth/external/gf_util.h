@@ -38,10 +38,21 @@ namespace gf_fuzz_param {
     }
 
     template <size_t N>
-    const char *fuzz_param_str() {}
+    const char *fuzz_param_str() {
+        // Placeholder for compilation tests
+        char *result = (char *)gf_malloc(N + 1);
+        for (size_t i = 0; i < N; i++) {
+            result[i] = 'A';
+        }
+        result[N] = '\0';
+        return result;
+    }
 
     template <size_t N>
-    const char *fuzz_param_file() {}
+    const char *fuzz_param_file() {
+        // Placeholder for compilation tests
+        return "filename.txt";
+    }
 
     const char *write_to_temp_file(const char *data, size_t len) {
         std::string filename;

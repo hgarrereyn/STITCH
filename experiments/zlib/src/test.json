@@ -1,0 +1,1555 @@
+{
+  "endpoints": [
+    {
+      "name": "deflatePrime_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL || *__strm == NULL) { FUZZ_BAIL(); }\n\nint bits = FUZZ_PARAM(int);\nint value = FUZZ_PARAM(int);\n\nif (bits < 0 || bits > 16) { FUZZ_BAIL(); }\n\nint result = deflatePrime(*__strm, bits, value);\n\nif (result != Z_OK) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "gzsetparams_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__level",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__strategy",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__file == NULL || __level == NULL || __strategy == NULL) { FUZZ_BAIL(); }\n\nint level = FUZZ_PARAM(int);\nint strategy = FUZZ_PARAM(int);\n\nint result = gzsetparams(__file, level, strategy);\n\nif (result != Z_OK) { FUZZ_BAIL(); }\n\n*___return_value_ = level;"
+    },
+    {
+      "name": "deflateCopy_v0",
+      "variables": [
+        {
+          "name": "__dest",
+          "dir": "new",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__source",
+          "dir": "*",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "if (__source == Z_NULL || __dest == Z_NULL) {\n    FUZZ_BAIL();\n}\n\n__dest = (z_streamp) gf_malloc(sizeof(z_stream));\nif (__dest == Z_NULL) {\n    FUZZ_BAIL();\n}\n\nint result = deflateCopy(__dest, __source);\nif (result != Z_OK) {\n    gf_free(__dest);\n    __dest = Z_NULL;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "inflatePrime_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nint bits = FUZZ_PARAM(int);\nint value = FUZZ_PARAM(int);\n\nif (bits < 0 || bits > 16) FUZZ_BAIL();\n\nint result = inflatePrime(*__strm, bits, value);\nif (result != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "inflateSyncPoint_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__strm == NULL || __return_value == NULL) FUZZ_BAIL();\n\n*__return_value = inflateSyncPoint(*__strm);\nif (*__return_value < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "deflateTune_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL || *__strm == NULL) FUZZ_BAIL();\n\nint good_length = FUZZ_PARAM(int);\nint max_lazy = FUZZ_PARAM(int);\nint nice_length = FUZZ_PARAM(int);\nint max_chain = FUZZ_PARAM(int);\n\nint result = deflateTune(*__strm, good_length, max_lazy, nice_length, max_chain);\nif (result != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "gzread_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__file == NULL || __len == NULL) FUZZ_BAIL();\n\nunsigned char *buf = (unsigned char *)gf_malloc(*__len);\nif (buf == NULL) FUZZ_BAIL();\n\nint bytes_read = gzread(__file, buf, *__len);\nif (bytes_read < 0) {\n    gf_free(buf);\n    FUZZ_BAIL();\n}\n\n*__len = (unsigned)bytes_read;\ngf_free(buf);"
+    },
+    {
+      "name": "gzfwrite_v0",
+      "variables": [
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__size",
+          "dir": "*",
+          "typ": "unsigned *"
+        },
+        {
+          "name": "__nitems",
+          "dir": "*",
+          "typ": "unsigned *"
+        },
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile *"
+        }
+      ],
+      "template": "if (__buf == NULL || __size == NULL || __nitems == NULL || __file == NULL) {\n    FUZZ_BAIL();\n}\n\nz_size_t size = *__size;\nz_size_t nitems = *__nitems;\n\ngzFile file = *__file;\n\n// Calling the gzfwrite function from the zlib API\nz_size_t written_items = gzfwrite(__buf, size, nitems, file);\n\nif (written_items == 0) {\n    FUZZ_BAIL();\n}\n\n// Initialize output parameters if needed\nif (written_items > 0) {\n    *__nitems = written_items;\n} else {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "inflateGetHeader_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__head",
+          "dir": "new",
+          "typ": "gz_headerp"
+        }
+      ],
+      "template": "if (__strm == NULL || __head == NULL) FUZZ_BAIL();\n\nint result = inflateGetHeader(__strm, __head);\nif (result != Z_OK) FUZZ_BAIL();\n\n__head->done = 0;"
+    },
+    {
+      "name": "gzprintf_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__format",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__file == NULL) FUZZ_BAIL();\n\nint ret = gzprintf(__file, __format);\nif (ret < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "gzungetc_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) {\n    FUZZ_BAIL();\n}\n\nint random_char = FUZZ_PARAM(int);\n\nint result = gzungetc(random_char, __file);\nif (result == -1) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzeof_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__file == NULL || __return == NULL) FUZZ_BAIL();\n\nint eof_status = gzeof(__file);\nif (eof_status < 0) FUZZ_BAIL();\n\n*__return = eof_status;"
+    },
+    {
+      "name": "deflateSetHeader_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__head",
+          "dir": "*",
+          "typ": "gz_headerp"
+        }
+      ],
+      "template": "if (__strm == NULL || __head == NULL) FUZZ_BAIL();\n\nint ret = deflateSetHeader(__strm, __head);\nif (ret != Z_OK) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "inflateSetDictionary_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictionary",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__dictLength",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == NULL || __dictionary == NULL || __dictLength == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = inflateSetDictionary(*__strm, __dictionary, *__dictLength);\nif (result != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzdopen_v0",
+      "variables": [
+        {
+          "name": "__mode",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "int fd = FUZZ_PARAM(int);\n\nif (fd == -1) FUZZ_BAIL();\n\ngzFile gz = gzdopen(fd, __mode);\nif (gz == NULL) FUZZ_BAIL();\n\n// Here, you would typically do something with `gz`, but since we're just invoking `gzdopen`, we can return or end here."
+    },
+    {
+      "name": "gzdopen_v1",
+      "variables": [
+        {
+          "name": "__mode",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__mode == NULL) FUZZ_BAIL();\n\nint fd = FUZZ_PARAM(int);\n__return_value = gzdopen(fd, __mode);\nif (__return_value == NULL) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "inflateBackInit__v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__window",
+          "dir": "*",
+          "typ": "unsigned char *"
+        },
+        {
+          "name": "__version",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__strm == Z_NULL || __window == Z_NULL || __version == NULL) FUZZ_BAIL();\n\nint windowBits = FUZZ_PARAM(int) % 8 + 8;  // Ensure windowBits is in the range 8 to 15\nif (windowBits < 8 || windowBits > 15) FUZZ_BAIL();\n\nint result = inflateBackInit_(__strm, windowBits, __window, __version, sizeof(z_stream));\nif (result != Z_OK) FUZZ_BAIL();\n\n// Clean up is not necessary as there are no dynamically allocated resources to free."
+    },
+    {
+      "name": "adler32_z_v0",
+      "variables": [
+        {
+          "name": "__adler",
+          "dir": "*",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__adler == NULL || __len == NULL) FUZZ_BAIL();\n\nsize_t len = *(__len);\nif (len == 0) FUZZ_BAIL();\nconst char *buf = FUZZ_PARAM_FILE(1024); // Using a fixed size temporary file for the example\n\nif (buf == NULL) FUZZ_BAIL();\n\n// Invoke adler32_z with a random initialized Adler-32 value, buffer, and length\nunsigned long adler_initial = FUZZ_PARAM(unsigned long);\n*__adler = adler32_z(adler_initial, (const Bytef *)buf, len);\n\n// The buffer is temporary and managed by FUZZ_PARAM_FILE, no need for manual cleanup."
+    },
+    {
+      "name": "adler32_z_v1",
+      "variables": [
+        {
+          "name": "__adler",
+          "dir": "*",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__adler == NULL || __buf == NULL || __len == NULL || *__len == 0) {\n    FUZZ_BAIL();\n}\n\nunsigned long adler = *__adler;\nunsigned len = *__len;\n\n// Invoke adler32_z with the appropriate arguments.\nunsigned long result = adler32_z(adler, __buf, len);\n\n// Check if the result is valid (e.g., not a special error code)\nif (result == 1L) {\n    FUZZ_BAIL();\n}\n\n// Update the Adler checksum\n*__adler = result;\n"
+    },
+    {
+      "name": "crc32_v0",
+      "variables": [
+        {
+          "name": "__crc",
+          "dir": "*",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "unsigned char *"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__crc == NULL || __len == NULL || __buf == NULL || *__len == 0) {\n    FUZZ_BAIL();\n}\n\nunsigned long crc = *(__crc);\nunsigned int length = *__len;\n\n// Call the library's crc32 function\ncrc = crc32(crc, __buf, length);\n\n// Check if the crc32 function was successful\nif (length > 0) {\n    *__crc = crc;\n} else {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "deflateParams_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__level",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__strategy",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__strm == NULL || __level == NULL || __strategy == NULL) FUZZ_BAIL();\n\nint level = FUZZ_PARAM(int);\nint strategy = FUZZ_PARAM(int);\n\nif (level < 0 || level > 9 || strategy < 0 || strategy > 2) FUZZ_BAIL(); // Assuming strategy values are within a known range.\n\nint result = deflateParams(__strm, level, strategy);\nif (result != Z_OK) FUZZ_BAIL();\n\n*__level = level;\n*__strategy = strategy;\n"
+    },
+    {
+      "name": "gzclearerr_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile *"
+        }
+      ],
+      "template": "if (__file == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call the gzclearerr function from the zlib library.\ngzclearerr(*__file);\n"
+    },
+    {
+      "name": "inflate_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL || *__strm == NULL || (*__strm)->next_out == Z_NULL || ((*__strm)->next_in == Z_NULL && (*__strm)->avail_in != 0)) {\n    FUZZ_BAIL();\n}\n\n// Randomly select a flush mode for the inflate function.\nint flush_mode = FUZZ_PARAM(int) % 3; // Assuming 0, 1, 2 are valid flush modes for the API.\n\n// Invoke the inflate API\nint ret = inflate(*__strm, flush_mode);\n\nif (ret != Z_OK && ret != Z_STREAM_END) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "deflateEnd_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "del",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nint status = deflateEnd(__strm);\nif (status != Z_OK) FUZZ_BAIL();\n\n__strm->state = Z_NULL;"
+    },
+    {
+      "name": "inflateReset2_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == Z_NULL) FUZZ_BAIL();\n\nint windowBits = FUZZ_PARAM(int);\nint ret = inflateReset2(*__strm, windowBits);\n\nif (ret != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "deflate_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL || *__strm == NULL) {\n    FUZZ_BAIL();\n}\n\nint flush = FUZZ_PARAM(int);\nif (flush < 0 || flush > Z_FINISH) {\n    FUZZ_BAIL();\n}\n\nint ret = deflate(*__strm, flush);\nif (ret != Z_OK && ret != Z_STREAM_END) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzbuffer_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile *"
+        },
+        {
+          "name": "__size",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__file == NULL || __size == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the buffer size ensuring it's at least 8\nunsigned requested_size = *__size;\nif (requested_size < 8) {\n    requested_size = 8; // setting minimum buffer size\n}\n\n// Invoke the gzbuffer API function\nif (gzbuffer(*__file, requested_size) != 0) {\n    FUZZ_BAIL();\n}\n\n// If operation is successful, update the size output argument\n*__size = requested_size;"
+    },
+    {
+      "name": "gzputc_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__c",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__file == NULL || __c == NULL) FUZZ_BAIL();\n\nint result = gzputc(__file, *__c);\nif (result == -1) FUZZ_BAIL();\n\n*__c = result;"
+    },
+    {
+      "name": "inflateBackEnd_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "if (__strm == Z_NULL || __strm->state == Z_NULL || __strm->zfree == (free_func)0) {\n    FUZZ_BAIL();\n}\n\nint ret = inflateBackEnd(__strm);\nif (ret != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "uncompress2_v0",
+      "variables": [
+        {
+          "name": "__dest",
+          "dir": "new",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__destLen",
+          "dir": "*",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__source",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__sourceLen",
+          "dir": "*",
+          "typ": "unsigned long *"
+        }
+      ],
+      "template": "if (!__destLen || !__source || !__sourceLen || *__sourceLen == 0) FUZZ_BAIL();\n\n// Initialize output destination\nsize_t dest_length = *__destLen;\n__dest = (Bytef *) gf_malloc(dest_length);\nif (!__dest) FUZZ_BAIL();\n\nint result = uncompress2(__dest, &dest_length, __source, __sourceLen);\nif (result != Z_OK) {\n    gf_free(__dest);\n    __dest = nullptr;\n    FUZZ_BAIL();\n}\n\n*__destLen = dest_length;"
+    },
+    {
+      "name": "deflatePending_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nunsigned pending_value;\nint bits_value;\nint result = deflatePending(*__strm, &pending_value, &bits_value);\n\nif (result != Z_OK) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "deflatePending_v1",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__pending",
+          "dir": "new",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nint bits;\nint result = deflatePending(*__strm, __pending, &bits);\n\nif (result != Z_OK) FUZZ_BAIL();\n\nif (__pending == NULL) {\n    __pending = (unsigned *)gf_malloc(sizeof(unsigned));\n    if (__pending == NULL) FUZZ_BAIL();\n} else {\n    *__pending = 0; // Initialize output if provided\n}"
+    },
+    {
+      "name": "deflatePending_v2",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__bits",
+          "dir": "new",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__strm == NULL || __bits == NULL) FUZZ_BAIL();\n\nint result = deflatePending(*__strm, NULL, __bits);\nif (result != Z_OK) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "deflatePending_v3",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__pending",
+          "dir": "new",
+          "typ": "unsigned *"
+        },
+        {
+          "name": "__bits",
+          "dir": "new",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__strm == NULL || __pending == NULL || __bits == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = deflatePending(*__strm, __pending, __bits);\nif (result != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "deflateReset_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL || *__strm == NULL) FUZZ_BAIL();\n\nint ret = deflateReset(*__strm);\nif (ret != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "deflateInit2__v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__level",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__method",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__windowBits",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__memLevel",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__strategy",
+          "dir": "*",
+          "typ": "int *"
+        },
+        {
+          "name": "__version",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__stream_size",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (!__strm || !__level || !__method || !__windowBits || !__memLevel || !__strategy || !__version || !__stream_size) {\n    FUZZ_BAIL();\n}\n\n// Allocate memory for the stream if it is not already allocated\nif (*__strm == NULL) {\n    *__strm = (z_streamp)gf_malloc(sizeof(z_stream));\n    if (*__strm == NULL) {\n        FUZZ_BAIL();\n    }\n}\n\n// Call the deflateInit2_ API\nint result = deflateInit2_(*__strm, *__level, *__method, *__windowBits, *__memLevel, *__strategy, __version, *__stream_size);\nif (result != Z_OK) {\n    // Clean up if the API fails\n    gf_free(*__strm);\n    *__strm = NULL;\n    FUZZ_BAIL();\n}\n\n// Initialization successful; set stream size\n*__stream_size = sizeof(z_stream);\n"
+    },
+    {
+      "name": "deflateSetDictionary_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__dictionary",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__dictLength",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == NULL || __dictionary == NULL || __dictLength == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = deflateSetDictionary(__strm, __dictionary, *(__dictLength));\nif (result != 0) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "adler32_v1",
+      "variables": [
+        {
+          "name": "__adler",
+          "dir": "*",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__adler == NULL || __buf == NULL || __len == NULL || *__len == 0) {\n    FUZZ_BAIL();\n}\n\nunsigned long result = adler32(*__adler, __buf, *__len);\nif (result == 0) {\n    FUZZ_BAIL();\n}\n\n*__adler = result;"
+    },
+    {
+      "name": "inflateGetDictionary_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nBytef *dictionary = (Bytef *)gf_malloc(4096);\nif (dictionary == Z_NULL) FUZZ_BAIL();\n\nuInt dictLength;\n\nint result = inflateGetDictionary(*__strm, dictionary, &dictLength);\nif (result != Z_OK) {\n    gf_free(dictionary);\n    FUZZ_BAIL();\n}\n\n// Do something with dictionary and dictLength if needed\n\n// Clean up\n gf_free(dictionary);"
+    },
+    {
+      "name": "inflateGetDictionary_v1",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictionary",
+          "dir": "*",
+          "typ": "Bytef *"
+        }
+      ],
+      "template": "if (__strm == NULL || __dictionary == NULL) FUZZ_BAIL();\n\nint result = inflateGetDictionary(*__strm, __dictionary, NULL);\n\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "inflateGetDictionary_v2",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictLength",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == Z_NULL || __dictLength == Z_NULL) FUZZ_BAIL();\n\nBytef *dictionary = (Bytef *)gf_malloc(1024);\nif (dictionary == Z_NULL) FUZZ_BAIL();\n\nint result = inflateGetDictionary(*__strm, dictionary, __dictLength);\nif (result != Z_OK) {\n    gf_free(dictionary);\n    FUZZ_BAIL();\n}\n\ngf_free(dictionary);"
+    },
+    {
+      "name": "inflateGetDictionary_v3",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictionary",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__dictLength",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == NULL || __dictionary == NULL || __dictLength == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = inflateGetDictionary(*__strm, __dictionary, __dictLength);\nif (result != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzgetc_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) FUZZ_BAIL();\n\nint result = gzgetc(__file);\nif (result == -1) FUZZ_BAIL(); // Handle any error case based on library's return code\n\n// If needed, result can be used further or returned, but according to usage, it is just to illustrate an API call."
+    },
+    {
+      "name": "gzfread_v0",
+      "variables": [
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__size",
+          "dir": "*",
+          "typ": "unsigned *"
+        },
+        {
+          "name": "__nitems",
+          "dir": "*",
+          "typ": "unsigned *"
+        },
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile *"
+        }
+      ],
+      "template": "if (__buf == NULL || __size == NULL || __nitems == NULL || __file == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned len = (*__size) * (*__nitems);\nif ((*__size) && (len / (*__size) != *__nitems)) {\n    FUZZ_BAIL();\n}\n\nz_size_t result = gzfread(__buf, *__size, *__nitems, *__file);\nif (result == 0) {\n    FUZZ_BAIL();\n}\n\nif (result > 0) {\n    *__nitems = result / *__size;\n} else {\n    *__nitems = 0;\n}"
+    },
+    {
+      "name": "gzgets_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__file == NULL || __buf == NULL) FUZZ_BAIL();\n\n// Call gzgets with fuzzed input\nchar *result = gzgets(__file, (char *)__buf, 1024);\nif (result == NULL) FUZZ_BAIL();\n\n// No additional cleanup is needed since gzgets manages its own resources."
+    },
+    {
+      "name": "gzgets_v1",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__file == NULL || __buf == NULL || __return == NULL) FUZZ_BAIL();\n\n// Prepare to call gzgets\nchar* result = gzgets(__file, (char*)__buf, 1024);\n\nif (result == NULL) FUZZ_BAIL(); // Check if gzgets returned NULL due to an error\n\n// Simulate storing the result or further processing if needed, as __return is not specified to be a char pointer but a path.\n// This indicates that the behavior related to __return must be for example purposes, we assume it could be logging or similar."
+    },
+    {
+      "name": "gzputs_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__s",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__Return_Value",
+          "dir": "new",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__file == nullptr || __s == nullptr || __Return_Value == nullptr) FUZZ_BAIL();\n\nint ret = gzputs(__file, __s);\n*__Return_Value = ret;\n\nif (ret == Z_ERRNO) FUZZ_BAIL();\n\n// no additional cleanup needed as we are not allocating any temporary objects."
+    },
+    {
+      "name": "gzclose_w_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = gzclose_w(__file);\nif (result != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzerror_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__file == NULL || __return_value == NULL) {\n    FUZZ_BAIL();\n}\n\nint err;\nconst char *error_message = gzerror(__file, &err);\nif (error_message == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzerror_v1",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__errnum",
+          "dir": "new",
+          "typ": "int *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (!__file || !__return_value || !__errnum) {\n    FUZZ_BAIL();\n}\n\n// Initialize errnum before calling gzerror\n*__errnum = 0; // Set a default value\n\n// Invoke gzerror\nconst char *result = gzerror(__file, __errnum);\nif (!result) {\n    FUZZ_BAIL();\n}\n\n// Clean-up is not needed since we only use output pointers."
+    },
+    {
+      "name": "inflateCopy_v0",
+      "variables": [
+        {
+          "name": "__dest",
+          "dir": "*",
+          "typ": "z_streamp"
+        },
+        {
+          "name": "__source",
+          "dir": "*",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "if (__dest == Z_NULL || __source == Z_NULL) FUZZ_BAIL();\n\nint result = inflateCopy(__dest, __source);\nif (result != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "deflateInit__v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "new",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == nullptr) {\n    FUZZ_BAIL();\n}\n\nz_streamp new_strm = (z_streamp)gf_malloc(sizeof(z_stream));\nif (new_strm == nullptr) {\n    FUZZ_BAIL();\n}\n\n*__strm = new_strm;\n\nint level = FUZZ_PARAM(int);\nconst char *version = ZLIB_VERSION;\nint stream_size = sizeof(z_stream);\n\nint result = deflateInit_(new_strm, level, version, stream_size);\nif (result != Z_OK) {\n    gf_free(new_strm);\n    *__strm = nullptr;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "deflateInit__v1",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "new",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__version",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__version == nullptr) FUZZ_BAIL();\n\n*__strm = static_cast<z_streamp>(gf_malloc(sizeof(z_stream)));\nif (*__strm == nullptr) FUZZ_BAIL();\n\nint result = deflateInit_(*__strm, Z_DEFAULT_COMPRESSION, __version, sizeof(z_stream));\nif (result != Z_OK) {\n    gf_free(*__strm);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gztell_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) FUZZ_BAIL();\n\nz_off_t position = gztell(__file);\nif (position == -1) FUZZ_BAIL();"
+    },
+    {
+      "name": "gzseek_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__offset",
+          "dir": "*",
+          "typ": "z_off_t *"
+        }
+      ],
+      "template": "if (__file == NULL || __offset == NULL) FUZZ_BAIL();\n\nint whence = FUZZ_PARAM(int);\n\nz_off_t result = gzseek(__file, *__offset, whence);\nif (result == (z_off_t)-1) FUZZ_BAIL();\n\n*__offset = result;"
+    },
+    {
+      "name": "compress2_v0",
+      "variables": [
+        {
+          "name": "__dest",
+          "dir": "new",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__destLen",
+          "dir": "new",
+          "typ": "uLong *"
+        },
+        {
+          "name": "__source",
+          "dir": "*",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__sourceLen",
+          "dir": "*",
+          "typ": "uLong *"
+        },
+        {
+          "name": "__level",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__source == nullptr || __sourceLen == nullptr || __level == nullptr || *__level < 0 || *__level > 9) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output length\n__destLen = (uLong *)gf_malloc(sizeof(uLong));\nif (__destLen == nullptr) {\n    FUZZ_BAIL();\n}\n*__destLen = compressBound(*__sourceLen);\n\n// Allocate memory for the destination buffer\n__dest = (Bytef *)gf_malloc(*__destLen);\nif (__dest == nullptr) {\n    gf_free(__destLen);\n    FUZZ_BAIL();\n}\n\n// Invoke the compress2 function\nint status = compress2(__dest, __destLen, __source, *__sourceLen, *__level);\nif (status != Z_OK) {\n    gf_free(__dest);\n    gf_free(__destLen);\n    FUZZ_BAIL();\n} \n\n// Completion note: clean up will be handled in the calling context if needed."
+    },
+    {
+      "name": "inflateInit__v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__stream_size",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__strm == NULL || __stream_size == NULL) FUZZ_BAIL();\n\nint ret = inflateInit_(*__strm, ZLIB_VERSION, *__stream_size);\nif (ret != Z_OK) FUZZ_BAIL();\n\n*__stream_size = sizeof(z_stream);"
+    },
+    {
+      "name": "inflateInit__v1",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__version",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__stream_size",
+          "dir": "*",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (!__strm || !__version || !__stream_size) {\n    FUZZ_BAIL();\n}\n\nint ret = inflateInit_(*__strm, __version, *__stream_size);\nif (ret != Z_OK) {\n    FUZZ_BAIL();\n}\n\n*__stream_size = sizeof(z_stream); // Ensure stream_size is initialized to the size of z_stream"
+    },
+    {
+      "name": "gzclose_r_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = gzclose_r(__file);\nif (result != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzflush_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile *"
+        }
+      ],
+      "template": "if (__file == NULL) {\n    FUZZ_BAIL();\n}\n\nint flush_param = FUZZ_PARAM(int);\nif (flush_param < 0 || flush_param > 2) { // Assuming Z_FINISH is 2\n    FUZZ_BAIL();\n}\n\nint result = gzflush(*__file, flush_param);\nif (result != 0) { // Assuming a non-zero result indicates an error\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "inflateResetKeep_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nint result = inflateResetKeep(__strm);\nif (result != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "gzrewind_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) FUZZ_BAIL();\n\ngzrewind(__file);"
+    },
+    {
+      "name": "zlibVersion_v0",
+      "variables": [
+        {
+          "name": "__zlibVersion",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__version",
+          "dir": "new",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__zlibVersion == nullptr) FUZZ_BAIL();\n\n__version = zlibVersion();\nif (__version == nullptr) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "deflateGetDictionary_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nuInt dictLength;\nBytef *dictionary = (Bytef *)gf_malloc(sizeof(Bytef) * 32768);  // Allocate memory for the dictionary\nif (dictionary == NULL) FUZZ_BAIL();\n\nint result = deflateGetDictionary(*__strm, dictionary, &dictLength);\nif (result != Z_OK) {\n    gf_free(dictionary);\n    FUZZ_BAIL();\n}\n\n// Use the dictionary or process it as necessary\n// Cleanup\n// In this case, since we're just invoking an API we may not need to do anything with dictionary\n\n// Free allocated dictionary memory\n gf_free(dictionary);"
+    },
+    {
+      "name": "deflateGetDictionary_v1",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictionary",
+          "dir": "new",
+          "typ": "Bytef *"
+        }
+      ],
+      "template": "if (__strm == NULL || __dictionary == NULL) {\n    FUZZ_BAIL();\n}\n\nuInt dictLength;\nint result;\n\n// Allocate memory for the dictionary\n__dictionary = (Bytef *)gf_malloc(sizeof(Bytef) * 32768); // Assuming a maximum dictionary size of 32KB\nif (__dictionary == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call the deflateGetDictionary function\nresult = deflateGetDictionary(*__strm, __dictionary, &dictLength);\nif (result != Z_OK) {\n    gf_free(__dictionary);\n    __dictionary = NULL;\n    FUZZ_BAIL();\n}\n\n// Optionally handle dictLength if needed\n"
+    },
+    {
+      "name": "deflateGetDictionary_v2",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictLength",
+          "dir": "new",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == NULL || __dictLength == NULL) {\n    FUZZ_BAIL();\n}\n\nBytef *dictionary = (Bytef *)gf_malloc(sizeof(Bytef) * 1024);\nif (dictionary == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = deflateGetDictionary(*__strm, dictionary, __dictLength);\nif (result != Z_OK) {\n    gf_free(dictionary);\n    FUZZ_BAIL();\n}\n\ngf_free(dictionary);"
+    },
+    {
+      "name": "deflateGetDictionary_v3",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__dictionary",
+          "dir": "new",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__dictLength",
+          "dir": "new",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__strm == Z_NULL || __dictionary == Z_NULL || __dictLength == Z_NULL) FUZZ_BAIL();\n\nuInt dictionarySize = 1024; // Assume a fixed buffer size for demonstration\n__dictionary = (Bytef *)gf_malloc(dictionarySize);\nif (__dictionary == NULL) FUZZ_BAIL();\n\nint result = deflateGetDictionary(*__strm, __dictionary, __dictLength);\nif (result != Z_OK) {\n    gf_free(__dictionary);\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "crc32_z_v0",
+      "variables": [
+        {
+          "name": "__crc",
+          "dir": "*",
+          "typ": "unsigned *"
+        },
+        {
+          "name": "__buf",
+          "dir": "*",
+          "typ": "unsigned char *"
+        }
+      ],
+      "template": "if (__crc == NULL || __buf == NULL) {\n    FUZZ_BAIL();\n}\n\n// Generate a random length for the data buffer\nz_size_t len = FUZZ_PARAM(unsigned);\n\n// Invoke crc32_z, which takes the output parameter and the input buffer\n*__crc = crc32_z(*__crc, __buf, len);\n\n// Check if the output is valid\nif (*__crc == Z_NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "inflateReset_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = inflateReset(*__strm);\nif (result != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzoffset_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__file == NULL) FUZZ_BAIL();\n\nz_off_t offset = gzoffset(__file);\nif (offset == (z_off_t)-1) FUZZ_BAIL();\n// Successful execution, can proceed with fuzzing.\n"
+    },
+    {
+      "name": "gzdirect_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "int *"
+        }
+      ],
+      "template": "if (__file == NULL) FUZZ_BAIL();\n\nint result = gzdirect(__file);\nif (result < 0) FUZZ_BAIL();\n\n*__return_value = result;"
+    },
+    {
+      "name": "compress_v0",
+      "variables": [
+        {
+          "name": "__dest",
+          "dir": "new",
+          "typ": "Bytef *"
+        },
+        {
+          "name": "__destLen",
+          "dir": "new",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__source",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__sourceLen",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__source == nullptr || __sourceLen == nullptr || *__sourceLen == 0) {\n    FUZZ_BAIL();\n}\n\n// Determine the maximum size needed for the destination buffer\nunsigned long maxDestLen = compressBound(*__sourceLen);\n__dest = (Bytef *)gf_malloc(maxDestLen);\nif (__dest == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Initialize the destination length\n*__destLen = maxDestLen;\n\n// Call the compress function from the zlib\nint result = compress(__dest, __destLen, (const Bytef *)__source, *__sourceLen);\nif (result != Z_OK) {\n    gf_free(__dest);\n    __dest = nullptr;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "inflateInit2__v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nint windowBits = FUZZ_PARAM(int);\nconst char *version = ZLIB_VERSION;\nint stream_size = sizeof(z_stream);\n\nint ret = inflateInit2_(*__strm, windowBits, version, stream_size);\nif (ret != Z_OK) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "inflateInit2__v1",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__version",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__strm == NULL || __version == NULL) {\n    FUZZ_BAIL();\n}\n\nint windowBits = FUZZ_PARAM(int);\nint ret = inflateInit2_(*__strm, windowBits, __version, (int)(sizeof(z_stream)));\n\nif (ret != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "inflateSync_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "if (__strm == NULL) FUZZ_BAIL();\n\nint result = inflateSync(*__strm);\nif (result != Z_OK) FUZZ_BAIL();"
+    },
+    {
+      "name": "compressBound_v0",
+      "variables": [
+        {
+          "name": "__sourceLen",
+          "dir": "*",
+          "typ": "unsigned long *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "unsigned long *"
+        }
+      ],
+      "template": "if (__sourceLen == nullptr) FUZZ_BAIL();\n\n__return = (unsigned long *)gf_malloc(sizeof(unsigned long));\nif (__return == nullptr) FUZZ_BAIL();\n\n*__return = compressBound(*__sourceLen);\nif (*__return == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "deflateBound_v0",
+      "variables": [
+        {
+          "name": "__strm",
+          "dir": "*",
+          "typ": "z_streamp *"
+        },
+        {
+          "name": "__sourceLen",
+          "dir": "*",
+          "typ": "unsigned long *"
+        }
+      ],
+      "template": "if (__strm == NULL || __sourceLen == NULL || *__sourceLen == 0) {\n    FUZZ_BAIL();\n}\n\nunsigned long bound = deflateBound(*__strm, *__sourceLen);\nif (bound == (unsigned long)(-1)) { // Checking if deflateBound failed\n    FUZZ_BAIL();\n}\n\n// Initialize any output argument or handle the bound value accordingly\n// In this case, we will just simulate that we handle it without any extra args\n"
+    },
+    {
+      "name": "gzopen_v0",
+      "variables": [
+        {
+          "name": "__path",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__mode",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__path == NULL || __mode == NULL) FUZZ_BAIL();\n\ngzFile file = gzopen(__path, __mode);\nif (file == NULL) FUZZ_BAIL();\n\n// Assuming further operations could be placed here.\n// Ensure to clean up if any allocations were made."
+    },
+    {
+      "name": "gzopen_v1",
+      "variables": [
+        {
+          "name": "__path",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__mode",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__gzFile",
+          "dir": "new",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "if (__path == NULL || __mode == NULL) FUZZ_BAIL();\n\n__gzFile = gzopen(__path, __mode);\nif (__gzFile == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "gzclose_v0",
+      "variables": [],
+      "template": "gzFile file = (gzFile)FUZZ_PARAM_FILE(100);\nif (file == NULL) FUZZ_BAIL();\n\nint result = gzclose(file);\nif (result != Z_OK) FUZZ_BAIL();\n\n// No additional cleanup is needed as gzclose handles file closure internally."
+    },
+    {
+      "name": "gzclose_v1",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile *"
+        }
+      ],
+      "template": "if (__file == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = gzclose(*__file);\nif (result != Z_OK) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "gzwrite_v0",
+      "variables": [
+        {
+          "name": "__file",
+          "dir": "*",
+          "typ": "gzFile"
+        },
+        {
+          "name": "__len",
+          "dir": "*",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "if (__file == NULL || __len == NULL) FUZZ_BAIL();\n\nunsigned char *buf = (unsigned char *) gf_malloc(*__len);\nif (buf == NULL) FUZZ_BAIL();\n\nint written = gzwrite(__file, buf, *__len);\nif (written < 0) {\n    gf_free(buf);\n    FUZZ_BAIL();\n}\n\ngf_free(buf);"
+    },
+    {
+      "name": "new struct z_stream_s *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct z_stream_s *"
+        }
+      ],
+      "template": "if (object != NULL) {\n    FUZZ_BAIL();\n}\n\nobject = (z_stream_s *)gf_malloc(sizeof(z_stream_s));\nif (object == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = inflateInit2_(reinterpret_cast<z_streamp>(object), 15, ZLIB_VERSION, sizeof(z_stream_s));\nif (result != Z_OK) {\n    gf_free(object);\n    object = NULL;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new z_streamp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "if (object == NULL) {\n    FUZZ_BAIL();\n}\n\nobject = (z_streamp)gf_malloc(sizeof(z_stream));\nif (object == NULL) {\n    FUZZ_BAIL();\n}\n\nif (inflateInit(object) != Z_OK) {\n    gf_free(object);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "delete z_streamp *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "z_streamp *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete unsigned *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "unsigned *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete unsigned char *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "unsigned char *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct internal_state *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct internal_state *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete gzFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "gzFile *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete int *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "int *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete void *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "void *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct z_stream_s *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct z_stream_s *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete Bytef *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "Bytef *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete z_off_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "z_off_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete z_streamp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "z_streamp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete gz_headerp *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "gz_headerp *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete const char *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "const char *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete gz_headerp",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "gz_headerp"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct gz_header_s *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct gz_header_s *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete uLong *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "uLong *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete unsigned long *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "unsigned long *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete gzFile",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "gzFile"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

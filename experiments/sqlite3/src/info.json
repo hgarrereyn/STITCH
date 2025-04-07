@@ -1,0 +1,22 @@
+{
+    "name": "sqlite",
+    "codebase": "/fuzz/sqlite/",
+    "build": {
+        "include_paths": [
+            "/fuzz/build/"
+        ],
+        "lib_paths": [],
+        "libs": [],
+        "source_files": [
+            "/fuzz/build/sqlite3.o"
+        ]
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "sqlite3.h",
+                "language": "c"
+            }
+        ]
+    }
+}

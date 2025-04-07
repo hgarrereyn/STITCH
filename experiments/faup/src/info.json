@@ -1,0 +1,37 @@
+{
+    "name": "faup",
+    "codebase": "/fuzz/faup",
+    "build": {
+        "source_files": [
+            "/fuzz/faup/build/src/lib/libfaup_static.a"
+        ],
+        "include_paths": [
+            "/fuzz/faup/build/src/lib",
+            "/fuzz/faup/build/src/lib/include",
+            "/fuzz/faup/src/lib/include"
+        ],
+        "lib_paths": [],
+        "libs": [],
+        "flags": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "faup/faup.h",
+                "language": "c"
+            },
+            {
+                "name": "faup/decode.h",
+                "language": "c"
+            },
+            {
+                "name": "faup/options.h",
+                "language": "c"
+            },
+            {
+                "name": "faup/output.h",
+                "language": "c"
+            }
+        ]
+    }
+}

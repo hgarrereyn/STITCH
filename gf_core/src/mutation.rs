@@ -137,12 +137,6 @@ impl MutationContext {
             }
         }
 
-        if !missing_constructors.is_empty() || !missing_destructors.is_empty() {
-            if !bypass_validation {
-                panic!("Missing constructors or destructors");
-            }
-        }
-
         let mut disabled_endpoints = HashSet::new();
 
         for endpoint in self.schema.endpoints.iter() {
@@ -169,8 +163,16 @@ impl MutationContext {
 
         eprintln!("Enabled endpoints: {}/{}", enabled, total);
 
+        if !missing_constructors.is_empty() || !missing_destructors.is_empty() {
+            if !bypass_validation {
+                eprintln!("Missing constructors or destructors");
+                std::process::exit(1);
+            }
+        }
+
         if enabled == 0 {
-            panic!("No enabled endpoints");
+            eprintln!("No enabled endpoints");
+            std::process::exit(1);
         }
     }
     

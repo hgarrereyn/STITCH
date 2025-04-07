@@ -1,0 +1,1430 @@
+{
+  "endpoints": [
+    {
+      "name": "pcre2_convert_context_copy_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_convert_context *new_context = pcre2_convert_context_copy(__ccontext);\nif (new_context == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_convert_context_copy_v1",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_convert_context *"
+        },
+        {
+          "name": "__newcontext",
+          "dir": "new",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\n__newcontext = pcre2_convert_context_copy(__ccontext);\nif (__newcontext == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_newline_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nuint32_t newline = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_newline(__ccontext, newline);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_compile_extra_options_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) {\n    FUZZ_BAIL();\n}\n\nuint32_t options = FUZZ_PARAM(uint32_t);\nint result = pcre2_set_compile_extra_options(__ccontext, options);\nif (result != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_set_depth_limit_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) {\n    FUZZ_BAIL();\n}\n\nuint32_t limit = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_depth_limit(__mcontext, limit);\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_set_glob_separator_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\nuint32_t separator = FUZZ_PARAM(uint32_t);\nif (separator != 0 && separator != 1 && separator != 2) FUZZ_BAIL(); // Assuming 0, 1, 2 are the valid separator values.\nint result = pcre2_set_glob_separator(__ccontext, separator);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_serialize_encode_v0",
+      "variables": [
+        {
+          "name": "__codes",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__codes == NULL) FUZZ_BAIL();\n\nint32_t number_of_codes = FUZZ_PARAM(int32_t);\nif (number_of_codes <= 0) FUZZ_BAIL();\n\nuint8_t **serialized_bytes = (uint8_t**) gf_malloc(sizeof(uint8_t*));\nif (serialized_bytes == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE *serialized_size = (PCRE2_SIZE*) gf_malloc(sizeof(PCRE2_SIZE));\nif (serialized_size == NULL) {\n    gf_free(serialized_bytes);\n    FUZZ_BAIL();\n}\n\nconst pcre2_code **codes_array = (const pcre2_code **) gf_malloc(number_of_codes * sizeof(pcre2_code *));\nif (codes_array == NULL) {\n    gf_free(serialized_bytes);\n    gf_free(serialized_size);\n    FUZZ_BAIL();\n}\n\ncodes_array[0] = __codes;\n\nint32_t res = pcre2_serialize_encode(codes_array, number_of_codes, serialized_bytes, serialized_size, NULL);\nif (res < 0) {\n    gf_free(codes_array);\n    gf_free(serialized_bytes);\n    gf_free(serialized_size);\n    FUZZ_BAIL();\n}\n\n// Clean up resources\nif (*serialized_bytes != NULL) gf_free(*serialized_bytes);\ngf_free(codes_array);\ngf_free(serialized_bytes);\ngf_free(serialized_size);"
+    },
+    {
+      "name": "pcre2_serialize_encode_v1",
+      "variables": [
+        {
+          "name": "__codes",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__codes == NULL || __gcontext == NULL) FUZZ_BAIL();\n\nconst pcre2_code *codes[1] = { __codes };\nint32_t number_of_codes = 1;\nuint8_t *serialized_bytes = NULL;\nPCRE2_SIZE serialized_size;\n\nint32_t result = pcre2_serialize_encode(codes, number_of_codes, &serialized_bytes, &serialized_size, __gcontext);\nif (result < 0) FUZZ_BAIL();\n\n// Clean up after serialization: use gf_free for allocated memory\nif (serialized_bytes) gf_free(serialized_bytes);\n"
+    },
+    {
+      "name": "pcre2_substring_copy_bynumber_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        },
+        {
+          "name": "__buffer",
+          "dir": "new",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "if (__match_data == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE size;\nint rc = pcre2_substring_length_bynumber(__match_data, 0, &size);\nif (rc < 0) FUZZ_BAIL();\n\nPCRE2_SIZE sizeptr = size + 1; // +1 for null terminator.\nuint32_t stringnumber = 0; // As an example, we're using the first substring.\n\nrc = pcre2_substring_copy_bynumber(__match_data, stringnumber, &__buffer, &sizeptr);\nif (rc < 0) FUZZ_BAIL();\n\nif (sizeptr > size) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_compile_v0",
+      "variables": [
+        {
+          "name": "__pattern",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__pattern == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE patlen = strlen((const char *)__pattern);\nuint32_t options = 0; // Can be modified if needed\nint errorcode = 0;\nPCRE2_SIZE erroroffset = 0;\npcre2_compile_context *ccontext = NULL; // Assuming NULL context for now\n\n// Call the pcre2_compile function\npcre2_code *compiled_pattern = pcre2_compile(\n    __pattern,\n    patlen,\n    options,\n    &errorcode,\n    &erroroffset,\n    ccontext\n);\n\nif (compiled_pattern == NULL) {\n    FUZZ_BAIL();\n}\n\n// At this point, compiled_pattern holds the compiled regex. We could also do\n// further operations on it or return it if necessary, but we're meant to stop here."
+    },
+    {
+      "name": "pcre2_compile_v1",
+      "variables": [
+        {
+          "name": "__pattern",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__pattern == NULL || __ccontext == NULL) FUZZ_BAIL();\n\n// Generate random values to be used in the invocation\nuint32_t options = FUZZ_PARAM(uint32_t);\nint errorcode = 0;\nPCRE2_SIZE erroroffset = 0;\n\n// Call the pcre2_compile function\npcre2_code *code = pcre2_compile((PCRE2_SPTR8)__pattern, PCRE2_ZERO_TERMINATED, options, &errorcode, &erroroffset, __ccontext);\n\nif (code == NULL) {\n    // If compilation failed, handle error accordingly\n    FUZZ_BAIL();\n}\n\n// Clean up temporary objects (if any) before exiting the function\n// In this case, we don't need to clean up as the pcre2_compile function handles allocation internally.\n"
+    },
+    {
+      "name": "pcre2_get_ovector_pointer_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) { FUZZ_BAIL(); }\n\nPCRE2_SIZE *ovector = pcre2_get_ovector_pointer(__match_data);\nif (ovector == NULL) { FUZZ_BAIL(); }\n\n// Handle successful case using the ovector as required; this is a stub for demonstration."
+    },
+    {
+      "name": "pcre2_jit_stack_create_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "pcre2_jit_stack *"
+        }
+      ],
+      "template": "size_t startsize = FUZZ_PARAM(size_t);\nsize_t maxsize = FUZZ_PARAM(size_t);\n\n__return = pcre2_jit_stack_create(startsize, maxsize, NULL);\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_jit_stack_create_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "pcre2_jit_stack *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\nsize_t startsize = FUZZ_PARAM(size_t);\nsize_t maxsize = FUZZ_PARAM(size_t);\n\n__return = pcre2_jit_stack_create(startsize, maxsize, __gcontext);\n\nif (__return == NULL) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "pcre2_convert_context_create_v0",
+      "variables": [],
+      "template": "pcre2_general_context *gcontext = (pcre2_general_context *)FUZZ_PARAM_FILE(1024);\npcre2_convert_context *ccontext = pcre2_convert_context_create(gcontext);\nif (ccontext == NULL) FUZZ_BAIL();\n// No need to manually copy memory control as it's handled within the library's context create function.\n"
+    },
+    {
+      "name": "pcre2_convert_context_create_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\npcre2_convert_context *ccontext = pcre2_convert_context_create(__gcontext);\nif (ccontext == NULL) FUZZ_BAIL();\n\n// Initialize any internal state of ccontext if necessary here\n\n// Clean up if necessary\n"
+    },
+    {
+      "name": "pcre2_convert_context_create_v2",
+      "variables": [
+        {
+          "name": "___implicit_return_value_",
+          "dir": "new",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "pcre2_general_context *gcontext = (pcre2_general_context *)0;\n\n___implicit_return_value_ = pcre2_convert_context_create(gcontext);\nif (___implicit_return_value_ == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_convert_context_create_v3",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        },
+        {
+          "name": "___implicit_return_value_",
+          "dir": "new",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\n___implicit_return_value_ = pcre2_convert_context_create(__gcontext);\nif (___implicit_return_value_ == NULL) FUZZ_BAIL();\n\n// Output is initialized and does not require further clean-up."
+    },
+    {
+      "name": "pcre2_substring_nametable_scan_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__code == NULL || __stringname == NULL) FUZZ_BAIL();\n\nPCRE2_SPTR firstptr = NULL;\nPCRE2_SPTR lastptr = NULL;\nint result = pcre2_substring_nametable_scan(__code, __stringname, &firstptr, &lastptr);\n\nif (result < 0) FUZZ_BAIL();\n\n// Output the results if needed, usually they might be used for further processing. \n// However, it's assumed there's nothing to do per the API, so just clean up and exit. \n"
+    },
+    {
+      "name": "pcre2_substring_nametable_scan_v1",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__firstptr",
+          "dir": "new",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "// Validate input parameters\nif (__code == nullptr || __stringname == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Output pointers must be initialized\n__firstptr = nullptr;\n\n// Invoke the library function\nPCRE2_SPTR lastptr;\nint result = pcre2_substring_nametable_scan(__code, __stringname, &__firstptr, &lastptr);\n\n// Check result of the API call\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_substring_nametable_scan_v2",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__lastptr",
+          "dir": "new",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__code == NULL || __stringname == NULL) FUZZ_BAIL();\n\nPCRE2_SPTR8 firstptr = NULL;\n__lastptr = NULL;\nint result = pcre2_substring_nametable_scan(__code, __stringname, &firstptr, &__lastptr);\n\nif (result < 0) FUZZ_BAIL();\n\nif (firstptr == __lastptr) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "pcre2_substring_nametable_scan_v3",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__firstptr",
+          "dir": "new",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__lastptr",
+          "dir": "new",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__code == nullptr || __stringname == nullptr) {\n    FUZZ_BAIL();\n}\n\nPCRE2_SPTR8 first = nullptr;\nPCRE2_SPTR8 last = nullptr;\nint result = pcre2_substring_nametable_scan(__code, __stringname, &first, &last);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\n__firstptr = first;\n__lastptr = last;"
+    },
+    {
+      "name": "pcre2_compile_context_copy_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\npcre2_compile_context *newcontext = pcre2_compile_context_copy(__ccontext);\nif (newcontext == NULL) FUZZ_BAIL();\n\n// The 'newcontext' is created and ready to use. Cleanup would be handled by the caller."
+    },
+    {
+      "name": "pcre2_compile_context_copy_v1",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\n__return_value = pcre2_compile_context_copy(__ccontext);\nif (__return_value == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_glob_escape_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "uint32_t escape = FUZZ_PARAM(uint32_t);\nif (escape > 255) {\n    FUZZ_BAIL();\n}\nif (escape != 0 && strchr(\"!#$%&'()*+,-./:;<=>?@[\\]_^`{|}~\", escape) == NULL) {\n    FUZZ_BAIL();\n}\nif (pcre2_set_glob_escape(__ccontext, escape) != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_substitute_v1",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__subject",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        },
+        {
+          "name": "__replacement",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__code == NULL || __subject == NULL || __match_data == NULL || __replacement == NULL) {\n    FUZZ_BAIL();\n}\n\nPCRE2_SIZE length = PCRE2_ZERO_TERMINATED;\nPCRE2_SIZE rlength = PCRE2_ZERO_TERMINATED;\nPCRE2_SIZE buffer_length = 0;\nPCRE2_UCHAR *buffer = (PCRE2_UCHAR *) gf_malloc(1024); // allocate a temporary buffer\n\nif (buffer == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = pcre2_substitute(__code, __subject, length, 0, 0, __match_data, NULL, __replacement, rlength, buffer, &buffer_length);\n\nif (result < 0) {\n    gf_free(buffer);\n    FUZZ_BAIL();\n}\n\n// Cleanup the temporary buffer\n gf_free(buffer);"
+    },
+    {
+      "name": "pcre2_general_context_free_v0",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "del",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_general_context_free(__gcontext);\n"
+    },
+    {
+      "name": "pcre2_substring_copy_byname_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__buffer",
+          "dir": "new",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "if (__match_data == NULL || __stringname == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE size = sizeof(__buffer);\nint result = pcre2_substring_copy_byname(__match_data, __stringname, &__buffer, &size);\n\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_serialize_decode_v0",
+      "variables": [
+        {
+          "name": "__codes",
+          "dir": "new",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__codes != nullptr) {\n    FUZZ_BAIL();\n}\n\n// Preparing to receive serialized data\nconst char *temp_file_path = FUZZ_PARAM_FILE(256);\n\n// Assume the file reading function is available through the library or defined in the context\nuint8_t *serialized_data = (uint8_t *)gf_malloc(256);\nif (serialized_data == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Simulate filling the serialized_data with file content here\n// NOTE: In a real implementation, we would read from the file specified by temp_file_path\n\n// Assuming we expect a certain number of codes\nint32_t number_of_codes = FUZZ_PARAM(int32_t);\n\n// Attempt to decode the serialized data.\nint32_t result = pcre2_serialize_decode(&__codes, number_of_codes, serialized_data, nullptr);\n\n// Check for errors returned by the API\nif (result < 0) {\n    gf_free(serialized_data);\n    FUZZ_BAIL();\n}\n\n// Clean up the serialized data memory\ngf_free(serialized_data);\n"
+    },
+    {
+      "name": "pcre2_serialize_decode_v1",
+      "variables": [
+        {
+          "name": "__codes",
+          "dir": "new",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\nconst char *bytes_file = FUZZ_PARAM_FILE(1024);\nif (bytes_file == NULL) FUZZ_BAIL();\n\n// Assuming bytes_file points to a temporary file with serialized data\n// You might have a specific function to read file content into a byte array\n// Replace the line below with the appropriate method to read file into a byte array\nuint8_t *bytes = (uint8_t *)gf_malloc(1024); // Example allocation, replace with actual file reading\nif (bytes == NULL) FUZZ_BAIL();\n\nint32_t number_of_codes = FUZZ_PARAM(int32_t);\n\n__codes = NULL; // Initialize the output to NULL\n\nint32_t result = pcre2_serialize_decode(&__codes, number_of_codes, bytes, __gcontext);\nif (result < 0) { // Check for errors on the call\n    gf_free(bytes);\n    FUZZ_BAIL();\n}\n\ngf_free(bytes);"
+    },
+    {
+      "name": "pcre2_set_callout_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\nint (*callout)(pcre2_callout_block *, void *) = reinterpret_cast<int (*)(pcre2_callout_block *, void *)>(FUZZ_PARAM(uintptr_t));\nvoid *callout_data = reinterpret_cast<void *>(FUZZ_PARAM(uintptr_t));\n\n// Invoke the library function\nif (pcre2_set_callout(__mcontext, callout, callout_data) < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_jit_stack_free_v1",
+      "variables": [
+        {
+          "name": "__jit_stack",
+          "dir": "del",
+          "typ": "pcre2_jit_stack *"
+        }
+      ],
+      "template": "if (__jit_stack == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_jit_stack_free(__jit_stack);\n\ngf_free(__jit_stack);"
+    },
+    {
+      "name": "pcre2_get_match_data_heapframes_size_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t size = pcre2_get_match_data_heapframes_size(__match_data);\nif (size == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_substring_list_free_v0",
+      "variables": [],
+      "template": "PCRE2_UCHAR **list = (PCRE2_UCHAR **)FUZZ_PARAM_FILE(1024);\n\nif (list == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_substring_list_free(list);\n\n// Clean up if necessary (for example, deallocation)\ngf_free(list);"
+    },
+    {
+      "name": "pcre2_substring_list_free_v1",
+      "variables": [
+        {
+          "name": "__list",
+          "dir": "del",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "if (__list == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_substring_list_free((PCRE2_UCHAR **)(uintptr_t)__list);\n"
+    },
+    {
+      "name": "pcre2_jit_match_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__subject",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__code == NULL || __subject == NULL) FUZZ_BAIL();\n\n// Create a match data object\npcre2_match_data *match_data = pcre2_match_data_create(0, NULL);\nif (match_data == NULL) FUZZ_BAIL();\n\n// Create a JIT stack\npcre2_jit_stack *jit_stack = pcre2_jit_stack_create(0, 0, NULL);\nif (jit_stack == NULL) {\n    pcre2_match_data_free(match_data);\n    FUZZ_BAIL();\n}\n\n// Call the JIT match function\nint result = pcre2_jit_match(__code, __subject, strlen((const char *)__subject), 0, 0, match_data, NULL);\n\n// Clean up\npcre2_jit_stack_free(jit_stack);\nif (result < 0) {\n    pcre2_match_data_free(match_data);\n    FUZZ_BAIL();\n}\n\npcre2_match_data_free(match_data);"
+    },
+    {
+      "name": "pcre2_jit_match_v1",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__subject",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__code == NULL || __subject == NULL || __match_data == NULL) {\n    FUZZ_BAIL();\n}\n\nPCRE2_SIZE length = strlen((const char *)__subject);\nPCRE2_SIZE start_offset = FUZZ_PARAM(PCRE2_SIZE);\nuint32_t options = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_jit_match(__code, __subject, length, start_offset, options, __match_data, NULL);\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_jit_match_v3",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__subject",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        },
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__code == NULL || __subject == NULL || __match_data == NULL) { FUZZ_BAIL(); }\n\nPCRE2_SIZE length = FUZZ_PARAM(uint32_t);\nuint32_t options = FUZZ_PARAM(uint32_t);\nPCRE2_SIZE start_offset = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_jit_match(__code, __subject, length, start_offset, options, __match_data, __mcontext);\n\nif (result < 0) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "pcre2_maketables_free_v0",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) {\n    FUZZ_BAIL();\n}\n\nconst uint8_t *tables = NULL;\n// Assuming there's a way to allocate or retrieve the tables, for fuzzing we can just pass a NULL\npcre2_maketables_free(__gcontext, tables);"
+    },
+    {
+      "name": "pcre2_code_free_v1",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "del",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__code == NULL) FUZZ_BAIL();\n\npcre2_code_free(__code);\n\n// No additional output arguments or cleanup needed, as we only invoke a free function."
+    },
+    {
+      "name": "pcre2_set_max_varlookbehind_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nuint32_t limit = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_max_varlookbehind(__ccontext, limit);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_substring_length_byname_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "PCRE2_SIZE size;\nPCRE2_SPTR stringname = (PCRE2_SPTR)FUZZ_PARAM_STR(10);\nint result = pcre2_substring_length_byname(__match_data, stringname, &size);\nif (result < 0) {\n    FUZZ_BAIL();\n}\n// The length of the substring is stored in \"size\" if needed.\n"
+    },
+    {
+      "name": "pcre2_match_context_create_v0",
+      "variables": [],
+      "template": "pcre2_general_context *gcontext = NULL;\n\n// Create the match context using the macro\npcre2_match_context *mcontext = pcre2_match_context_create(gcontext);\nif (mcontext == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming mcontext is used later in the logic, handle its further use here.\n// Cleanup: Free the match context using the appropriate function if needed.\ngf_free(mcontext);\n"
+    },
+    {
+      "name": "pcre2_match_context_create_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\npcre2_match_context *mcontext = pcre2_match_context_create(__gcontext);\nif (mcontext == NULL) FUZZ_BAIL();\n\n// Assuming we need to initialize some outputs (if there were any).\n// For now, there's nothing to initialize after creation, but we leave it here for future-proofing.\n\n// Cleanup is not needed here as the created context is managed externally, but if\n// we would allocate any resources we have to free them, we would be doing it here.\n\n"
+    },
+    {
+      "name": "pcre2_match_context_create_v2",
+      "variables": [
+        {
+          "name": "___returned_value_",
+          "dir": "new",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "___returned_value_ = pcre2_match_context_create(NULL);\nif (___returned_value_ == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_match_context_create_v3",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        },
+        {
+          "name": "___returned_value_",
+          "dir": "new",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__gcontext == nullptr) FUZZ_BAIL();\n\npcre2_match_context *context = pcre2_match_context_create(__gcontext);\nif (context == nullptr) FUZZ_BAIL();\n\n___returned_value_ = context;"
+    },
+    {
+      "name": "pcre2_substring_get_byname_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        },
+        {
+          "name": "__stringptr",
+          "dir": "new",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "if (__match_data == nullptr || __stringname == nullptr) {\n    FUZZ_BAIL();\n}\n\nPCRE2_UCHAR *result_ptr = nullptr;\nPCRE2_SIZE result_size;\n\nint response = pcre2_substring_get_byname(__match_data, __stringname, &result_ptr, &result_size);\nif (response < 0) {\n    FUZZ_BAIL();\n}\n\n__stringptr = *result_ptr;\n"
+    },
+    {
+      "name": "pcre2_general_context_create_v0",
+      "variables": [],
+      "template": "void *(*malloc_func)(size_t, void *) = (void *(*)(size_t, void *))FUZZ_PARAM_FILE(16);\nvoid (*free_func)(void *, void *) = (void (*)(void *, void *))FUZZ_PARAM_FILE(16);\nvoid *memory_data = (void *)FUZZ_PARAM_FILE(16);\n\n// Invoke the API\npcre2_general_context *gcontext = pcre2_general_context_create(malloc_func, free_func, memory_data);\n\n// Validate the output\nif (gcontext == NULL) {\n    FUZZ_BAIL();\n}\n\n// No need to clean up, as context management is handled by the library"
+    },
+    {
+      "name": "pcre2_general_context_create_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "new",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "void *(*private_malloc)(size_t, void *) = NULL;\nvoid (*private_free)(void *, void *) = NULL;\n\n__gcontext = pcre2_general_context_create(private_malloc, private_free, NULL);\nif (__gcontext == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_set_max_pattern_compiled_length_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE length = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_max_pattern_compiled_length(__ccontext, length);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_substring_number_from_name_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__stringname",
+          "dir": "*",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "if (__code == NULL || __stringname == NULL) FUZZ_BAIL();\n\nint result = pcre2_substring_number_from_name(__code, __stringname);\n\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_maketables_v1",
+      "variables": [
+        {
+          "name": "__context",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__context == NULL) FUZZ_BAIL();\n\nconst uint8_t *tables = pcre2_maketables(__context);\nif (tables == NULL) FUZZ_BAIL();\n\n// Assuming there are no output arguments to initialize and no further actions are specified in the requirement."
+    },
+    {
+      "name": "pcre2_set_parens_nest_limit_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nuint32_t limit = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_parens_nest_limit(__ccontext, limit);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_substring_length_bynumber_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) FUZZ_BAIL();\n\nuint32_t stringnumber = FUZZ_PARAM(uint32_t);\nPCRE2_SIZE *sizeptr = (PCRE2_SIZE *)gf_malloc(sizeof(PCRE2_SIZE));\nif (sizeptr == NULL) FUZZ_BAIL();\n\nint result = pcre2_substring_length_bynumber(__match_data, stringnumber, sizeptr);\nif (result < 0) {\n    gf_free(sizeptr);\n    FUZZ_BAIL();\n}\n\n// The value at sizeptr can be used as needed or verified further.\ngf_free(sizeptr);"
+    },
+    {
+      "name": "pcre2_compile_context_create_v0",
+      "variables": [],
+      "template": "pcre2_general_context *gcontext = (pcre2_general_context *)FUZZ_PARAM_FILE(128);\n\nif (gcontext == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_compile_context *ccontext = pcre2_compile_context_create(gcontext);\nif (ccontext == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up any allocated memory, if needed, using gf_free (if applicable)\ngf_free(ccontext);\n"
+    },
+    {
+      "name": "pcre2_compile_context_create_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\npcre2_compile_context *ccontext = pcre2_compile_context_create(__gcontext);\nif (ccontext == NULL) FUZZ_BAIL();\n\n// Clean up is not necessary here as the library manages this context."
+    },
+    {
+      "name": "pcre2_compile_context_create_v2",
+      "variables": [
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "___return_value_ = pcre2_compile_context_create(NULL);\nif (___return_value_ == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_compile_context_create_v3",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\n___return_value_ = pcre2_compile_context_create(__gcontext);\nif (___return_value_ == NULL) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "pcre2_set_heap_limit_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\nuint32_t limit = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_heap_limit(__mcontext, limit);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_get_error_message_v0",
+      "variables": [
+        {
+          "name": "__buffer",
+          "dir": "new",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "PCRE2_SIZE size = sizeof(__buffer);\nint error_number = FUZZ_PARAM(int); // Assuming error number is fuzzable\nif (size == 0) FUZZ_BAIL();\nint result = pcre2_get_error_message(error_number, &__buffer, size);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_max_pattern_length_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE length = FUZZ_PARAM(PCRE2_SIZE);\n\nint result = pcre2_set_max_pattern_length(__ccontext, length);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_match_context_copy_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\npcre2_match_context *new_context = pcre2_match_context_copy(__mcontext);\nif (new_context == NULL) FUZZ_BAIL();\n\n// As pcre2_match_context_copy does not have output parameters to initialize or further steps,\n// we simply use the new context as needed or pass it along for further processing."
+    },
+    {
+      "name": "pcre2_match_context_copy_v1",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        },
+        {
+          "name": "__new_context",
+          "dir": "new",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\n__new_context = pcre2_match_context_copy(__mcontext);\nif (__new_context == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_substitute_case_callout_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE (*substitute_case_callout)(PCRE2_SPTR, PCRE2_SIZE, PCRE2_UCHAR *, PCRE2_SIZE, int, void *) = nullptr;\nconst char *substitute_case_callout_data = FUZZ_PARAM_FILE(16);\n\nint result = pcre2_set_substitute_case_callout(__mcontext, substitute_case_callout, (void *)substitute_case_callout_data);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_compile_context_free_v0",
+      "variables": [],
+      "template": "pcre2_compile_context *ccontext = (pcre2_compile_context *)FUZZ_PARAM_FILE(256);\nif (ccontext == NULL) FUZZ_BAIL();\n\npcre2_compile_context_free(ccontext);\n\n// Clean up ccontext if necessary, although it is freed by the API call."
+    },
+    {
+      "name": "pcre2_compile_context_free_v1",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "del",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (!__ccontext) FUZZ_BAIL();\n\npcre2_compile_context_free(__ccontext);\n\n// No additional cleanup needed since we are directly invoking the library function."
+    },
+    {
+      "name": "pcre2_general_context_copy_v0",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\npcre2_general_context *new_context = pcre2_general_context_copy(__gcontext);\nif (new_context == NULL) FUZZ_BAIL();\n\n// Normally you would use new_context for further processing\n// but since we're in a fuzzing environment,\n// we won't continue with any specific logic here.\n\n// Clean up resources if necessary\ngf_free(new_context); // Assuming we need to free it after usage."
+    },
+    {
+      "name": "pcre2_general_context_copy_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        },
+        {
+          "name": "__newcontext",
+          "dir": "new",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == nullptr) FUZZ_BAIL();\n\n__newcontext = pcre2_general_context_copy(__gcontext);\nif (__newcontext == nullptr) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_match_data_free_v1",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "del",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_match_data_free(__match_data);\n"
+    },
+    {
+      "name": "pcre2_get_ovector_count_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) FUZZ_BAIL();\n\nuint32_t count = pcre2_get_ovector_count(__match_data);\n\nif (count <= 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_pattern_convert_v0",
+      "variables": [],
+      "template": "PCRE2_SIZE plength = FUZZ_PARAM(uint32_t);\nuint32_t options = FUZZ_PARAM(uint32_t);\nPCRE2_UCHAR *buffptr = NULL;\nPCRE2_SIZE bufflen = 0;\npcre2_convert_context *ccontext = NULL;\n\nif (plength == 0) { FUZZ_BAIL(); }\n\nconst char *pattern_file = FUZZ_PARAM_FILE(20);\nif (!pattern_file) { FUZZ_BAIL(); }\n\n// Assuming the file read mechanism is in place to fill pattern\nsize_t pattern_length = 20;\nPCRE2_SPTR pattern = (PCRE2_SPTR) FUZZ_PARAM_FILE(20);\n\nint result = pcre2_pattern_convert(pattern, plength, options, &buffptr, &bufflen, ccontext);\nif (result < 0) { FUZZ_BAIL(); }\n\n// Free any memory allocated for buffptr if necessary."
+    },
+    {
+      "name": "pcre2_pattern_convert_v3",
+      "variables": [
+        {
+          "name": "__buffptr",
+          "dir": "new",
+          "typ": "PCRE2_UCHAR8"
+        },
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nPCRE2_UCHAR *buffer = NULL;\nPCRE2_SIZE bufflen = 0;\nuint32_t options = FUZZ_PARAM(uint32_t);\nPCRE2_SIZE pattern_length = FUZZ_PARAM(PCRE2_SIZE);\nPCRE2_UCHAR8 pattern = FUZZ_PARAM(PCRE2_UCHAR8);\n\nint result = pcre2_pattern_convert(&pattern, pattern_length, options, &buffer, &bufflen, __ccontext);\nif (result < 0) FUZZ_BAIL();\n\n__buffptr = *buffer;\n\ngf_free(buffer);"
+    },
+    {
+      "name": "pcre2_code_copy_with_tables_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__code == NULL) FUZZ_BAIL();\n\npcre2_code *new_code = pcre2_code_copy_with_tables(__code);\nif (new_code == NULL) FUZZ_BAIL();\n\n// Cleanup not needed as the library manages memory\n"
+    },
+    {
+      "name": "pcre2_match_data_create_from_pattern_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "___implicit_return_",
+          "dir": "new",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__code == NULL) FUZZ_BAIL();\n\npcre2_general_context *gcontext = NULL;\n___implicit_return_ = pcre2_match_data_create_from_pattern(__code, gcontext);\nif (___implicit_return_ == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_match_data_create_from_pattern_v1",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        },
+        {
+          "name": "___implicit_return_",
+          "dir": "new",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__code == NULL || __gcontext == NULL) FUZZ_BAIL();\n\n___implicit_return_ = pcre2_match_data_create_from_pattern(__code, __gcontext);\nif (___implicit_return_ == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_character_tables_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\nconst uint8_t random_tables[256] = { FUZZ_PARAM(uint8_t) };\nif (pcre2_set_character_tables(__ccontext, random_tables) != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_get_startchar_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE startchar = pcre2_get_startchar(__match_data);\n\n// The function pcre2_get_startchar() directly returns the starting character.\n// In case of success, it should not be equal to any invalid value, thus we can create a simple check.\nif (startchar == 0xFFFFFFFF) FUZZ_BAIL();\n\n// Use startchar for further logic if required."
+    },
+    {
+      "name": "pcre2_jit_compile_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__code == NULL) FUZZ_BAIL();\n\nuint32_t options = FUZZ_PARAM(uint32_t);\nint result = pcre2_jit_compile(__code, options);\n\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_jit_stack_assign_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\n// Generate a random callback function pointer\npcre2_jit_callback callback = (pcre2_jit_callback)(uintptr_t)FUZZ_PARAM(uintptr_t);\nif (callback == nullptr) FUZZ_BAIL();\n\n// Generate random data for callback_data\nvoid *callback_data = (void *)FUZZ_PARAM(uint64_t);\n\n// Call the pcre2_jit_stack_assign function\npcre2_jit_stack_assign(__mcontext, callback, callback_data);\n\n// No need for cleanup as the function does not allocate memory that we manage."
+    },
+    {
+      "name": "pcre2_config_v0",
+      "variables": [],
+      "template": "uint32_t what = FUZZ_PARAM(uint32_t);\nvoid *where = NULL;\n\n// Call pcre2_config with a NULL where to get the size\nif (pcre2_config(what, where) != sizeof(uint32_t)) {\n    FUZZ_BAIL();\n}\n\n// Allocate memory for the result\nwhere = gf_malloc(sizeof(uint32_t));\nif (where == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call pcre2_config with the allocated memory\nif (pcre2_config(what, where) != 0) {\n    gf_free(where);\n    FUZZ_BAIL();\n}\n\n// Clean up memory\ngf_free(where);"
+    },
+    {
+      "name": "pcre2_convert_context_free_v0",
+      "variables": [],
+      "template": "pcre2_convert_context *context = (pcre2_convert_context *)FUZZ_PARAM_FILE(100);\nif (context == NULL) FUZZ_BAIL();\n\npcre2_convert_context_free(context);\ncontext = NULL;"
+    },
+    {
+      "name": "pcre2_convert_context_free_v1",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "del",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\npcre2_convert_context_free(__ccontext);\n\n// Clean up is not needed here since we're freeing the context itself, no temporary objects created."
+    },
+    {
+      "name": "pcre2_set_compile_recursion_guard_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\n// Generate random values for recursion guard and user data\nuint32_t guard_value = FUZZ_PARAM(uint32_t);\nvoid *user_data = (void*)FUZZ_PARAM(uint64_t);\n\n// Invoke the API function with generated values\nint result = pcre2_set_compile_recursion_guard(__ccontext, (int(*)(uint32_t, void*)) guard_value, user_data);\nif (result != 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_set_recursion_limit_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\nuint32_t limit = FUZZ_PARAM(uint32_t);\nint result = pcre2_set_recursion_limit(__mcontext, limit);\nif (result < 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "pcre2_match_context_free_v0",
+      "variables": [],
+      "template": "// Randomly generate a match context to free\npcre2_match_context *mcontext = (pcre2_match_context *)FUZZ_PARAM_FILE(1);\nif (mcontext == NULL) FUZZ_BAIL();\n\n// Free the match context using the library's API\npcre2_match_context_free(mcontext);"
+    },
+    {
+      "name": "pcre2_match_context_free_v1",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "del",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_match_context_free(__mcontext);"
+    },
+    {
+      "name": "pcre2_jit_free_unused_memory_v0",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) FUZZ_BAIL();\n\npcre2_jit_free_unused_memory(__gcontext);"
+    },
+    {
+      "name": "pcre2_set_bsr_v0",
+      "variables": [
+        {
+          "name": "__ccontext",
+          "dir": "*",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "if (__ccontext == NULL) FUZZ_BAIL();\n\nuint32_t bsr_value = FUZZ_PARAM(uint32_t);\n\nint result = pcre2_set_bsr(__ccontext, bsr_value);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_substring_free_v0",
+      "variables": [],
+      "template": "const char *string = FUZZ_PARAM_FILE(1024);\n\nif (string == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_substring_free((PCRE2_UCHAR *)string);\n"
+    },
+    {
+      "name": "pcre2_substring_free_v1",
+      "variables": [
+        {
+          "name": "__string",
+          "dir": "del",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "if (&__string == NULL) {\n    FUZZ_BAIL();\n}\n\npcre2_substring_free(&__string);\n"
+    },
+    {
+      "name": "pcre2_converted_pattern_free_v0",
+      "variables": [],
+      "template": "const char *converted_pattern_file = FUZZ_PARAM_FILE(1024);\nif (converted_pattern_file == NULL) FUZZ_BAIL();\n\n// We will try to read the file content into a buffer\nPCRE2_UCHAR *converted_pattern = (PCRE2_UCHAR *)gf_malloc(1024);\nif (converted_pattern == NULL) FUZZ_BAIL();\n\n// Simulated logic for reading from file (not implemented)\n// Assume we fill converted_pattern with appropriate data\nif (fread(converted_pattern, 1, 1024, fopen(converted_pattern_file, \"rb\")) <= 0) {\n    gf_free(converted_pattern);\n    FUZZ_BAIL();\n}\n\npcre2_converted_pattern_free(converted_pattern);\n\n// Clean up\n\n// Deallocate the converted pattern (handled in pcre2_converted_pattern_free)"
+    },
+    {
+      "name": "pcre2_converted_pattern_free_v1",
+      "variables": [
+        {
+          "name": "__converted",
+          "dir": "del",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "if (__converted == 0) {\n    FUZZ_BAIL();\n}\n\npcre2_converted_pattern_free(&__converted);\n"
+    },
+    {
+      "name": "pcre2_serialize_get_number_of_codes_v0",
+      "variables": [],
+      "template": "const char *file_path = FUZZ_PARAM_FILE(1024);\n\n// Since direct reading from file is not possible, we assume pcre2_serialize_get_number_of_codes takes a previously serialized data format in a uint8_t type.\nint32_t number_of_codes = pcre2_serialize_get_number_of_codes((const uint8_t *)file_path);\n\nif (number_of_codes < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_set_offset_limit_v0",
+      "variables": [
+        {
+          "name": "__mcontext",
+          "dir": "*",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "if (__mcontext == NULL) FUZZ_BAIL();\n\nPCRE2_SIZE limit = FUZZ_PARAM(PCRE2_SIZE);\n\nint rc = pcre2_set_offset_limit(__mcontext, limit);\nif (rc < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "pcre2_code_copy_v0",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__code == NULL) FUZZ_BAIL();\n\npcre2_code *newcode = pcre2_code_copy(__code);\nif (newcode == NULL) FUZZ_BAIL();\n\n// Temporary memory cleanup is not needed here since `pcre2_code_copy` handles allocations and return a new object."
+    },
+    {
+      "name": "pcre2_code_copy_v1",
+      "variables": [
+        {
+          "name": "__code",
+          "dir": "*",
+          "typ": "pcre2_code *"
+        },
+        {
+          "name": "__newcode",
+          "dir": "new",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "if (__code == NULL) {\n    FUZZ_BAIL();\n}\n\n__newcode = pcre2_code_copy(__code);\nif (__newcode == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "pcre2_match_data_create_v1",
+      "variables": [
+        {
+          "name": "__gcontext",
+          "dir": "*",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "if (__gcontext == NULL) {\n    FUZZ_BAIL();\n}\n\nuint32_t oveccount = FUZZ_PARAM(uint32_t);\n\nif (oveccount < 1) oveccount = 1;\nif (oveccount > UINT16_MAX) oveccount = UINT16_MAX;\n\npcre2_match_data *match_data = pcre2_match_data_create(oveccount, __gcontext);\nif (match_data == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize any output arguments, if necessary. // Placeholders for further operations if needed."
+    },
+    {
+      "name": "pcre2_get_match_data_size_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (__match_data == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t match_data_size = pcre2_get_match_data_size(__match_data);\nif (match_data_size == 0) {\n    FUZZ_BAIL();\n} \n\n// Optionally handle the size or invoke any related functions if necessary\n"
+    },
+    {
+      "name": "pcre2_get_mark_v0",
+      "variables": [
+        {
+          "name": "__match_data",
+          "dir": "*",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "if (!__match_data) FUZZ_BAIL();\n\nPCRE2_SPTR mark = pcre2_get_mark(__match_data);\nif (!mark) FUZZ_BAIL();\n\n// Here we can do something with the mark if needed, such as logging or further processing.\n"
+    },
+    {
+      "name": "new pcre2_match_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "object = pcre2_match_context_create(NULL);\nif (object == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "new pcre2_compile_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "pcre2_general_context *gcontext = pcre2_general_context_create(NULL, NULL, NULL);\nif (gcontext == NULL) FUZZ_BAIL();\n\nobject = pcre2_compile_context_create(gcontext);\nif (object == NULL) {\n    pcre2_general_context_free(gcontext);\n    FUZZ_BAIL();\n}\n\n// Clean up temporary object\npcre2_general_context_free(gcontext);"
+    },
+    {
+      "name": "new pcre2_match_data *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "pcre2_general_context *ctx = nullptr; // Assuming that creating a general context is needed\nobject = pcre2_match_data_create(10, ctx); // 10 is an example value for oveccount\nif (object == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new pcre2_convert_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "object = pcre2_convert_context_create(NULL);\nif (object == NULL) FUZZ_BAIL();\n\n// No additional clean-up needed as the API manages memory automatically"
+    },
+    {
+      "name": "delete pcre2_callout_enumerate_block",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_callout_enumerate_block"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_match_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_match_context *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_code *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_code *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PCRE2_SPTR32",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PCRE2_SPTR32"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PCRE2_UCHAR16",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PCRE2_UCHAR16"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PCRE2_UCHAR8",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PCRE2_UCHAR8"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_callout_block",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_callout_block"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_jit_stack *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_jit_stack *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_general_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_general_context *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_compile_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_compile_context *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_match_data *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_match_data *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_substitute_callout_block",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_substitute_callout_block"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete pcre2_convert_context *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "pcre2_convert_context *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PCRE2_SPTR8",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PCRE2_SPTR8"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PCRE2_SPTR16",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PCRE2_SPTR16"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PCRE2_UCHAR32",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PCRE2_UCHAR32"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

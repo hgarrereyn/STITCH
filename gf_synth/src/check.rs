@@ -1,7 +1,7 @@
 use tempfile;
 use std::io::Write;
 
-use crate::spec::{Config, HeaderSpec};
+use crate::info::{self, ProjectInfo, CodegenHeader};
 
 
 const CLANG: &str = "clang++";
@@ -16,19 +16,22 @@ fn format_header(header: &str) -> String {
     }
 }
 
-pub fn is_primitive_constructable(typ: &str, config: &Config) -> Result<bool, ()> {
+pub fn is_primitive_constructable(typ: &str, info: &ProjectInfo) -> Result<bool, ()> {
     let prog = CHECK_PROG.replace("TYPE_HERE", typ);
 
     let mut code = String::new();
-    for header in config.headers.iter() {
-        match header {
-            HeaderSpec::CHeader(header) => {
+    for header in &info.codegen.headers {
+        match header.language.as_str() {
+            "c" => {
                 code.push_str("extern \"C\" {\n");
-                code.push_str(&format!("    {}\n", format_header(header)));
+                code.push_str(&format!("    {}\n", format_header(&header.name)));
                 code.push_str("}\n");
             }
-            HeaderSpec::CppHeader(header) => {
-                code.push_str(&format!("{}\n", format_header(header)));
+            "c++" => {
+                code.push_str(&format!("{}\n", format_header(&header.name)));
+            }
+            _ => {
+                panic!("Unsupported language: {}", header.language);
             }
         }
     }
@@ -50,7 +53,7 @@ pub fn is_primitive_constructable(typ: &str, config: &Config) -> Result<bool, ()
         .arg("c++")
         .arg("-std=c++17")
         .arg("-I.")
-        .args(config.include_paths.iter().map(|p| format!("-I{}", p)))
+        .args(info.build.include_paths.iter().map(|p| format!("-I{}", p)))
         .arg("-o")
         .arg(&output_path)
         .arg(source_file.path())

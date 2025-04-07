@@ -1,9 +1,26 @@
 {
     "name": "hdf5",
-    "config": "/fuzz/src/config.json",
-    "build_script_full": "/fuzz/src/full.sh",
-    "build_script": "/fuzz/src/build.sh",
-    "build_script_ext": "/fuzz/src/build_ext.sh",
     "codebase": "/fuzz/hdf5/",
-    "rag": "/fuzz/src/hdf5.rag"
+    "build": {
+        "include_paths": [
+            "/fuzz/hdf5/src/",
+            "/fuzz/hdf5/src/H5FDsubfiling/",
+            "/fuzz/hdf5/build/src/"
+        ],
+        "lib_paths": [
+            "/fuzz/hdf5/build/bin/"
+        ],
+        "libs": [
+            "hdf5"
+        ],
+        "source_files": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "hdf5.h",
+                "language": "c"
+            }
+        ]
+    }
 }

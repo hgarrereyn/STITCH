@@ -1,2 +1,0 @@
-### Task:
-Using the given header file and the provided endpoint errors, fix **each** endpoint specification provided in the json. Follow the guidelines and examples above to ensure accuracy and completeness.

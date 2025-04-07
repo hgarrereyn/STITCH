@@ -1,2 +1,0 @@
-### Task:
-Using the given header file, generate an endpoint specification for **each API function** in the file. Follow the guidelines and examples above to ensure accuracy and completeness.

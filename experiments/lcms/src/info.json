@@ -1,0 +1,22 @@
+{
+    "name": "lcms",
+    "codebase": "/fuzz/lcms",
+    "build": {
+        "source_files": [
+            "/usr/local/lib/liblcms2.a"
+        ],
+        "include_paths": [
+            "/usr/local/include/"
+        ],
+        "lib_paths": [],
+        "libs": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "lcms2.h",
+                "language": "c"
+            }
+        ]
+    }
+}

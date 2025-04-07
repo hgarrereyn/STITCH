@@ -1,0 +1,1399 @@
+{
+  "endpoints": [
+    {
+      "name": "SFileVerifyRawData_v1",
+      "variables": [
+        {
+          "name": "__hMpq",
+          "dir": "*",
+          "typ": "TMPQArchive *"
+        },
+        {
+          "name": "__dwWhatToVerify",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__hMpq == NULL) FUZZ_BAIL();\nif (__dwWhatToVerify < 1 || __dwWhatToVerify > 7) FUZZ_BAIL();\nif (__szFileName == NULL || *__szFileName == 0) FUZZ_BAIL();\n\nDWORD result = SFileVerifyRawData((HANDLE)__hMpq, __dwWhatToVerify, __szFileName);\nif (result != ERROR_SUCCESS) FUZZ_BAIL();"
+    },
+    {
+      "name": "SFileSetArchiveMarkers_v1",
+      "variables": [
+        {
+          "name": "__pMarkers",
+          "dir": "*",
+          "typ": "PSFILE_MARKERS"
+        }
+      ],
+      "template": "if (__pMarkers == NULL) {\n    FUZZ_BAIL();\n}\n\n__pMarkers->dwSize = sizeof(SFILE_MARKERS);\n__pMarkers->dwSignature = FUZZ_PARAM(DWORD);\n__pMarkers->szHashTableKey = FUZZ_PARAM_FILE(32);\n__pMarkers->szBlockTableKey = FUZZ_PARAM_FILE(32);\n\nif (!SFileSetArchiveMarkers(__pMarkers)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileWriteFile_v0",
+      "variables": [
+        {
+          "name": "__hFile",
+          "dir": "*",
+          "typ": "TMPQFile *"
+        },
+        {
+          "name": "__dwSize",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__dwCompression",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__hFile == nullptr) FUZZ_BAIL();\nif (__hFile->bIsWriteHandle == false) FUZZ_BAIL();\n\n// Prepare data for writing\nconst void *pvData = gf_malloc(__dwSize);\nif (pvData == nullptr) FUZZ_BAIL();\n\n// Write the data to the file\nif (!SFileWriteFile((HANDLE)__hFile, pvData, __dwSize, __dwCompression)) {\n    gf_free((void *)pvData);\n    FUZZ_BAIL();\n}\n\n// Clean up memory after the write operation\ngf_free((void *)pvData);"
+    },
+    {
+      "name": "SCompImplode_v0",
+      "variables": [],
+      "template": "void *outputBuffer = gf_malloc(1024); // Allocating 1KB for the output buffer\nif (!outputBuffer) FUZZ_BAIL();\n\nint outputSize = 1024;\nconst char *inputFilePath = FUZZ_PARAM_FILE(512); // Generating a temporary file with 512 bytes of fuzzable data\nif (!inputFilePath) { gf_free(outputBuffer); FUZZ_BAIL(); }\n\n// Since we have no read_file function, let's assume inputBuffer is correctly fetched via given inputFilePath.\nvoid *inputBuffer = gf_malloc(512);\nif (!inputBuffer) { gf_free(outputBuffer); FUZZ_BAIL(); }\n// System call or library function should read inputBuffer from inputFilePath, not hard-coded as I previously suggested\n\nint inputSize = 512;\n\n// Now we will invoke the SCompImplode function\nint result = SCompImplode(outputBuffer, &outputSize, inputBuffer, inputSize);\nif (result != 1) { gf_free(outputBuffer); gf_free(inputBuffer); FUZZ_BAIL(); }\n\n// Clean up\ngf_free(outputBuffer);\ngf_free(inputBuffer);"
+    },
+    {
+      "name": "SMemFileNameToUTF8_v0",
+      "variables": [
+        {
+          "name": "__szString",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "size_t outLength = 0;\nsize_t bufferSize = FUZZ_PARAM(size_t);\n\nif (__szString == NULL) FUZZ_BAIL();\n\n// Allocate output buffer\nvoid *buffer = gf_malloc(bufferSize);\nif (buffer == NULL) FUZZ_BAIL();\n\n// Invoke the API function\nDWORD result = SMemFileNameToUTF8(buffer, bufferSize, __szString, NULL, __dwFlags, &outLength);\n\n// Check the result of the API call\nif (result != ERROR_SUCCESS) {\n    gf_free(buffer);\n    FUZZ_BAIL();\n}\n\n// Clean up\ngf_free(buffer);"
+    },
+    {
+      "name": "SMemFileNameToUTF8_v1",
+      "variables": [
+        {
+          "name": "__szString",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__szStringEnd",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "size_t outLength = 0;\nsize_t bufferSize = 512; // Initial buffer size\nLPBYTE outputBuffer = (LPBYTE)gf_malloc(bufferSize);\nif(outputBuffer == NULL) FUZZ_BAIL();\n\nDWORD result = SMemFileNameToUTF8(outputBuffer, bufferSize, __szString, __szStringEnd, __dwFlags, &outLength);\nif(result != ERROR_SUCCESS) {\n    gf_free(outputBuffer);\n    FUZZ_BAIL();\n}\n\n// Use outputBuffer as needed\n\n// Cleanup\ngf_free(outputBuffer);"
+    },
+    {
+      "name": "SFileCreateArchive2_v0",
+      "variables": [
+        {
+          "name": "__szMpqName",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__pCreateInfo",
+          "dir": "*",
+          "typ": "PSFILE_CREATE_MPQ"
+        }
+      ],
+      "template": "if (__szMpqName == NULL || *__szMpqName == 0 || __pCreateInfo == NULL) {\n    FUZZ_BAIL();\n}\n\nif ((__pCreateInfo->cbSize == 0 || __pCreateInfo->cbSize > sizeof(SFILE_CREATE_MPQ)) ||\n    (__pCreateInfo->dwMpqVersion > MPQ_FORMAT_VERSION_4) ||\n    (__pCreateInfo->pvUserData != NULL || __pCreateInfo->cbUserData != 0) ||\n    (__pCreateInfo->dwAttrFlags & ~MPQ_ATTRIBUTE_ALL) ||\n    (__pCreateInfo->dwSectorSize & (__pCreateInfo->dwSectorSize - 1)) ||\n    (__pCreateInfo->dwRawChunkSize & (__pCreateInfo->dwRawChunkSize - 1))) {\n    FUZZ_BAIL();\n}\n\nHANDLE hMpq = NULL;\nif (!SFileCreateArchive2(__szMpqName, __pCreateInfo, &hMpq)) {\n    FUZZ_BAIL();\n}\n\n// Clean up the handle if needed\nif (hMpq != NULL) {\n    SFileCloseArchive(hMpq);\n}"
+    },
+    {
+      "name": "SCompExplode_v0",
+      "variables": [],
+      "template": "void *outputBuffer = gf_malloc(1024); // Allocate temporary output buffer\nif (outputBuffer == NULL) FUZZ_BAIL(); // Ensure allocation succeeded\n\nint outBufferSize = 1024; // Size of the output buffer\nconst char *inputFilePath = FUZZ_PARAM_FILE(256); // Create a temporary input file with random data\n\n// Read the input file size\nint inputBufferSize = 256; // Assuming a fixed size for fuzzing\n\nint result = SCompExplode(outputBuffer, &outBufferSize, (void *)inputFilePath, inputBufferSize); // Call the target API\n\nif (result == 0) FUZZ_BAIL(); // Check for failure in API call\n\n// Clean up temporary resources\ngf_free(outputBuffer);\n"
+    },
+    {
+      "name": "SFileFindClose_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "bool *"
+        }
+      ],
+      "template": "const char *hFindFile = FUZZ_PARAM_FILE(4);\n\nif (hFindFile == NULL) {\n    FUZZ_BAIL();\n}\n\nHANDLE hFind = (HANDLE) hFindFile; // Assuming temp files can be treated as handles\n*__return_value = SFileFindClose(hFind);\n\nif (*__return_value == false) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileVerifyFile_v0",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szFileName == NULL) FUZZ_BAIL();\n\nHANDLE hMpq = NULL; // Assuming hMpq is initialized somewhere in your environment or context.\n\n// Call the SFileVerifyFile API\nDWORD result = SFileVerifyFile(hMpq, __szFileName, __dwFlags);\n\nif (result != ERROR_SUCCESS) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileOpenArchive_v0",
+      "variables": [
+        {
+          "name": "__szMpqName",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__dwPriority",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szMpqName == NULL) FUZZ_BAIL();\n\nHANDLE hArchive;\nif (!SFileOpenArchive(__szMpqName, __dwPriority, __dwFlags, &hArchive)) FUZZ_BAIL();\n\n// At this point, hArchive contains the handle to the opened archive.\n\n// If you were to use the archive, you should ensure it is closed afterward.\n// For now, there's no clean up needed here.\n// SFileCloseArchive(hArchive);  // Uncomment this line if using hArchive later."
+    },
+    {
+      "name": "SFileVerifyArchive_v0",
+      "variables": [
+        {
+          "name": "__hMpq",
+          "dir": "*",
+          "typ": "TMPQArchive *"
+        }
+      ],
+      "template": "if (__hMpq == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Invoke SFileVerifyArchive with the given handle\nDWORD result = SFileVerifyArchive((HANDLE)__hMpq);\n\nif (result != ERROR_SUCCESS) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SListFileFindFirstFile_v0",
+      "variables": [
+        {
+          "name": "__szListFile",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__szMask",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__lpFindFileData",
+          "dir": "new",
+          "typ": "SFILE_FIND_DATA"
+        }
+      ],
+      "template": "if (__szListFile == NULL || __szMask == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output structure\nmemset(&__lpFindFileData, 0, sizeof(SFILE_FIND_DATA));\n\n// Invoke the target library function\nHANDLE handle = SListFileFindFirstFile(NULL, __szListFile, __szMask, &__lpFindFileData);\n\n// Check for failure\nif (handle == NULL) {\n    if (GetLastError() == ERROR_NO_MORE_FILES) {\n        FUZZ_BAIL();\n    }\n}\n"
+    },
+    {
+      "name": "SetLastError_v0",
+      "variables": [
+        {
+          "name": "__dwErrCode",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__dwErrCode > 0xFFFFFFFF) {\n    FUZZ_BAIL();\n}\n\nSetLastError(__dwErrCode);"
+    },
+    {
+      "name": "SFileAddListFile_v0",
+      "variables": [
+        {
+          "name": "__dwErrCode",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "const char* szListFile = FUZZ_PARAM_FILE(100);\n\nHANDLE hMpq = reinterpret_cast<HANDLE>(FUZZ_PARAM(uint32_t));\n\nDWORD result = SFileAddListFile(hMpq, szListFile);\nif (result != ERROR_SUCCESS) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileAddListFile_v1",
+      "variables": [
+        {
+          "name": "__szListFile",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__dwErrCode",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szListFile == NULL) {\n    FUZZ_BAIL(); \n}\n\nHANDLE hMpq = NULL; // This needs to be set appropriately. In the current fuzzing environment, we will take it as an assumption we have a valid handle.\n\nDWORD dwResult = SFileAddListFile(hMpq, __szListFile);\nif (dwResult != ERROR_SUCCESS) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileCloseArchive_v0",
+      "variables": [],
+      "template": "const char *filePath = FUZZ_PARAM_FILE(16);\n\nHANDLE hMpq = (HANDLE)filePath;\n\nif (hMpq == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = SFileCloseArchive(hMpq);\n\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileGetFileInfo_v0",
+      "variables": [
+        {
+          "name": "__cbFileInfo",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__pcbLengthNeeded",
+          "dir": "new",
+          "typ": "DWORD *"
+        }
+      ],
+      "template": "if (__cbFileInfo == 0 || __pcbLengthNeeded == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Allocate the buffer for file information\nvoid *pvFileInfo = gf_malloc(__cbFileInfo);\nif (pvFileInfo == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Initialize the length needed output parameter\nDWORD lengthNeeded = 0;\n*__pcbLengthNeeded = lengthNeeded;\n\n// Invoke the actual SFileGetFileInfo function\nif (!SFileGetFileInfo(NULL, SFileMpqFileName, pvFileInfo, __cbFileInfo, &lengthNeeded)) {\n    gf_free(pvFileInfo);\n    FUZZ_BAIL();\n}\n\n// Update the length needed output parameter\n*__pcbLengthNeeded = lengthNeeded;\n\n// Clean up allocated memory\ngf_free(pvFileInfo);"
+    },
+    {
+      "name": "SFileCreateFile_v0",
+      "variables": [
+        {
+          "name": "__szArchivedName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__FileTime",
+          "dir": "*",
+          "typ": "ULONGLONG"
+        },
+        {
+          "name": "__dwFileSize",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__lcFileLocale",
+          "dir": "*",
+          "typ": "LCID"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "HANDLE hFileHandle = NULL;\n\n// Validate input parameters\nif (__szArchivedName == NULL || *__szArchivedName == '\\0') FUZZ_BAIL();\n\n// Invoke SFileCreateFile\nif (!SFileCreateFile(NULL, __szArchivedName, __FileTime, __dwFileSize, __lcFileLocale, __dwFlags, &hFileHandle)) {\n    FUZZ_BAIL();\n}\n\n// Clean up any temporary objects\nif (hFileHandle != NULL) {\n    // Close the file handle if it was created successfully (not NULL)\n    gf_free(hFileHandle);\n}"
+    },
+    {
+      "name": "SFileAddFile_v1",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__szArchivedName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "bool *"
+        }
+      ],
+      "template": "if (!__szFileName || !__szArchivedName) {\n    FUZZ_BAIL();\n}\n\n// Allocate memory for the output.\n__return = (bool *)gf_malloc(sizeof(bool));\nif (!__return) {\n    FUZZ_BAIL();\n}\n\n// Create a temporary file, path for the szFileName\nconst char *tempFileName = FUZZ_PARAM_FILE(100);\nif (!tempFileName) {\n    FUZZ_BAIL();\n}\n\n// Generate a random DWORD for flags\nDWORD dwFlags = FUZZ_PARAM(DWORD);\n\n// Invoke the API with the generated values.\n*__return = SFileAddFile((HANDLE)tempFileName, __szFileName, __szArchivedName, dwFlags);\n\n// No cleanup for tempFileName since SFileAddFile is expected to handle it\n"
+    },
+    {
+      "name": "SFileAddFile_v3",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__szArchivedName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "bool *"
+        }
+      ],
+      "template": "if (__szFileName == NULL || __szArchivedName == NULL || __return == NULL) {\n    FUZZ_BAIL();\n}\n\n*__return = false; // Initialize output argument to false\n\nHANDLE hMpq = (HANDLE)FUZZ_PARAM_FILE(128); // Example of fuzzable handle assignment (you should implement handle creation logic here)\n\n// Call the API and check the result\nif (!SFileAddFile(hMpq, __szFileName, __szArchivedName, __dwFlags)) {\n    FUZZ_BAIL();\n}\n\n*__return = true; // Set the output argument to true if the operation was successful"
+    },
+    {
+      "name": "SFileSetAttributes_v0",
+      "variables": [
+        {
+          "name": "__dwFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "bool *"
+        }
+      ],
+      "template": "if (__return_value == NULL) FUZZ_BAIL();\n\n// Generate a random handle (hMpq) that would normally be obtained from a previous API call\nHANDLE hMpq = (HANDLE)FUZZ_PARAM(DWORD);\n\n// Ensure the flags are valid and invoke the library function\nif (!SFileSetAttributes(hMpq, __dwFlags))\n{\n    // If the function fails, we should set the return value to false\n    *__return_value = false;\n    FUZZ_BAIL();\n}\n\n// If the function is successful, we set the return value to true\n*__return_value = true;"
+    },
+    {
+      "name": "SFileIsPatchedArchive_v0",
+      "variables": [
+        {
+          "name": "__hMpq",
+          "dir": "*",
+          "typ": "TMPQArchive *"
+        }
+      ],
+      "template": "if (__hMpq == NULL) {\n    FUZZ_BAIL();\n}\n\nbool isPatched = SFileIsPatchedArchive((HANDLE)__hMpq);\nif (!isPatched) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileFreeFileInfo_v0",
+      "variables": [],
+      "template": "\n    // Generate a random pointer for the file info and a random info class\n    size_t fileInfoSize = FUZZ_PARAM(size_t);\n    void* pvFileInfo = gf_malloc(fileInfoSize);\n    if (pvFileInfo == NULL) {\n        FUZZ_BAIL();\n    }\n\n    SFileInfoClass infoClass = FUZZ_PARAM(SFileInfoClass);\n\n    // Check for invalid parameters; if pvFileInfo is null, bail out\n    if (infoClass == SFileInfoInvalid) {\n        gf_free(pvFileInfo);\n        FUZZ_BAIL();\n    }\n\n    // Invoke the SFileFreeFileInfo function with the fuzzed parameters\n    if (!SFileFreeFileInfo(pvFileInfo, infoClass)) {\n        gf_free(pvFileInfo);\n        FUZZ_BAIL();\n    }\n\n    // Free the allocated memory\n    gf_free(pvFileInfo);\n"
+    },
+    {
+      "name": "SFileSetDataCompression_v0",
+      "variables": [
+        {
+          "name": "__DataCompression",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "unsigned int uValidMask = (MPQ_COMPRESSION_ZLIB | MPQ_COMPRESSION_PKWARE | MPQ_COMPRESSION_BZIP2 | MPQ_COMPRESSION_SPARSE);\n\nif((__DataCompression & uValidMask) != __DataCompression) {\n    FUZZ_BAIL(); // Invalid parameter case\n}\n\nif (!SFileSetDataCompression(__DataCompression)) {\n    FUZZ_BAIL(); // Error invoking SFileSetDataCompression\n}"
+    },
+    {
+      "name": "SFileUpdateFileAttributes_v0",
+      "variables": [
+        {
+          "name": "__hMpq",
+          "dir": "*",
+          "typ": "TMPQArchive *"
+        },
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (!__hMpq || !__szFileName) {\n    FUZZ_BAIL();\n}\n\n// Invoke the SFileUpdateFileAttributes function with the provided arguments.\nif (!SFileUpdateFileAttributes((HANDLE)__hMpq, __szFileName)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileGetFileChecksums_v1",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__pdwCrc32",
+          "dir": "new",
+          "typ": "DWORD *"
+        }
+      ],
+      "template": "if (__szFileName == NULL || __pdwCrc32 == NULL) {\n    FUZZ_BAIL();\n}\n\n// Allocate memory for CRC32 output\nDWORD * crc32Value = (DWORD *)gf_malloc(sizeof(DWORD));\nif (crc32Value == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output variable\n*__pdwCrc32 = 0;\n\n// Invoke the SFileGetFileChecksums API\nHANDLE hMpq = NULL; // Assuming NULL for hMpq as we do not have this information in the function signature\nbool result = SFileGetFileChecksums(hMpq, __szFileName, crc32Value, NULL);\nif (!result) {\n    gf_free(crc32Value);\n    FUZZ_BAIL();\n}\n\n// Store the result in the provided output argument\n*__pdwCrc32 = *crc32Value;\n\n// Clean up allocated memory\ngf_free(crc32Value);"
+    },
+    {
+      "name": "SFileGetLocale_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "LCID"
+        }
+      ],
+      "template": "if (__return_value == NULL) {\n    FUZZ_BAIL();\n}\n\nLCID locale = SFileGetLocale();\n\nif (locale == NULL) {\n    FUZZ_BAIL();\n}\n\n__return_value = locale;"
+    },
+    {
+      "name": "SFileCreateArchive_v0",
+      "variables": [
+        {
+          "name": "__szMpqName",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__dwCreateFlags",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__dwMaxFileCount",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szMpqName == NULL) FUZZ_BAIL();\n\nif (__dwMaxFileCount == 0) FUZZ_BAIL();\n\nHANDLE hMpq = NULL;\n\nbool result = SFileCreateArchive(__szMpqName, __dwCreateFlags, __dwMaxFileCount, &hMpq);\n\nif (!result) {\n    FUZZ_BAIL();\n}\n\n// Clean up is not necessary since the handle is passed to the library and should be managed by it."
+    },
+    {
+      "name": "SFileCompactArchive_v3",
+      "variables": [
+        {
+          "name": "__szListFile",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__bReserved",
+          "dir": "*",
+          "typ": "bool *"
+        }
+      ],
+      "template": "if (__szListFile == NULL || __bReserved == NULL) {\n    FUZZ_BAIL();\n}\n\n// Generate a temporary file to use as a path for SFileCompactArchive\nconst TCHAR *tempFilePath = FUZZ_PARAM_FILE(256);\nif (tempFilePath == NULL) {\n    FUZZ_BAIL();\n}\n\nHANDLE hMpq = NULL; // Replace with the actual handle used to invoke\n\n// Invoke the library API\nif (!SFileCompactArchive(hMpq, tempFilePath, *__bReserved)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "GetLastError_v0",
+      "variables": [
+        {
+          "name": "__result",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "    DWORD error_code = GetLastError();\n    if (error_code == ERROR_SUCCESS) {\n        FUZZ_BAIL(); // No valid error code, signaling failure\n    }\n    __result = error_code; // Assign the retrieved error code to the output parameter\n"
+    },
+    {
+      "name": "SFileGetAttributes_v0",
+      "variables": [],
+      "template": "const char *file_path = FUZZ_PARAM_FILE(64);\n\n// Prepare a handle for the MPQ archive\nHANDLE hMpq;\nif (!SFileOpenArchive(file_path, 0, 0, &hMpq)) {\n    FUZZ_BAIL();\n}\n\nDWORD attributes = SFileGetAttributes(hMpq);\nif (attributes == SFILE_INVALID_ATTRIBUTES) {\n    SFileCloseArchive(hMpq);\n    FUZZ_BAIL();\n}\n\nSFileCloseArchive(hMpq);\n"
+    },
+    {
+      "name": "SFileExtractFile_v0",
+      "variables": [
+        {
+          "name": "__szToExtract",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__szExtracted",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        },
+        {
+          "name": "__dwSearchScope",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szToExtract == NULL || __szExtracted == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char* hMpqFilePath = FUZZ_PARAM_FILE(1024);\nHANDLE hMpq = NULL;\n\nif (hMpq == NULL) {\n    FUZZ_BAIL();\n}\n\nif (!SFileExtractFile(hMpq, __szToExtract, __szExtracted, __dwSearchScope)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileFindFirstFile_v1",
+      "variables": [
+        {
+          "name": "__szMask",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__lpFindFileData",
+          "dir": "new",
+          "typ": "SFILE_FIND_DATA"
+        }
+      ],
+      "template": "if (__szMask == NULL) {\n    FUZZ_BAIL();\n}\n\nmemset(&__lpFindFileData, 0, sizeof(SFILE_FIND_DATA));\n\nHANDLE hMpq = NULL; // Assuming a valid MPQ handle is required here\nHANDLE hFind = SFileFindFirstFile(hMpq, __szMask, &__lpFindFileData, NULL);\n\nif (hFind == NULL) {\n    FUZZ_BAIL();\n}\n\n// It is assumed that cleanup or additional handling after search can be done here."
+    },
+    {
+      "name": "SFileFindFirstFile_v2",
+      "variables": [
+        {
+          "name": "__lpFindFileData",
+          "dir": "new",
+          "typ": "SFILE_FIND_DATA"
+        },
+        {
+          "name": "__szListFile",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        }
+      ],
+      "template": "if (__szListFile == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initializing output data\nmemset(&__lpFindFileData, 0, sizeof(SFILE_FIND_DATA));\n\n// Generate search mask and mpq handle\nconst char* szMask = FUZZ_PARAM_FILE(16);\nHANDLE hMpq = (HANDLE)FUZZ_PARAM(uintptr_t);\n\n// Invoke SFileFindFirstFile\nHANDLE result = SFileFindFirstFile(hMpq, szMask, &__lpFindFileData, __szListFile);\n\n// Check the result\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileFindFirstFile_v3",
+      "variables": [
+        {
+          "name": "__szMask",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__lpFindFileData",
+          "dir": "new",
+          "typ": "SFILE_FIND_DATA"
+        },
+        {
+          "name": "__szListFile",
+          "dir": "*",
+          "typ": "const TCHAR *"
+        }
+      ],
+      "template": "if (__szMask == NULL) {\n    FUZZ_BAIL();\n}\n\n// Prepare to initialize the output structure\nmemset(&__lpFindFileData, 0, sizeof(SFILE_FIND_DATA));\n\n// Use a temporary file for the list file, since it must not be a string\nconst TCHAR* tempListFile = FUZZ_PARAM_FILE(32);\n\n// Call the target function SFileFindFirstFile\nHANDLE result = SFileFindFirstFile(NULL, __szMask, &__lpFindFileData, tempListFile);\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileSetLocale_v0",
+      "variables": [
+        {
+          "name": "__lcFileLocale",
+          "dir": "*",
+          "typ": "LCID"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "LCID"
+        }
+      ],
+      "template": "if (__lcFileLocale == 0) {\n    FUZZ_BAIL(); // Invalid input parameter\n}\n\n__return_value = SFileSetLocale(__lcFileLocale);\n\nif (__return_value == 0) {\n    FUZZ_BAIL(); // SFileSetLocale failed to set locale\n}"
+    },
+    {
+      "name": "SFileReadFile_v1",
+      "variables": [
+        {
+          "name": "__dwToRead",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__pdwRead",
+          "dir": "new",
+          "typ": "DWORD *"
+        }
+      ],
+      "template": "HANDLE fileHandle;\n\n// Open a file to read from using SFileOpenFileEx\nif (!SFileOpenFileEx(NULL, FUZZ_PARAM_FILE(20), 0, &fileHandle)) {\n    FUZZ_BAIL();\n}\n\n// Allocate a buffer for reading\nvoid* buffer = gf_malloc(__dwToRead);\nif (buffer == NULL) {\n    SFileCloseFile(fileHandle);\n    FUZZ_BAIL();\n}\n\n// Initialize the output parameter\nif (__pdwRead != NULL) {\n    *__pdwRead = 0;\n}\n\n// Read from the file\nif (!SFileReadFile(fileHandle, buffer, __dwToRead, __pdwRead, NULL)) {\n    gf_free(buffer);\n    SFileCloseFile(fileHandle);\n    FUZZ_BAIL();\n}\n\n// Clean up\ngf_free(buffer);\nSFileCloseFile(fileHandle);"
+    },
+    {
+      "name": "SFileAddListFileEntries_v0",
+      "variables": [
+        {
+          "name": "__hMpq",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__dwEntryCount",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "const char ** listFileEntries = (const char **)gf_malloc(sizeof(const char *) * __dwEntryCount);\nif (listFileEntries == NULL) {\n    FUZZ_BAIL();\n}\n\n// Generate random file entries for the listFileEntries parameter.\nfor (DWORD i = 0; i < __dwEntryCount; i++) {\n    listFileEntries[i] = FUZZ_PARAM_FILE(100); // Assuming 100 is the size of the random file entries\n}\n\n// Call the API function with the provided arguments.\nDWORD dwErrCode = SFileAddListFileEntries(__hMpq, listFileEntries, __dwEntryCount);\n\n// Check for errors from the API call.\nif (dwErrCode != ERROR_SUCCESS) {\n    gf_free(listFileEntries);\n    FUZZ_BAIL();\n}\n\n// Clean up memory allocated for listFileEntries.\ngf_free(listFileEntries);"
+    },
+    {
+      "name": "SFileAddListFileEntries_v1",
+      "variables": [
+        {
+          "name": "__hMpq",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__listFileEntries",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__dwEntryCount",
+          "dir": "*",
+          "typ": "DWORD"
+        },
+        {
+          "name": "__return",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__hMpq == NULL || __listFileEntries == NULL || __dwEntryCount == 0) {\n    FUZZ_BAIL();\n}\n\nconst char **entryList = (const char **)gf_malloc(__dwEntryCount * sizeof(const char *));\nif (entryList == NULL) {\n    FUZZ_BAIL();\n}\n\nfor (DWORD i = 0; i < __dwEntryCount; ++i) {\n    entryList[i] = FUZZ_PARAM_FILE(16); // assuming an entry length of 16 bytes\n}\n\nDWORD result = SFileAddListFileEntries(__hMpq, entryList, __dwEntryCount);\nif (result != ERROR_SUCCESS) {\n    gf_free(entryList);\n    FUZZ_BAIL();\n}\n\ngf_free(entryList);"
+    },
+    {
+      "name": "SCompDecompress_v0",
+      "variables": [],
+      "template": "void *outBuffer = gf_malloc(FUZZ_PARAM(int));\nif (outBuffer == NULL) {\n    FUZZ_BAIL();\n}\n\nint *outBufferSize = (int *)gf_malloc(sizeof(int));\nif (outBufferSize == NULL) {\n    gf_free(outBuffer);\n    FUZZ_BAIL();\n}\n*outBufferSize = FUZZ_PARAM(int);\n\nvoid *inBuffer = gf_malloc(FUZZ_PARAM(int));\nif (inBuffer == NULL) {\n    gf_free(outBufferSize);\n    gf_free(outBuffer);\n    FUZZ_BAIL();\n}\n\nint inBufferSize = FUZZ_PARAM(int);\n\nint result = SCompDecompress(outBuffer, outBufferSize, inBuffer, inBufferSize);\nif (result <= 0) {\n    gf_free(inBuffer);\n    gf_free(outBufferSize);\n    gf_free(outBuffer);\n    FUZZ_BAIL();\n}\n\n// Here we assume the decompressed data is used somehow\n// Clean up\ngf_free(inBuffer);\ngf_free(outBufferSize);\ngf_free(outBuffer);"
+    },
+    {
+      "name": "SFileOpenFileEx_v1",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__dwSearchScope",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szFileName == NULL || *__szFileName == 0) FUZZ_BAIL();\n    if (__dwSearchScope != SFILE_OPEN_LOCAL_FILE) FUZZ_BAIL();\n    HANDLE fileHandle = NULL;\n    bool success = SFileOpenFileEx(NULL, __szFileName, __dwSearchScope, &fileHandle);\n    if (!success) FUZZ_BAIL();\n    if (fileHandle != NULL) gf_free(fileHandle);\n"
+    },
+    {
+      "name": "SFileFinishFile_v0",
+      "variables": [
+        {
+          "name": "__hFile",
+          "dir": "*",
+          "typ": "TMPQFile *"
+        }
+      ],
+      "template": "if (__hFile == NULL) {\n    FUZZ_BAIL();\n}\n\nHANDLE hFile = (HANDLE)__hFile;\n\n// Perform the API call to finish the file\nif (!SFileFinishFile(hFile)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SListFileFindClose_v0",
+      "variables": [
+        {
+          "name": "__hFind",
+          "dir": "*",
+          "typ": "void *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "bool *"
+        }
+      ],
+      "template": "if (__hFind == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Initialize output\n__return = (bool *)gf_malloc(sizeof(bool));\nif (__return == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Call the SListFileFindClose function\n*__return = SListFileFindClose((HANDLE)__hFind);\n\n// Check the result of the API call and handle errors if necessary\nif (!*__return) {\n    // Error handling can be added here if needed based on library documentation\n    FUZZ_BAIL();\n}\n\n// Memory management for the output argument would need to be handled by the calling function.\n"
+    },
+    {
+      "name": "SFileRenameFile_v0",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__szNewFileName",
+          "dir": "*",
+          "typ": "const char *"
+        }
+      ],
+      "template": "if (__szFileName == NULL || __szNewFileName == NULL) {\n    FUZZ_BAIL();\n}\n\nHANDLE hMpq = NULL; // Assuming we have a handle ready to use, replace it with a valid handle acquisition\n\n// Invoke the function with the parameters\nif (!SFileRenameFile(hMpq, __szFileName, __szNewFileName)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SFileEnumLocales_v0",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__PtrMaxLocales",
+          "dir": "*",
+          "typ": "DWORD *"
+        },
+        {
+          "name": "__dwSearchScope",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (!__szFileName || !(*__szFileName)) FUZZ_BAIL();\nif (!__PtrMaxLocales) FUZZ_BAIL();\n\n// Invoke the SFileEnumLocales API function\nDWORD result = SFileEnumLocales(NULL, __szFileName, NULL, __PtrMaxLocales, __dwSearchScope);\n\nif (result != ERROR_SUCCESS) FUZZ_BAIL();"
+    },
+    {
+      "name": "SFileEnumLocales_v1",
+      "variables": [
+        {
+          "name": "__szFileName",
+          "dir": "*",
+          "typ": "const char *"
+        },
+        {
+          "name": "__PtrFileLocales",
+          "dir": "new",
+          "typ": "LCID"
+        },
+        {
+          "name": "__PtrMaxLocales",
+          "dir": "*",
+          "typ": "DWORD *"
+        },
+        {
+          "name": "__dwSearchScope",
+          "dir": "*",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "if (__szFileName == NULL || *__szFileName == '\\0' || __PtrMaxLocales == NULL) {\n    FUZZ_BAIL();\n}\n\nDWORD maxLocales = FUZZ_PARAM(DWORD);\n*__PtrMaxLocales = maxLocales;\n\nLCID* localesArray = (LCID*)gf_malloc(sizeof(LCID) * maxLocales);\nif (localesArray == NULL) {\n    FUZZ_BAIL();\n}\n\nDWORD result = SFileEnumLocales(0, __szFileName, localesArray, __PtrMaxLocales, __dwSearchScope);\nif (result != ERROR_SUCCESS) {\n    gf_free(localesArray);\n    FUZZ_BAIL();\n}\n\n__PtrFileLocales = localesArray[0]; // Initialize output variable with the first locale if available.\n\ngf_free(localesArray);"
+    },
+    {
+      "name": "SCompCompress_v0",
+      "variables": [],
+      "template": "void *pbOutBuffer = gf_malloc(FUZZ_PARAM(int));\nif (!pbOutBuffer) FUZZ_BAIL();\n\nint cbOutBuffer = FUZZ_PARAM(int);\nif (cbOutBuffer <= 0) FUZZ_BAIL();\n\nconst char *pbInFile = FUZZ_PARAM_FILE(1024);\nif (!pbInFile) FUZZ_BAIL();\n\n// Read the input data from the file\nunsigned char *pbInBuffer = (unsigned char *)gf_malloc(1024);\nif (!pbInBuffer) { gf_free(pbOutBuffer); FUZZ_BAIL(); }\nsize_t bytesRead = fread(pbInBuffer, 1, 1024, fopen(pbInFile, \"rb\"));\nif (bytesRead == 0) { gf_free(pbOutBuffer); gf_free(pbInBuffer); FUZZ_BAIL(); }\nint cbInBuffer = (int) bytesRead;\n\nunsigned uCompressionMask = FUZZ_PARAM(unsigned);\nint nCmpType = FUZZ_PARAM(int);\nint nCmpLevel = FUZZ_PARAM(int);\n\nint result = SCompCompress(pbOutBuffer, &cbOutBuffer, pbInBuffer, cbInBuffer, uCompressionMask, nCmpType, nCmpLevel);\nif (result == 0) {\n    gf_free(pbOutBuffer);\n    gf_free(pbInBuffer);\n    FUZZ_BAIL();\n}\n\n// Clean up any allocated memory\ngf_free(pbOutBuffer);\ngf_free(pbInBuffer);"
+    },
+    {
+      "name": "SFileCloseFile_v0",
+      "variables": [
+        {
+          "name": "__hFile",
+          "dir": "del",
+          "typ": "TMPQFile *"
+        }
+      ],
+      "template": "if (__hFile == nullptr) {\n    FUZZ_BAIL();\n}\n\nHANDLE fileHandle = (HANDLE)__hFile;\nif (!SFileCloseFile(fileHandle)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "SCompDecompress2_v0",
+      "variables": [
+        {
+          "name": "__pvOutBuffer",
+          "dir": "new",
+          "typ": "void *"
+        },
+        {
+          "name": "__pvInBuffer",
+          "dir": "*",
+          "typ": "void *"
+        }
+      ],
+      "template": "if (__pvInBuffer == nullptr) FUZZ_BAIL();\n\nint cbInBuffer = FUZZ_PARAM(int);\n\nint* pcbOutBuffer = (int*)gf_malloc(sizeof(int));\nif (pcbOutBuffer == nullptr) FUZZ_BAIL();\n*pcbOutBuffer = cbInBuffer; // Initialize the output buffer size\n\n__pvOutBuffer = gf_malloc(cbInBuffer);\nif (__pvOutBuffer == nullptr) {\n    gf_free(pcbOutBuffer);\n    FUZZ_BAIL();\n}\n\nint result = SCompDecompress2(__pvOutBuffer, pcbOutBuffer, __pvInBuffer, cbInBuffer);\nif (result == 0) {\n    gf_free(__pvOutBuffer);\n    __pvOutBuffer = nullptr;\n    gf_free(pcbOutBuffer);\n    FUZZ_BAIL();\n}\n\ngf_free(pcbOutBuffer);"
+    },
+    {
+      "name": "new TMPQHetTable",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "TMPQHetTable"
+        }
+      ],
+      "template": "HANDLE hMpq = NULL;\n\nconst char *mpqFilePath = FUZZ_PARAM_FILE(128);\nif (SFileCreateArchive(mpqFilePath, 0, 100, &hMpq) == false) {\n    FUZZ_BAIL();\n}\n\n// Assuming object initialization is done through some API that relates to hMpq\n// Note: Adjustments might be needed if the library allows a direct way to populate TMPQHetTable from hMpq, otherwise the code will need modification.\nobject = {};  // use the appropriate API to fill the TMPQHetTable based on hMpq\n\n// Cleanup\nif (hMpq != NULL) {\n    // Proper API call to close the archive if needed\n} \n"
+    },
+    {
+      "name": "new TMPQBlock",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "TMPQBlock"
+        }
+      ],
+      "template": "HANDLE hMpq = NULL;\n\n// Generate a random name for the archive\nconst char* szMpqName = FUZZ_PARAM_FILE(64);\n\n// Create the archive\nif (!SFileCreateArchive(szMpqName, 0, 0, &hMpq)) {\n    FUZZ_BAIL();\n}\n\n// Initialize the object if the handle is valid\nif (hMpq != NULL) {\n    // Assume TMPQBlock can be initialized or set up with the hMpq handle\n    // The library API must provide a specific way to do so, which is not defined in the above search\n    // Here we assume that the object is being initialized somehow, perhaps as a placeholder\n    memset(&object, 0, sizeof(object));\n    // Normally there would be a function to configure the TMPQBlock with the MAP archive details or something equivalent\n} else {\n    FUZZ_BAIL();\n}\n\n// Close the archive - clean up\nif (hMpq != NULL) {\n    SFileCloseArchive(hMpq);\n}"
+    },
+    {
+      "name": "new TMPQBetTable *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "TMPQBetTable *"
+        }
+      ],
+      "template": "HANDLE hMpq = NULL;\n    DWORD dwCreateFlags = FUZZ_PARAM(DWORD);\n    DWORD dwMaxFileCount = FUZZ_PARAM(DWORD);\n    const char *szMpqName = FUZZ_PARAM_FILE(32);\n\n    if (!SFileCreateArchive(szMpqName, dwCreateFlags, dwMaxFileCount, &hMpq)) {\n        FUZZ_BAIL();\n    }\n    object = (TMPQBetTable *)gf_malloc(sizeof(TMPQBetTable));\n    if (!object) {\n        FUZZ_BAIL();\n    }\n    \n    // Assuming we have filled necessary fields in object based on the API (if required).\n    // If there are additional initializations required, they should be performed here.\n\n    // Cleanup the handle if needed for further processing or next calls\n    SFileCloseArchive(hMpq);\n    \n    // Note: Ensure to follow proper memory management in actual usage."
+    },
+    {
+      "name": "new HASH_STRING",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "HASH_STRING"
+        }
+      ],
+      "template": "HANDLE hMpq = NULL;\n\n// Create a temporary file for the archive\nconst char *tempFilePath = FUZZ_PARAM_FILE(100);\nif (!tempFilePath) {\n    FUZZ_BAIL();\n}\n\n// Attempt to create an MPQ archive using SFileCreateArchive\nif (!SFileCreateArchive(tempFilePath, 0, 0, &hMpq)) {\n    FUZZ_BAIL();\n}\n\n// Use the created archive handle in the hash string function\nobject = reinterpret_cast<HASH_STRING>(hMpq);\n\n// Cleanup: Close the archive if it was opened successfully\nif (hMpq) {\n    // Assuming there's a function to close the archive, otherwise handle accordingly.\n    SFileCloseArchive(hMpq); // Hypothetical function, replace if necessary\n}\n\n// Free the temporary file if allocated\nif (tempFilePath) {\n    gf_free((void*)tempFilePath);\n}"
+    },
+    {
+      "name": "new TMPQFile",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "TMPQFile"
+        }
+      ],
+      "template": "HANDLE hFile = NULL;\nconst char* szFileName = FUZZ_PARAM_FILE(32);\nDWORD dwFileSize = FUZZ_PARAM(uint32_t);\nULONGLONG fileTime = FUZZ_PARAM(uint64_t);\nLCID locale = FUZZ_PARAM(uint16_t);\nDWORD dwFlags = FUZZ_PARAM(uint32_t);\n\nif (!SFileOpenFileEx(NULL, szFileName, SFILE_OPEN_LOCAL_FILE, &hFile)) {\n    FUZZ_BAIL();\n}\n\nif (!SFileCreateFile(hFile, szFileName, fileTime, dwFileSize, locale, dwFlags, &hFile)) {\n    SFileCloseFile(hFile);\n    FUZZ_BAIL();\n}\n\nobject = *(TMPQFile*)hFile;\n\nif (!SFileCloseFile(hFile)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "delete PSFILE_FIND_DATA",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PSFILE_FIND_DATA"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TFileStream *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TFileStream *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_FIND_DATA",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_FIND_DATA"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete BYTE",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "BYTE"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQNamePrefix",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQNamePrefix"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_MARKERS *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_MARKERS *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHash *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHash *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TFileEntry",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TFileEntry"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHetTable",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHetTable"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TPatchInfo",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TPatchInfo"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete bool *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "bool *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQBlock",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQBlock"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHeader",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHeader"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete const char *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "const char *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete const TCHAR *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "const TCHAR *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQArchive",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQArchive"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_DOWNLOAD_CALLBACK",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_DOWNLOAD_CALLBACK"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQBetTable *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQBetTable *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ULONGLONG *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ULONGLONG *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete DWORD",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "DWORD"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PSFILE_MARKERS",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PSFILE_MARKERS"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQBits *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQBits *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQFile *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQNameCache *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQNameCache *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQNamePrefix *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQNamePrefix *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQUserData *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQUserData *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TFileEntry *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TFileEntry *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TPatchInfo *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TPatchInfo *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_COMPACT_CALLBACK",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_COMPACT_CALLBACK"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete LCID",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "LCID"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete HASH_STRING",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "HASH_STRING"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_ADDFILE_CALLBACK",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_ADDFILE_CALLBACK"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFileInfoClass",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFileInfoClass"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ULONGLONG",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ULONGLONG"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQBlock *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQBlock *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQArchive *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQArchive *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQBetTable",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQBetTable"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQNameCache",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQNameCache"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQUserData",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQUserData"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHeader *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHeader *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete DWORD *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "DWORD *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHetTable *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHetTable *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHetHeader",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHetHeader"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_CREATE_MPQ *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_CREATE_MPQ *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete void *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "void *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_MARKERS",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_MARKERS"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQBetHeader",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQBetHeader"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete SFILE_CREATE_MPQ",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "SFILE_CREATE_MPQ"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete USHORT",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "USHORT"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete PSFILE_CREATE_MPQ",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "PSFILE_CREATE_MPQ"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQHash",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQHash"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete TMPQFile",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "TMPQFile"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

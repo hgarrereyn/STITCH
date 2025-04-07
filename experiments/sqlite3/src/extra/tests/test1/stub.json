@@ -1,0 +1,11 @@
+{
+    "endpoint_name": "H5Fget_access_plist_v0",
+    "function_name": "H5Fget_access_plist",
+    "variables": [
+        {
+            "dir": "*",
+            "name": "__file_id",
+            "typ": "hid_t"
+        }
+    ]
+}

@@ -1,0 +1,25 @@
+{
+    "name": "libfyaml",
+    "codebase": "/fuzz/libfyaml",
+    "build": {
+        "source_files": [
+            "/usr/local/lib/libfyaml.a"
+        ],
+        "include_paths": [
+            "/usr/local/include"
+        ],
+        "lib_paths": [],
+        "libs": [
+            "pthread"
+        ],
+        "flags": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "libfyaml.h",
+                "language": "c"
+            }
+        ]
+    }
+}

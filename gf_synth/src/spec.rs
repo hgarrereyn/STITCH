@@ -5,28 +5,7 @@ use thiserror::Error;
 use serde::{Deserialize, Serialize};
 use regex::Regex;
 
-use crate::{check, inner_spec::{InnerEndpointSpec, InnerSpec, InnerTypeSpec}};
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Config {
-    pub headers: Vec<HeaderSpec>,
-    pub include_paths: Vec<String>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            headers: vec![],
-            include_paths: vec![],
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum HeaderSpec {
-    CHeader(String),
-    CppHeader(String),
-}
+use crate::inner_spec::{InnerEndpointSpec, InnerSpec, InnerTypeSpec};
 
 // External spec format
 #[derive(Debug, Serialize, Deserialize)]
@@ -108,24 +87,7 @@ impl std::fmt::Display for SpecErrors {
 }
 
 impl Spec {
-    pub fn validate(&self, banned_types: &[String]) -> Result<(), String> {
-        let mut errors = vec![];
-
-        for endpoint in &self.endpoints {
-            match endpoint.validate(banned_types) {
-                Ok(_) => (),
-                Err(e) => errors.push(e),
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n"))
-        }
-    }
-
-    pub fn get_object_types(&self, config: &Config) -> HashSet<String> {
+    pub fn get_object_types(&self) -> HashSet<String> {
         let mut all_types = HashSet::new();
 
         for endpoint in &self.endpoints {
@@ -134,37 +96,12 @@ impl Spec {
             }
         }
 
-        // Check one-by-one
-        let mut object_types = HashSet::new();
-
-        // for typ in all_types {
-        //     print!("Checking \"{}\"... ", typ);
-        //     match check::is_primitive_constructable(&typ, &config) {
-        //         Ok(true) => {
-        //             println!("primitive");
-        //         },
-        //         Ok(false) => {
-        //             println!("object");
-        //             object_types.insert(typ);
-        //         },
-        //         Err(_) => {
-        //             println!("err");
-        //             object_types.insert(typ);
-        //         },
-        //     }
-        // }
-
-        // Treat all types as objects
-        for typ in all_types {
-            object_types.insert(typ);
-        }
-
-        object_types
+        all_types
     }
 
     // Generate the inner spec from the external spec
-    pub fn generate(&self, config: &Config) -> InnerSpec {
-        let object_types = self.get_object_types(config);
+    pub fn generate(&self) -> InnerSpec {
+        let object_types = self.get_object_types();
         
         // Un-constructable types are treated as args -- these will be validated during compilation
         let mut types = object_types.iter().map(|t| InnerTypeSpec { name: t.to_string() }).collect::<Vec<_>>();
@@ -336,10 +273,6 @@ impl EndpointSpec {
             mappings,
         }
     }
-
-    pub fn validate(&self, banned_types: &[String]) -> Result<(), EndpointErrors> {
-        Ok(())
-    }
 }
 
 const PRIMITIVE_TYPES: &[&str] = &[
@@ -480,7 +413,7 @@ mod tests {
             }],
         };
 
-        let inner_spec = spec.generate(&Config::default());
+        let inner_spec = spec.generate();
         let tmpl = inner_spec.endpoints[0].template.clone();
     
         assert!(tmpl.contains("$a0 += 1;"));
@@ -496,7 +429,7 @@ mod tests {
             }],
         };
 
-        let inner_spec = spec.generate(&Config::default());
+        let inner_spec = spec.generate();
         let tmpl = inner_spec.endpoints[0].template.clone();
 
         println!("{}", tmpl);
@@ -515,7 +448,7 @@ mod tests {
             }],
         };
 
-        let inner_spec = spec.generate(&Config::default());
+        let inner_spec = spec.generate();
         let tmpl = inner_spec.endpoints[0].template.clone();
 
         assert!(tmpl.contains("$o0 = new void *();"));
@@ -531,7 +464,7 @@ mod tests {
             }],
         };
     
-        let inner_spec = spec.generate(&Config::default());
+        let inner_spec = spec.generate();
         let tmpl = inner_spec.endpoints[0].template.clone();
 
         assert!(tmpl.contains("$i0 = nullptr;"));

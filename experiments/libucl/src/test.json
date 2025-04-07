@@ -1,0 +1,2097 @@
+{
+  "endpoints": [
+    {
+      "name": "ucl_parser_add_file_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *filename = FUZZ_PARAM_FILE(100);\nif (filename == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_parser_add_file(__parser, filename);\nif (!result) {\n    FUZZ_BAIL();\n}\n\n// Clean up is not strictly necessary since filename is managed by FUZZ_PARAM_FILE and is temporary."
+    },
+    {
+      "name": "ucl_object_iterate_reset_v0",
+      "variables": [
+        {
+          "name": "__it",
+          "dir": "*",
+          "typ": "ucl_object_iter_t"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "if (__it == nullptr) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t* obj = nullptr; // Assume obj must be initialized or fetched prior to the call\n\n__return_value = ucl_object_iterate_reset(__it, obj);\nif (__return_value == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_iterate_reset_v1",
+      "variables": [
+        {
+          "name": "__it",
+          "dir": "*",
+          "typ": "ucl_object_iter_t"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "if (!__obj) {\n    FUZZ_BAIL();\n}\n\n__return_value = ucl_object_iterate_reset(__it, __obj);\nif (__return_value == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_get_linenum_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) FUZZ_BAIL();\n\nunsigned line_num = ucl_parser_get_linenum(__parser);\n\n// Use line_num or handle it as needed, this may involve validation or further operations\n// Since there's no allocation that needs to be cleaned, we simply exit."
+    },
+    {
+      "name": "ucl_parser_set_include_tracer_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\n// Generate random user data for the tracer function\nvoid *user_data = gf_malloc(sizeof(int)); // allocating arbitrary user data\nif (user_data == NULL) {\n    FUZZ_BAIL();\n}\n*((int *)user_data) = FUZZ_PARAM(int); // Some random integer as user data\n\n// Create a lambda or a function pointer that matches the required function signature\n// Unfortunately we cannot define a proper function inside this block, so we directly pass a NULL.\n\n// Call the API function with the generated parameters\nucl_parser_set_include_tracer(__parser, NULL, user_data);\n\n// Cleanup\ngf_free(user_data);"
+    },
+    {
+      "name": "ucl_object_iterate_free_v0",
+      "variables": [
+        {
+          "name": "__it",
+          "dir": "del",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "if (__it == NULL) {\n    FUZZ_BAIL();\n}\n\n// Directly invoking the API as it performs its own checks\nucl_object_iterate_free(__it);\n\n// No additional cleanup required as per the API documentation."
+    },
+    {
+      "name": "ucl_parser_add_file_full_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        },
+        {
+          "name": "__strat",
+          "dir": "*",
+          "typ": "ucl_duplicate_strategy"
+        },
+        {
+          "name": "__parse_type",
+          "dir": "*",
+          "typ": "ucl_parse_type"
+        }
+      ],
+      "template": "if (!__parser) { FUZZ_BAIL(); }\n\nconst char *file_path = FUZZ_PARAM_FILE(64);\nif (!file_path) { FUZZ_BAIL(); }\n\nunsigned priority = FUZZ_PARAM(unsigned);\n\nbool result = ucl_parser_add_file_full(__parser, file_path, priority, __strat, __parse_type);\nif (!result) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "ucl_array_delete_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "del",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nif (ucl_array_delete(__top, __elt) == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_delete_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "del",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__ret",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL || __ret == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_array_delete(__top, __elt);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n*__ret = *result;"
+    },
+    {
+      "name": "ucl_object_new_full_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "ucl_type_t"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__type < 0 || __type >= UCL_USERDATA) {\n    FUZZ_BAIL();\n}\n\nunsigned priority = 0;\n__return = ucl_object_new_full(__type, priority);\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_validate_root_v0",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__root",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__schema == NULL || __obj == NULL || __root == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct ucl_schema_error *error = (struct ucl_schema_error *)gf_malloc(sizeof(struct ucl_schema_error));\nif (error == NULL) {\n    FUZZ_BAIL();\n}\n\nbool is_valid = ucl_object_validate_root(__schema, __obj, __root, error);\nif (!is_valid) {\n    // Handle error if needed based on error details\n    gf_free(error);\n    FUZZ_BAIL();\n}\n\n// Clean up if necessary\ngf_free(error);"
+    },
+    {
+      "name": "ucl_object_validate_root_v1",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__root",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__err",
+          "dir": "*",
+          "typ": "ucl_schema_error"
+        }
+      ],
+      "template": "if (__schema == NULL || __obj == NULL || __root == NULL) {\n    FUZZ_BAIL();\n}\n\n// Attempt to invoke the API function\nbool result = ucl_object_validate_root(__schema, __obj, __root, &__err);\n\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_pop_first_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__ret",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == nullptr) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *temp = ucl_array_pop_first(__top);\nif (temp == nullptr) {\n    FUZZ_BAIL();\n}\n\n__ret = temp;"
+    },
+    {
+      "name": "ucl_object_frombool_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "__obj = ucl_object_frombool(FUZZ_PARAM(bool));\nif (__obj == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_iterate_with_error_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__iter",
+          "dir": "*",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "if (__obj == NULL || __iter == NULL) {\n    FUZZ_BAIL();\n}\n\nint *error_pointer = NULL; // Using NULL as the error pointer is acceptable based on API.\nconst ucl_object_t *result = ucl_object_iterate_with_error(__obj, &__iter, false, error_pointer);\n\nif (result == NULL) {\n    // Handle potential errors here, although API does this internally.\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_insert_key_merged_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(10);\nsize_t keylen = 10;\nbool copy_key = FUZZ_PARAM(bool);\n\nif (!ucl_object_insert_key_merged(__top, __elt, key, keylen, copy_key)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_set_filevars_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *filename = FUZZ_PARAM_FILE(256);\nbool need_expand = FUZZ_PARAM(bool);\n\nif (ucl_parser_set_filevars(__parser, filename, need_expand) == false) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_get_default_priority_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nint priority = ucl_parser_get_default_priority(__parser);\nif (priority < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_emit_streamline_add_object_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "ucl_emitter_context"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (&__ctx == NULL || __obj == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_emit_streamline_add_object(&__ctx, __obj);"
+    },
+    {
+      "name": "ucl_parser_get_error_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *error_msg = ucl_parser_get_error(__parser);\n\nif (error_msg == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming that the error message needs to be processed or logged\n// Here you might want to log or do something with error_msg instead of just passing\n// This is just a placeholder where actual processing should happen\n// For now, we will just assume it's used properly and thus do not need any further action after this.\n"
+    },
+    {
+      "name": "ucl_parser_register_variable_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *var = FUZZ_PARAM_STR(10);\nconst char *value = FUZZ_PARAM_STR(10);\n\nif (var == NULL || value == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_parser_register_variable(__parser, var, value);\n"
+    },
+    {
+      "name": "ucl_object_tolstring_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t *tlen = (size_t *)gf_malloc(sizeof(size_t));\nif (tlen == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *result = ucl_object_tolstring(__obj, tlen);\nif (result == NULL) {\n    gf_free(tlen);\n    FUZZ_BAIL();\n}\n\n// Success case, clean up\ngf_free(tlen);\n"
+    },
+    {
+      "name": "ucl_object_toint_safe_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nint64_t value;\nbool result = ucl_object_toint_safe(__obj, &value);\nif (!result) {\n    FUZZ_BAIL();\n}\n\n// The value can be used for further processing if needed."
+    },
+    {
+      "name": "ucl_object_typed_new_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "ucl_type_t"
+        }
+      ],
+      "template": "if (__type == UCL_USERDATA) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *result = ucl_object_typed_new(__type);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Perform additional initialization or operations if necessary\n"
+    },
+    {
+      "name": "ucl_object_typed_new_v1",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "ucl_type_t"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (___return_value_ != nullptr) {\n    FUZZ_BAIL();\n}\n\nif (__type == UCL_USERDATA) {\n    FUZZ_BAIL();\n}\n\n___return_value_ = ucl_object_typed_new(__type);\nif (___return_value_ == nullptr) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "ucl_object_fromstring_common_v0",
+      "variables": [],
+      "template": "const char *str = FUZZ_PARAM_STR(64);\nsize_t len = FUZZ_PARAM(size_t);\nenum ucl_string_flags flags = FUZZ_PARAM(enum ucl_string_flags);\n\nif (len == 0) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *result = ucl_object_fromstring_common(str, len, flags);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Optional: perform any additional operations with the result, like initializing output arguments if necessary.\n\n// Clean up is not necessary here since we are not allocating any temporary objects directly."
+    },
+    {
+      "name": "ucl_object_fromstring_common_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "const char *input_str = FUZZ_PARAM_FILE(100);  \nsize_t input_len = 100;  \nenum ucl_string_flags flags = FUZZ_PARAM(enum ucl_string_flags);  \n\n__return = ucl_object_fromstring_common(input_str, input_len, flags);  \nif (__return == NULL) {  \n    FUZZ_BAIL();  \n}  \n\n// Clean-up if necessary, but here we rely on the library to handle memory management."
+    },
+    {
+      "name": "ucl_object_merge_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nbool copy = FUZZ_PARAM(bool);\n\nif (!ucl_object_merge(__top, __elt, copy)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_prepend_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nif (ucl_array_prepend(__top, __elt) == false) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_key_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "const char *key = ucl_object_key(&__obj);\n\nif (key == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t len;\nconst char *keyl = ucl_object_keyl(&__obj, &len);\n\nif (keyl == NULL) {\n    FUZZ_BAIL();\n}\n\n// Further processing of key and keyl can be done here if needed."
+    },
+    {
+      "name": "ucl_object_fromint_v0",
+      "variables": [],
+      "template": "int64_t iv = FUZZ_PARAM(int64_t);\n\nucl_object_t *obj = ucl_object_fromint(iv);\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\n// No output arguments to initialize and no temporary objects to clean up."
+    },
+    {
+      "name": "ucl_object_fromint_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "__obj = nullptr;\nint64_t iv = FUZZ_PARAM(int64_t);\n__obj = ucl_object_fromint(iv);\nif (__obj == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_add_chunk_full_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        },
+        {
+          "name": "__strat",
+          "dir": "*",
+          "typ": "ucl_duplicate_strategy"
+        },
+        {
+          "name": "__parse_type",
+          "dir": "*",
+          "typ": "ucl_parse_type"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t len = FUZZ_PARAM(size_t);\nconst char *data_path = FUZZ_PARAM_FILE(1024);\nunsigned priority = FUZZ_PARAM(unsigned);\n\n// Allocate memory for the data to be read\nchar *data = (char *)gf_malloc(len);\nif (data == NULL) {\n    FUZZ_BAIL();\n}\n\n// Open the file and check for errors\nFILE *file = fopen(data_path, \"rb\");\nif (file == NULL) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\n// Read the file content\nsize_t read_bytes = fread(data, 1, len, file);\nif (read_bytes != len) {\n    fclose(file);\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\n// Close the file\nfclose(file);\n\n// Invoke the target library API\nif (!ucl_parser_add_chunk_full(__parser, (const unsigned char *)data, read_bytes, priority, __strat, __parse_type)) {\n    gf_free(data);\n    FUZZ_BAIL();\n}\n\ngf_free(data);"
+    },
+    {
+      "name": "ucl_object_todouble_safe_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\ndouble result;\nif (!ucl_object_todouble_safe(__obj, &result)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_copy_v0",
+      "variables": [
+        {
+          "name": "__other",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__other == NULL) {\n    FUZZ_BAIL();\n}\n\n__return = ucl_object_copy(__other);\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_set_priority_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) { FUZZ_BAIL(); }\n\nunsigned int priority = FUZZ_PARAM(unsigned int);\n\nucl_object_set_priority(__obj, priority);"
+    },
+    {
+      "name": "ucl_object_emit_memory_funcs_v0",
+      "variables": [],
+      "template": "struct ucl_emitter_functions *functions = NULL;\nvoid *memory_pointer = NULL;\n\nfunctions = ucl_object_emit_memory_funcs(&memory_pointer);\n\nif (functions == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming further processing of functions and memory_pointer happens here,\n// If there were operations that could fail, you'd check and call FUZZ_BAIL() accordingly.\n\n// Clean up memory if necessary\ngf_free(memory_pointer);\n\n// This example may need to ensure that proper checks and balances are maintained based on specific API needs."
+    },
+    {
+      "name": "ucl_object_emit_memory_funcs_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_emitter_functions"
+        }
+      ],
+      "template": "void *pmem = nullptr;\n    struct ucl_emitter_functions *functions = ucl_object_emit_memory_funcs(&pmem);\n    if (functions == NULL) {\n        FUZZ_BAIL();\n    }\n    __return = *functions;\n    if (pmem == nullptr) {\n        FUZZ_BAIL();\n    }\n    // Clean up temporary allocated memory if necessary.\n    gf_free(functions);\n"
+    },
+    {
+      "name": "ucl_object_unref_v0",
+      "variables": [],
+      "template": "\n    ucl_object_t *obj = ucl_object_new();\n    if (obj == NULL) {\n        FUZZ_BAIL();\n    }\n\n    ucl_object_unref(obj);\n    gf_free(obj);\n"
+    },
+    {
+      "name": "ucl_object_unref_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "del",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_unref(__obj);\n\n// Since ucl_object_unref handles the deletion internally, there's no need to clean up anything else."
+    },
+    {
+      "name": "ucl_comments_find_v0",
+      "variables": [
+        {
+          "name": "__comments",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__srch",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__comments == NULL || __srch == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_comments_find(__comments, __srch);\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_comments_find_v1",
+      "variables": [
+        {
+          "name": "__comments",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__srch",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "___Return_Value_",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (!__comments || !__srch) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *temp_return_value = ucl_comments_find(__comments, __srch);\n\nif (temp_return_value == NULL) {\n    FUZZ_BAIL();\n}\n\n___Return_Value_ = const_cast<ucl_object_t *>(temp_return_value);"
+    },
+    {
+      "name": "ucl_object_tostring_safe_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *result = NULL;\nif (!ucl_object_tostring_safe(__obj, &result)) {\n    FUZZ_BAIL();\n}\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// If needed, handle the result string here. For fuzzing you may want to store it or use it further.\n// Clean up memory if needed (assuming there is any). \n"
+    },
+    {
+      "name": "ucl_object_compare_qsort_v0",
+      "variables": [
+        {
+          "name": "__o1",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__o2",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__o1 == NULL || __o2 == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *ptr1 = __o1;\nconst ucl_object_t *ptr2 = __o2;\n\nint result = ucl_object_compare_qsort(&ptr1, &ptr2);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_free_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "del",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_parser_free(__parser);\n\n__parser = NULL;"
+    },
+    {
+      "name": "ucl_object_insert_key_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "\n    if (__top == NULL || __elt == NULL) {\n        FUZZ_BAIL();\n    }\n\n    const char *key = FUZZ_PARAM_STR(16);\n    size_t keylen = strlen(key);\n    bool copy_key = true;\n\n    bool result = ucl_object_insert_key(__top, __elt, key, keylen, copy_key);\n\n    if (!result) {\n        FUZZ_BAIL();\n    }\n"
+    },
+    {
+      "name": "ucl_parser_clear_error_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_parser_clear_error(__parser);"
+    },
+    {
+      "name": "ucl_comments_add_v0",
+      "variables": [
+        {
+          "name": "__comments",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__comments == NULL || __obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *comment = FUZZ_PARAM_STR(100);\nif (comment == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_comments_add(__comments, __obj, comment);\n\n// No cleanup is needed since we do not allocate memory here other than the string that is managed by the fuzzing. If needed, we would free it using gf_free."
+    },
+    {
+      "name": "ucl_object_pop_key_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(16);\nif (key == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *result = ucl_object_pop_key(__top, key);\nif (result == NULL) {\n    FUZZ_BAIL();\n} \n\n// Clean up temporary objects if necessary (if any memory allocation was made) \n// In this case we don't create any dynamic memory, but if we did, we'd use gf_free to free it.\n"
+    },
+    {
+      "name": "ucl_object_pop_key_v1",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(8); // Generate a random key of 8 bytes\n\n__return_value = ucl_object_pop_key(__top, key);\nif (__return_value == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_iterate_full_v1",
+      "variables": [
+        {
+          "name": "__it",
+          "dir": "*",
+          "typ": "ucl_object_iter_t"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__it == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Initialize the return value to nullptr\n__return_value = nullptr;\n\nconst ucl_object_t *result = ucl_object_iterate_full(__it, UCL_ITERATE_BOTH);\n\nif (result == nullptr) {\n    FUZZ_BAIL();\n}\n\n__return_value = (ucl_object_t *)result;"
+    },
+    {
+      "name": "ucl_object_new_userdata_v0",
+      "variables": [
+        {
+          "name": "__dtor",
+          "dir": "*",
+          "typ": "ucl_userdata_dtor"
+        },
+        {
+          "name": "__emitter",
+          "dir": "*",
+          "typ": "ucl_userdata_emitter"
+        }
+      ],
+      "template": "void *ptr = NULL;\n    ucl_object_t *obj = ucl_object_new_userdata(__dtor, __emitter, ptr);\n    if (obj == NULL) {\n        FUZZ_BAIL();\n    }\n    // Clean up if necessary; in this context, there's no further cleanup for a successful call.\n    // If more data needed for further processing, manage accordingly."
+    },
+    {
+      "name": "ucl_object_delete_key_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *random_key = FUZZ_PARAM_STR(10);\nif (random_key == NULL) {\n    FUZZ_BAIL();\n}\n\nif (!ucl_object_delete_key(__top, random_key)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_new_v0",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "__return = ucl_object_new();\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_todouble_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\ndouble result;\n\nif (!ucl_object_todouble_safe(__obj, &result)) {\n    FUZZ_BAIL();\n}\n\n// Successfully converted to double, result is ready for use."
+    },
+    {
+      "name": "ucl_array_index_of_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int index = ucl_array_index_of(__top, __elt);\n\nif (index == (unsigned int)(-1)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_set_default_priority_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned prio = FUZZ_PARAM(unsigned);\n\nbool result = ucl_parser_set_default_priority(__parser, prio);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_reserve_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t reserved = FUZZ_PARAM(size_t);\n\nbool result = ucl_object_reserve(__obj, reserved);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_get_current_stack_object_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int depth = FUZZ_PARAM(unsigned int);\nvoid *obj = ucl_parser_get_current_stack_object(__parser, depth);\n\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\n// Further processing can be done here if necessary."
+    },
+    {
+      "name": "ucl_parser_get_column_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned column = ucl_parser_get_column(__parser);\n\nif (column == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_iter_chk_excpn_v0",
+      "variables": [
+        {
+          "name": "__it",
+          "dir": "*",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "    if (!__it) {\n        FUZZ_BAIL();\n    }\n\n    bool result = ucl_object_iter_chk_excpn(&__it);\n    if (!result) {\n        FUZZ_BAIL();\n    }"
+    },
+    {
+      "name": "ucl_object_string_to_type_v0",
+      "variables": [
+        {
+          "name": "__res",
+          "dir": "new",
+          "typ": "ucl_type_t"
+        }
+      ],
+      "template": "const char* input = FUZZ_PARAM_FILE(100);\n\n// Initialize __res to a default value before calling the function\n__res = UCL_NULL;\n\n// Call the API function\nif (!ucl_object_string_to_type(input, &__res)) {\n    FUZZ_BAIL();\n}\n\n// Clean up if necessary (input is managed by FUZZ_PARAM_FILE)"
+    },
+    {
+      "name": "ucl_object_fromlstring_v0",
+      "variables": [],
+      "template": "const char *str = FUZZ_PARAM_STR(64); // Assume a max length of 64 for the string\nsize_t len = strlen(str);\n\nif (len == 0) {\n    FUZZ_BAIL(); // Ensure the string is not empty\n}\n\n// Invoke the ucl_object_fromlstring API\nucl_object_t *obj = ucl_object_fromlstring(str, len);\n\nif (obj == NULL) {\n    FUZZ_BAIL(); // Check if ucl_object_fromlstring returned NULL indication of failure\n}\n\n// At this point, `obj` is valid and can be used\n// Clean up if necessary, here we assume ucl_object_fromlstring manages its own memory\n// Further processing can be done as required\n"
+    },
+    {
+      "name": "ucl_object_fromlstring_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "const char* str = FUZZ_PARAM_STR(50); // Example length\nsize_t len = strlen(str);\n\n__return = ucl_object_fromlstring(str, len);\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_get_error_code_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nint error_code = ucl_parser_get_error_code(__parser);\nif (error_code <= 0) {\n    FUZZ_BAIL();\n}\n// We assume that if there is an error, we will not execute the next steps, so nothing further is needed."
+    },
+    {
+      "name": "ucl_comments_move_v0",
+      "variables": [
+        {
+          "name": "__comments",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__from",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__to",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (!__comments || !__from || !__to) {\n    FUZZ_BAIL();\n}\n\nif (!ucl_comments_move(__comments, __from, __to)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_lookup_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(10);\nif (key == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_object_lookup(__obj, key);\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_lookup_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "___return_value_",
+          "dir": "del",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL || ___return_value_ == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(10); // Assuming a reasonable length for fuzzing\nconst ucl_object_t *result = ucl_object_lookup_len(__obj, key, strlen(key));\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n*___return_value_ = *result; // Assuming this will correctly set the return value accordingly\n"
+    },
+    {
+      "name": "ucl_copy_key_trash_v0",
+      "variables": [],
+      "template": "const ucl_object_t *obj = (const ucl_object_t *)FUZZ_PARAM(uintptr_t);\n    if (obj == NULL) {\n        FUZZ_BAIL();\n    }\n\n    char *key = ucl_copy_key_trash(obj);\n    if (key == NULL) {\n        FUZZ_BAIL();\n    }\n\n    // Normally we would do something with 'key', but since we are in a fuzzing environment, simply ensuring the call works is sufficient.\n    // Clean up is not necessary as the memory management is handled by ucl_copy_key_trash."
+    },
+    {
+      "name": "ucl_array_find_index_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int index = FUZZ_PARAM(unsigned int);\nconst ucl_object_t *result = ucl_array_find_index(__top, index);\n\nif (result == NULL && index != 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_find_index_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __return_value == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int index = FUZZ_PARAM(unsigned int);\n\nconst ucl_object_t *result = ucl_array_find_index(__top, index);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the return value with the result\nmemcpy(__return_value, result, sizeof(ucl_object_t));"
+    },
+    {
+      "name": "ucl_object_toboolean_safe_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result;\nif (!ucl_object_toboolean_safe(__obj, &result)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_get_comments_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *comments = ucl_parser_get_comments(__parser);\nif (comments == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming here we do something with comments, if necessary. \n// Otherwise, we can stop here, as we are only invoking the function."
+    },
+    {
+      "name": "ucl_parser_get_comments_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *comments = ucl_parser_get_comments(__parser);\nif (comments == NULL) {\n    FUZZ_BAIL();\n}\n\n__return_value = const_cast<ucl_object_t *>(comments);"
+    },
+    {
+      "name": "ucl_object_toboolean_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = false;\nif (!ucl_object_toboolean_safe(__obj, &result)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_tolstring_safe_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "if (&__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *target = NULL;\nsize_t tlen = 0;\nbool result = ucl_object_tolstring_safe(&__obj, &target, &tlen);\n\nif (!result) {\n    FUZZ_BAIL();\n}\n\n// Do something with target and tlen if necessary\n\n// All resources are handled by the library; clean up if needed."
+    },
+    {
+      "name": "ucl_parser_add_fd_priority_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nint fd = FUZZ_PARAM(int);\nunsigned priority = FUZZ_PARAM(unsigned);\n\nif (!ucl_parser_add_fd_priority(__parser, fd, priority)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_emit_full_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__emitter",
+          "dir": "*",
+          "typ": "ucl_emitter_functions"
+        },
+        {
+          "name": "__comments",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL || __comments == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_object_emit_full(__obj, UCL_EMIT_JSON, &__emitter, __comments);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_emit_funcs_free_v1",
+      "variables": [
+        {
+          "name": "__f",
+          "dir": "del",
+          "typ": "ucl_emitter_functions"
+        }
+      ],
+      "template": "if (&__f == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_emit_funcs_free(&__f);\n"
+    },
+    {
+      "name": "ucl_array_head_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_array_head(__top);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// More operations can be added here if needed in the future."
+    },
+    {
+      "name": "ucl_object_keyl_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "size_t key_length;\nconst char *key = ucl_object_keyl(&__obj, &key_length);\nif (key == NULL || key_length == 0) {\n    FUZZ_BAIL();\n}\n// if needed, process the key or use it for fuzzing purposes"
+    },
+    {
+      "name": "ucl_object_fromstring_v0",
+      "variables": [],
+      "template": "const char *fuzzable_str = FUZZ_PARAM_FILE(256);\n\nif (fuzzable_str == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *obj = ucl_object_fromstring(fuzzable_str);\n\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up if necessary\n// Here, the API manages memory for the returned object; no need to free obj directly."
+    },
+    {
+      "name": "ucl_object_fromstring_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (!__return) {\n    FUZZ_BAIL();\n}\n\nconst char *input_str = FUZZ_PARAM_FILE(1024); // Generate a fuzzable string as a file\n__return = ucl_object_fromstring(input_str);\n\nif (!__return) {\n    FUZZ_BAIL();\n}\n\n// Clean up temporary object if needed (none created directly here)\n// If any additional cleanup were required, it would be done here\n"
+    },
+    {
+      "name": "ucl_parser_add_chunk_priority_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *data = FUZZ_PARAM_FILE(128); // File containing fuzzable data\nsize_t len = 128; // Length of the data assumed to be 128\nunsigned priority = FUZZ_PARAM(unsigned); // Random priority value\n\nif (ucl_parser_add_chunk_priority(__parser, (const unsigned char *)data, len, priority) == false) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_fromdouble_v0",
+      "variables": [],
+      "template": "double dv = FUZZ_PARAM(double);\n\nucl_object_t *obj = ucl_object_fromdouble(dv);\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up if needed. In this case, since we are only returning an object,\n// we don't need to worry about temporary objects, but we can use obj if further operations are needed."
+    },
+    {
+      "name": "ucl_object_fromdouble_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "__obj = nullptr;\n\tdouble random_double = FUZZ_PARAM(double);\n\n\t__obj = ucl_object_fromdouble(random_double);\n\tif (__obj == nullptr) {\n\t\tFUZZ_BAIL();\n\t}"
+    },
+    {
+      "name": "ucl_object_lookup_len_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(32);\nsize_t klen = strlen(key);\n\nconst ucl_object_t *result = ucl_object_lookup_len(__obj, key, klen);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Further processing can go here if necessary."
+    },
+    {
+      "name": "ucl_parser_add_fd_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nint fd = FUZZ_PARAM(int);\n\nif (!ucl_parser_add_fd(__parser, fd)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_free_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "del",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_free(__obj);\n"
+    },
+    {
+      "name": "ucl_parser_get_object_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *obj = ucl_parser_get_object(__parser);\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\n// Use the 'obj' as needed, and no need to free here since it's managed by the parser\n"
+    },
+    {
+      "name": "ucl_parser_get_object_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        },
+        {
+          "name": "__Return_value",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\n__Return_value = ucl_parser_get_object(__parser);\nif (__Return_value == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_add_string_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *data = FUZZ_PARAM_FILE(1024); // Create random file with fuzzable data\nsize_t len = 1024; // Adjust size as necessary\n\nif (!ucl_parser_add_string(__parser, data, len)) {\n    FUZZ_BAIL();\n}\n\n// Cleanup is not needed here since the function call takes care of external memory usage."
+    },
+    {
+      "name": "ucl_object_lookup_path_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *path = FUZZ_PARAM_FILE(100);\nif (path == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_object_lookup_path(__top, path);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// If further processing or output initialization is required, it can be done here.\n// Add any necessary cleanup operations here, if applicable."
+    },
+    {
+      "name": "ucl_object_lookup_path_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\n// Fuzz the path argument\nconst char *path = FUZZ_PARAM_FILE(256);\nif (path == NULL) {\n    FUZZ_BAIL();\n}\n\n// Invoke the ucl_object_lookup_path function\nconst ucl_object_t *result = ucl_object_lookup_path(__top, path);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n__return = const_cast<ucl_object_t *>(result);"
+    },
+    {
+      "name": "ucl_elt_append_v0",
+      "variables": [
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__elt == NULL) {\n    FUZZ_BAIL();\n}\n\n// Call the API function, which takes two input arguments: the original element and the new element to append.\n__return = ucl_elt_append(NULL, __elt);\n\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_elt_append_v1",
+      "variables": [
+        {
+          "name": "__head",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__head == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\n__return = ucl_elt_append(__head, __elt);\nif (__return == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_lookup_path_char_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *path_in = FUZZ_PARAM_STR(20);\nchar sep = FUZZ_PARAM(char);\n\nconst ucl_object_t *result = ucl_object_lookup_path_char(__top, path_in, sep);\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_register_context_macro_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *macro = FUZZ_PARAM_STR(10);\nucl_context_macro_handler handler = (ucl_context_macro_handler)FUZZ_PARAM_FILE(10);\nvoid *ud = NULL; // Using NULL for user data, as we cannot fuzz pointer types\n\nif (!ucl_parser_register_context_macro(__parser, macro, handler, ud)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_ref_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *result = ucl_object_ref(__obj);\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up is not needed as the reference counting takes care of memory management."
+    },
+    {
+      "name": "ucl_object_ref_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "___implicit_return_value_",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\n___implicit_return_value_ = ucl_object_ref(__obj);\nif (___implicit_return_value_ == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_size_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int size = ucl_array_size(__top);\nif (size == 0) {\n    FUZZ_BAIL();\n}\n// Further processing can be done with 'size'\n// Since `ucl_array_size` does not allocate memory, there's no need to free anything."
+    },
+    {
+      "name": "ucl_set_include_path_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        },
+        {
+          "name": "__paths",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__parser == NULL || __paths == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_set_include_path(__parser, __paths);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_get_priority_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int priority = ucl_object_get_priority(__obj);\n\n// Here we could process the `priority` value if needed, but as per requirements, we just invoke the function.\n"
+    },
+    {
+      "name": "ucl_parser_chunk_skip_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_parser_chunk_skip(__parser);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_emit_streamline_start_container_v0",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "ucl_emitter_context"
+        }
+      ],
+      "template": "    if (&__ctx == NULL) {\n        FUZZ_BAIL();\n    }\n\n    const ucl_object_t *obj = (const ucl_object_t *) FUZZ_PARAM(uint32_t); // Ensure this is the correct way to generate a ucl_object_t type\n\n    if (obj == NULL) {\n        FUZZ_BAIL();\n    }\n\n    bool result = ucl_object_emit_streamline_start_container(&__ctx, obj);\n\n    if (!result) {\n        FUZZ_BAIL();\n    }\n"
+    },
+    {
+      "name": "ucl_object_emit_streamline_start_container_v1",
+      "variables": [
+        {
+          "name": "__ctx",
+          "dir": "*",
+          "typ": "ucl_emitter_context"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_object_emit_streamline_start_container(&__ctx, __obj);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_new_v0",
+      "variables": [],
+      "template": "int flags = FUZZ_PARAM(int);\nstruct ucl_parser *parser = ucl_parser_new(flags);\nif (parser == NULL) {\n    FUZZ_BAIL();\n}\n// Initialize other output arguments or states if necessary\n// Clean up any resources if created outside of the function\n"
+    },
+    {
+      "name": "ucl_parser_new_v1",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "new",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (&__parser == nullptr) {\n    FUZZ_BAIL();\n}\n\nint flags = FUZZ_PARAM(int);\n__parser = ucl_parser_new(flags);\nif (__parser == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_validate_v1",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__err",
+          "dir": "*",
+          "typ": "ucl_schema_error"
+        }
+      ],
+      "template": "if (&__schema == NULL || &__obj == NULL || &__err == NULL) {\n    FUZZ_BAIL();\n}\n\nbool valid = ucl_object_validate(&__schema, &__obj, &__err);\n\nif (!valid) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_validate_root_ext_v0",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__root",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "struct ucl_schema_error *err = (struct ucl_schema_error *)gf_malloc(sizeof(struct ucl_schema_error));\nif (err == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_object_validate_root_ext(&__schema, &__obj, &__root, NULL, err);\nif (!result) {\n    gf_free(err);\n    FUZZ_BAIL();\n}\n\ngf_free(err);"
+    },
+    {
+      "name": "ucl_object_validate_root_ext_v1",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__root",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__ext_refs",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (&__ext_refs == nullptr) {\n    __ext_refs = (ucl_object_t *) gf_malloc(sizeof(ucl_object_t));\n    if (__ext_refs == nullptr) FUZZ_BAIL();\n}\n\n// Create a temporary error object\nstruct ucl_schema_error *err = (struct ucl_schema_error *) gf_malloc(sizeof(struct ucl_schema_error));\nif (err == nullptr) {\n    gf_free(__ext_refs);\n    __ext_refs = nullptr;\n    FUZZ_BAIL();\n}\n\nbool result = ucl_object_validate_root_ext(&__schema, &__obj, &__root, __ext_refs, err);\n\n// Check if the validation was successful\nif (!result) {\n    gf_free(err);\n    gf_free(__ext_refs);\n    __ext_refs = nullptr;\n    FUZZ_BAIL();\n}\n\n// If we reached here, validation was successful, but we only need to clean up the error object\ngf_free(err);"
+    },
+    {
+      "name": "ucl_object_validate_root_ext_v2",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__root",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__err",
+          "dir": "*",
+          "typ": "struct ucl_schema_error"
+        }
+      ],
+      "template": "if (&__schema == NULL || &__obj == NULL || &__root == NULL) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *ext_refs = NULL;\nbool ret = ucl_object_validate_root_ext(&__schema, &__obj, &__root, ext_refs, &__err);\n\nif (!ret) {\n    FUZZ_BAIL();\n}\n\nif (ext_refs != NULL) {\n    gf_free(ext_refs);\n}"
+    },
+    {
+      "name": "ucl_object_validate_root_ext_v3",
+      "variables": [
+        {
+          "name": "__schema",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__root",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__ext_refs",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__err",
+          "dir": "*",
+          "typ": "struct ucl_schema_error"
+        }
+      ],
+      "template": "if (&__schema == NULL || &__obj == NULL || &__root == NULL) {\n    FUZZ_BAIL();\n}\n\n__ext_refs = nullptr;\nif (ucl_object_validate_root_ext(&__schema, &__obj, &__root, NULL, &__err) == false) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_emit_file_funcs_v0",
+      "variables": [
+        {
+          "name": "__f",
+          "dir": "new",
+          "typ": "ucl_emitter_functions"
+        }
+      ],
+      "template": "FILE *temp_file = fopen(FUZZ_PARAM_FILE(20), \"w\");\nif (temp_file == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct ucl_emitter_functions *functions = ucl_object_emit_file_funcs(temp_file);\nif (functions == NULL) {\n    fclose(temp_file);\n    FUZZ_BAIL();\n}\n\n__f = *functions;\n\nif (fclose(temp_file) != 0) {\n    FUZZ_BAIL();\n}\n\ngf_free(functions);"
+    },
+    {
+      "name": "ucl_object_delete_keyl_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) { FUZZ_BAIL(); }\n\nconst char *random_key = FUZZ_PARAM_STR(10);\nsize_t key_length = 10;\n\nif (ucl_object_delete_keyl(__top, random_key, key_length) == false) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "ucl_parser_register_macro_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *macro = FUZZ_PARAM_STR(16);\nucl_macro_handler handler = (ucl_macro_handler)FUZZ_PARAM_FILE(16);\n\nif (macro == NULL || handler == NULL) {\n    FUZZ_BAIL();\n}\n\nvoid *ud = NULL; // Using NULL for user data\n\nbool result = ucl_parser_register_macro(__parser, macro, handler, ud);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_iterate_new_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "if (nullptr == &__obj) {\n    FUZZ_BAIL();\n}\n\n__return = ucl_object_iterate_new(&__obj);\nif (__return == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_tostring_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) { FUZZ_BAIL(); }\n\nconst char *result = NULL;\nsize_t tlen;\nif (!ucl_object_tolstring_safe(__obj, &result, &tlen)) { FUZZ_BAIL(); }\n\nif (result == NULL) { FUZZ_BAIL(); }\n\n// Since result is now set and valid, we could do something with it here, such as logging or storing it, but for fuzz testing, we just ensure it can be handled correctly.\n\n// Clean up, if necessary, but in this case no temporary objects were created that require cleanup."
+    },
+    {
+      "name": "ucl_object_lookup_any_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(16);\nconst ucl_object_t *result = ucl_object_lookup_len(__obj, key, strlen(key));\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_append_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "ucl_object_t *elt = (ucl_object_t *)gf_malloc(sizeof(ucl_object_t));\nif (elt == NULL || __top == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize 'elt' with random data if necessary (placeholder for payload)\n\nif (!ucl_array_append(__top, elt)) {\n    gf_free(elt);\n    FUZZ_BAIL();\n}\n\ngf_free(elt);"
+    },
+    {
+      "name": "ucl_array_append_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nbool result = ucl_array_append(__top, __elt);\nif (!result) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_get_cur_file_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *filename = ucl_parser_get_cur_file(__parser);\nif (filename == NULL) {\n    FUZZ_BAIL();\n}\n\n// Since we are only retrieving the current file name, no need to clean up or initialize additional objects."
+    },
+    {
+      "name": "ucl_object_tostring_forced_v0",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *result = ucl_object_tostring_forced(__obj);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// The result from ucl_object_tostring_forced is valid and can be utilized as needed.\n"
+    },
+    {
+      "name": "ucl_object_emit_streamline_finish_v0",
+      "variables": [],
+      "template": "struct ucl_emitter_context *ctx = (struct ucl_emitter_context *)gf_malloc(sizeof(struct ucl_emitter_context));\nif (ctx == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the context with fuzzable parameters\n// Assuming there might be some initialization depending on library\n\n// Call the API, passing the context\nucl_object_emit_streamline_finish(ctx);\n\n// Clean up\nif (ctx) {\n    gf_free(ctx);\n}"
+    },
+    {
+      "name": "ucl_object_toint_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__obj == NULL) {\n    FUZZ_BAIL();\n}\n\nint64_t result = 0;\nif (!ucl_object_toint_safe(__obj, &result)) {\n    FUZZ_BAIL();\n}\n\n// Normally, result is used further or returned, but since this is for fuzzing, we do nothing."
+    },
+    {
+      "name": "ucl_array_merge_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __top->type != UCL_ARRAY) {\n    FUZZ_BAIL();\n}\n\nucl_object_t *elt = (ucl_object_t *)gf_malloc(sizeof(ucl_object_t));\nif (elt == NULL) {\n    FUZZ_BAIL();\n}\n// Assuming elt will be initialized properly before use, as we can't directly call a constructor or an initializer for ucl_object_t.\n\nbool copy = FUZZ_PARAM(bool);\n\nif (!ucl_array_merge(__top, elt, copy)) {\n    gf_free(elt);\n    FUZZ_BAIL();\n}\n\ngf_free(elt);\n"
+    },
+    {
+      "name": "ucl_array_merge_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\nif (__top->type != UCL_ARRAY || __elt->type != UCL_ARRAY) {\n    FUZZ_BAIL();\n}\nbool copy = FUZZ_PARAM(bool);\nif (!ucl_array_merge(__top, __elt, copy)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_array_tail_v1",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_array_tail(__top);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n// Additional processing can be added here if needed, depending on the use case."
+    },
+    {
+      "name": "ucl_array_tail_v3",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst ucl_object_t *result = ucl_array_tail(__top);\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n__return = (ucl_object_t *)gf_malloc(sizeof(ucl_object_t));\nif (__return == NULL) {\n    FUZZ_BAIL();\n}\nmemcpy(__return, result, sizeof(ucl_object_t));"
+    },
+    {
+      "name": "ucl_array_pop_last_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) { FUZZ_BAIL(); }\n\nucl_object_t *result = ucl_array_pop_last(__top);\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// In a fuzzing context, we might want to perform additional checks or usage of result if necessary\n"
+    },
+    {
+      "name": "ucl_parser_add_file_priority_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *filename = FUZZ_PARAM_FILE(100);\nunsigned priority = FUZZ_PARAM(unsigned);\n\nif (!ucl_parser_add_file_priority(__parser, filename, priority)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_copy_value_trash_v0",
+      "variables": [],
+      "template": "const ucl_object_t *obj = (const ucl_object_t *)FUZZ_PARAM_FILE(100);\n\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\nchar *result = ucl_copy_value_trash(obj);\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}\n\n// Assuming result is used later, not freeing it here. If necessary, include more cleanup logic."
+    },
+    {
+      "name": "ucl_copy_value_trash_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "const char *result = ucl_copy_value_trash(&__obj);\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_parser_add_string_priority_v0",
+      "variables": [
+        {
+          "name": "__parser",
+          "dir": "*",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "if (__parser == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *random_string = FUZZ_PARAM_STR(100);\nsize_t len = strlen(random_string);\nunsigned priority = FUZZ_PARAM(unsigned);\n\nif (!ucl_parser_add_string_priority(__parser, random_string, len, priority)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_emit_fd_funcs_v0",
+      "variables": [],
+      "template": "int fd = FUZZ_PARAM(int);\nstruct ucl_emitter_functions *emitter_funcs = ucl_object_emit_fd_funcs(fd);\nif (emitter_funcs == NULL) {\n    FUZZ_BAIL();\n}\n\n// Clean up temporary objects if needed\n// In this case, nothing else needs to be initialized or cleaned up because the library manages its own memory."
+    },
+    {
+      "name": "ucl_object_replace_key_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__elt",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL || __elt == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(32);\nsize_t keylen = strlen(key);\n\nbool copy_key = FUZZ_PARAM(bool);\n\nif (!ucl_object_replace_key(__top, __elt, key, keylen, copy_key)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_type_v0",
+      "variables": [
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_type_t"
+        }
+      ],
+      "template": "const ucl_object_t *obj = (const ucl_object_t *)FUZZ_PARAM_FILE(1024);\n\nif (obj == NULL) {\n    FUZZ_BAIL();\n}\n\n__return_value = ucl_object_type(obj);\n"
+    },
+    {
+      "name": "ucl_object_type_v1",
+      "variables": [
+        {
+          "name": "__obj",
+          "dir": "*",
+          "typ": "ucl_object_t"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "ucl_type_t"
+        }
+      ],
+      "template": "if (&__obj == NULL) {\n    FUZZ_BAIL();\n}\n\n__return_value = ucl_object_type(&__obj);\n\nif (__return_value == UCL_NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ucl_object_compare_v0",
+      "variables": [
+        {
+          "name": "__o1",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        },
+        {
+          "name": "__o2",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__o1 == NULL || __o2 == NULL) {\n    FUZZ_BAIL();\n}\n\nint result = ucl_object_compare(__o1, __o2);\n\n// Handle the result if necessary (example: logging or processing result)\nif (result != 0) {\n    // Do something with the non-zero result if required\n    // Currently we don't need to take any action, just an example.\n}"
+    },
+    {
+      "name": "ucl_object_pop_keyl_v0",
+      "variables": [
+        {
+          "name": "__top",
+          "dir": "*",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "if (__top == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *key = FUZZ_PARAM_STR(10);\nsize_t keylen = strlen(key);\n\nconst ucl_object_t *found = ucl_object_lookup_len(__top, key, keylen);\nif (found == NULL) {\n    FUZZ_BAIL();\n}\n\nif (!ucl_object_delete_keyl(__top, key, keylen)) {\n    FUZZ_BAIL();\n}\n__top->len--;\n"
+    },
+    {
+      "name": "new ucl_schema_error",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ucl_schema_error"
+        }
+      ],
+      "template": "object.code = UCL_SCHEMA_OK;\nstrncpy(object.msg, \"Initialization successful\", sizeof(object.msg) - 1);\nobject.msg[sizeof(object.msg) - 1] = '\\0';\nobject.obj = NULL;"
+    },
+    {
+      "name": "new ucl_duplicate_strategy",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ucl_duplicate_strategy"
+        }
+      ],
+      "template": "object = UCL_DUPLICATE_APPEND;\n// If there's any additional initialization needed, it can be added here."
+    },
+    {
+      "name": "new ucl_object_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "object = *ucl_object_new();\nif (&object == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new ucl_object_iter_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "object = ucl_object_iterate_new(NULL);\nif (object == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new struct ucl_parser *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "object = ucl_parser_new(0);\nif (object == NULL) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new ucl_userdata_emitter",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ucl_userdata_emitter"
+        }
+      ],
+      "template": "ucl_object_t *temp_object = ucl_object_typed_new(UCL_NULL);\nif (temp_object == NULL) {\n    FUZZ_BAIL();\n}\nobject = (ucl_userdata_emitter)temp_object;\n"
+    },
+    {
+      "name": "delete ucl_parse_type",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_parse_type"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_emitter_context",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_emitter_context"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_emitter_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_emitter_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_object_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_object_t *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_error_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_error_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_parser_flags_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_parser_flags_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_type_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_type_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_schema_error",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_schema_error"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_duplicate_strategy",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_duplicate_strategy"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_emitter_operations",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_emitter_operations"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_userdata_dtor",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_userdata_dtor"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_string_flags_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_string_flags_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_object_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_object_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_object_iter_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_object_iter_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ucl_parser *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ucl_parser *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_userdata_emitter",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_userdata_emitter"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_emitter_functions",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_emitter_functions"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ucl_object_flags_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ucl_object_flags_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ucl_schema_error",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ucl_schema_error"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

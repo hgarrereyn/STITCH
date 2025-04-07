@@ -1,0 +1,31 @@
+{
+    "name": "libical",
+    "codebase": "/fuzz/libical",
+    "build": {
+        "source_files": [
+            "/usr/local/lib/libical.a",
+            "/usr/local/lib/libicalss.a",
+            "/usr/local/lib/libicalvcal.a"
+        ],
+        "include_paths": [
+            "/usr/local/include"
+        ],
+        "lib_paths": [],
+        "libs": [
+            "icui18n",
+            "icuuc",
+            "icudata",
+            "stdc++",
+            "m"
+        ],
+        "flags": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "libical/ical.h",
+                "language": "c"
+            }
+        ]
+    }
+}

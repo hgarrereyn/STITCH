@@ -1,0 +1,23 @@
+{
+    "name": "lexbor",
+    "codebase": "/fuzz/lexbor",
+    "build": {
+        "source_files": [
+            "/usr/local/lib/liblexbor_static.a"
+        ],
+        "include_paths": [
+            "/usr/local/include"
+        ],
+        "lib_paths": [],
+        "libs": [],
+        "flags": []
+    },
+    "codegen": {
+        "headers": [
+            {
+                "name": "lexbor/html/html.h",
+                "language": "c"
+            }
+        ]
+    }
+}

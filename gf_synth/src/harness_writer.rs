@@ -1,15 +1,15 @@
-use crate::{inner_spec::{InnerEndpointSpec, InnerSpec}, spec::{HeaderSpec, Config}};
+use crate::{inner_spec::{InnerEndpointSpec, InnerSpec}, info::{ProjectInfo, CodegenHeader, CodegenDefine}};
 
 static HELPER_CODE: &str = include_str!("helper.h");
 
 pub struct HarnessWriter<'a> {
     spec: &'a InnerSpec,
-    config: &'a Config,
+    info: &'a ProjectInfo,
 }
 
 impl<'a> HarnessWriter<'a> {
-    pub fn new(spec: &'a InnerSpec, config: &'a Config) -> HarnessWriter<'a> {
-        HarnessWriter { spec, config }
+    pub fn new(spec: &'a InnerSpec, info: &'a ProjectInfo) -> HarnessWriter<'a> {
+        HarnessWriter { spec, info }
     }
 
     pub fn write_harness(&self) -> String {
@@ -21,7 +21,11 @@ impl<'a> HarnessWriter<'a> {
         code.push_str("#include <cstdint>\n");
         code.push_str("#include <cstring>\n");
 
-        self.emit_headers(&mut code, &self.config.headers);
+        if let Some(defines) = &self.info.codegen.defines {
+            self.emit_defines(&mut code, defines);
+        }
+
+        self.emit_headers(&mut code, &self.info.codegen.headers);
 
         self.emit_helpers(&mut code);
 
@@ -68,12 +72,12 @@ impl<'a> HarnessWriter<'a> {
         for (i, input) in endpoint.inputs.iter().enumerate() {
             let typ = &self.spec.types[*input].name;
             in_instantiations.push_str(&format!("{} __in_{};\n", typ, i));
-            in_instantiations.push_str(&format!("get_input(in_ref[{}], &__in_{});\n", i, i));
+            in_instantiations.push_str(&format!("get_input(__gf_in_ref[{}], &__in_{});\n", i, i));
         }
 
         let mut out_copy = String::new();
         for (i, _output) in endpoint.outputs.iter().enumerate() {
-            out_copy.push_str(&format!("set_output(&out_ref[{}], &__out_{});\n", i, i));
+            out_copy.push_str(&format!("set_output(&__gf_out_ref[{}], &__out_{});\n", i, i));
         }
 
         // Instantiate arguments.
@@ -81,11 +85,11 @@ impl<'a> HarnessWriter<'a> {
         for (i, arg) in endpoint.args.iter().enumerate() {
             arg_instantiations.push_str(&format!("using __arg_{}_type = {};\n", i, arg));
             arg_instantiations.push_str(&format!("__arg_{}_type __arg_{};\n", i, i));
-            arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, context, sizeof({}));\n", i, arg));
-            arg_instantiations.push_str(&format!("context += sizeof({});\n", arg));
+            arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, __gf_context, sizeof({}));\n", i, arg));
+            arg_instantiations.push_str(&format!("__gf_context += sizeof({});\n", arg));
         }
 
-        code.push_str(&format!("extern \"C\" void {}(void **in_ref, void **out_ref, char *context) {{\n", shim_name));
+        code.push_str(&format!("extern \"C\" void {}(void **__gf_in_ref, void **__gf_out_ref, char *__gf_context) {{\n", shim_name));
         code.push_str(&out_instantiations);
         code.push_str(&in_instantiations);
         code.push_str(&arg_instantiations);
@@ -104,7 +108,7 @@ impl<'a> HarnessWriter<'a> {
         let mut variable_definitions = String::new();
         for (i, output) in endpoint.outputs.iter().enumerate() {
             let typ = &self.spec.types[*output].name;
-            variable_definitions.push_str(&format!("printf(\"{} var_%td;\\n\", (intptr_t)out_ref[{}]);\n", typ, i));
+            variable_definitions.push_str(&format!("printf(\"{} var_%td;\\n\", (intptr_t)__gf_out_ref[{}]);\n", typ, i));
         }
 
         let mut template = printf_escape(&endpoint.template);
@@ -122,9 +126,9 @@ impl<'a> HarnessWriter<'a> {
 
         let mut template_args = String::new();
         let args = endpoint.inputs.iter().enumerate().map(|(i, _)| {
-            format!("(intptr_t)in_ref[{}]", i)
+            format!("(intptr_t)__gf_in_ref[{}]", i)
         }).chain(endpoint.outputs.iter().enumerate().map(|(i, _)| {
-            format!("(intptr_t)out_ref[{}]", i)
+            format!("(intptr_t)__gf_out_ref[{}]", i)
         })).collect::<Vec<_>>();
         template_args.push_str(&args.join(", "));
 
@@ -133,8 +137,8 @@ impl<'a> HarnessWriter<'a> {
         for (i, arg) in endpoint.args.iter().enumerate() {
             arg_instantiations.push_str(&format!("using __arg_{}_type = {};\n", i, arg));
             arg_instantiations.push_str(&format!("__arg_{}_type __arg_{};\n", i, i));
-            arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, context, sizeof({}));\n", i, arg));
-            arg_instantiations.push_str(&format!("context += sizeof({});\n", arg));
+            arg_instantiations.push_str(&format!("std::memcpy(&__arg_{}, __gf_context, sizeof({}));\n", i, arg));
+            arg_instantiations.push_str(&format!("__gf_context += sizeof({});\n", arg));
         }
 
         let mut print_arg_instantiations = String::new();
@@ -143,7 +147,7 @@ impl<'a> HarnessWriter<'a> {
             print_arg_instantiations.push_str(&format!("printf(\"__arg_{}_type __arg_{} = %s;\\n\", generate_initializer(__arg_{}).c_str());\n", i, i, i));
         }
 
-        code.push_str(&format!("extern \"C\" void {}(void **in_ref, void **out_ref, char *context) {{\n", shim_name));
+        code.push_str(&format!("extern \"C\" void {}(void **__gf_in_ref, void **__gf_out_ref, char *__gf_context) {{\n", shim_name));
         code.push_str(&arg_instantiations);
         code.push_str("// ----- TEMPLATE CODE -----\n");
         code.push_str(&variable_definitions);
@@ -181,16 +185,26 @@ impl<'a> HarnessWriter<'a> {
         code.push_str("    printf(\"#include <cstdint>\\n\");\n");
         code.push_str("    printf(\"#include <cstring>\\n\\n\");\n");
         
+        if let Some(defines) = &self.info.codegen.defines {
+            code.push_str("    // Print config defines\n");
+            for define in defines {
+                code.push_str(&format!("    printf(\"#define {} {}\\n\");\n", define.name, define.value));
+            }
+        }
+
         code.push_str("    // Print config headers\n");
-        for header in &self.config.headers {
-            match header {
-                HeaderSpec::CHeader(h) => {
-                    let formatted = format_header(h);
+        for header in &self.info.codegen.headers {
+            match header.language.as_str() {
+                "c" => {
+                    let formatted = format_header(&header.name);
                     code.push_str(&format!("    printf(\"extern \\\"C\\\" {{\\n    {} \\n}}\\n\");\n", printf_escape(&formatted)));
                 }
-                HeaderSpec::CppHeader(h) => {
-                    let formatted = format_header(h);
+                "cpp" => {
+                    let formatted = format_header(&header.name);
                     code.push_str(&format!("    printf(\"{}\\n\");\n", printf_escape(&formatted)));
+                }
+                _ => {
+                    panic!("Unsupported language: {}", header.language);
                 }
             }
         }
@@ -237,16 +251,25 @@ impl<'a> HarnessWriter<'a> {
         code.push_str("}\n");
     }
 
-    fn emit_headers(&self, code: &mut String, headers: &[HeaderSpec]) {
+    fn emit_defines(&self, code: &mut String, defines: &[CodegenDefine]) {
+        for define in defines {
+            code.push_str(&format!("#define {} {}\n", define.name, define.value));
+        }
+    }
+
+    fn emit_headers(&self, code: &mut String, headers: &[CodegenHeader]) {
         for header in headers {
-            match header {
-                HeaderSpec::CHeader(header) => {
+            match header.language.as_str() {
+                "c" => {
                     code.push_str("extern \"C\" {\n");
-                    code.push_str(&format!("    {}\n", format_header(header)));
+                    code.push_str(&format!("    {}\n", format_header(&header.name)));
                     code.push_str("}\n");
                 }
-                HeaderSpec::CppHeader(header) => {
-                    code.push_str(&format!("{}\n", format_header(header)));
+                "cpp" => {
+                    code.push_str(&format!("{}\n", format_header(&header.name)));
+                }
+                _ => {
+                    panic!("Unsupported language: {}", header.language);
                 }
             }
         }

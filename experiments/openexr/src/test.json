@@ -1,0 +1,1289 @@
+{
+  "endpoints": [
+    {
+      "name": "ImfInputReadPixels_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfInputFile *"
+        }
+      ],
+      "template": "if (__in == NULL) FUZZ_BAIL();\n\nint scanLine1 = FUZZ_PARAM(int);\nint scanLine2 = FUZZ_PARAM(int);\n\nif (scanLine1 > scanLine2) FUZZ_BAIL();\n\nint result = ImfInputReadPixels(__in, scanLine1, scanLine2);\n\nif (result == 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "ImfOpenTiledOutputFile_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "const char *filename = FUZZ_PARAM_FILE(50); \nint channels = FUZZ_PARAM(int);\nint xSize = FUZZ_PARAM(int);\nint ySize = FUZZ_PARAM(int);\nint mode = FUZZ_PARAM(int);\nint rmode = FUZZ_PARAM(int);\n\nif (!__hdr) {\n    FUZZ_BAIL();\n}\n\nImfTiledOutputFile *outputFile = ImfOpenTiledOutputFile(filename, __hdr, channels, xSize, ySize, mode, rmode);\nif (!outputFile) {\n    FUZZ_BAIL();\n}\n\n// No temporary objects to clean up as we did not allocate any other resources.\n// The outputFile should be handled by the caller."
+    },
+    {
+      "name": "ImfCloseTiledInputFile_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "del",
+          "typ": "ImfTiledInputFile*"
+        }
+      ],
+      "template": "if (__in == nullptr) {\n    FUZZ_BAIL();\n}\n\ntry {\n    ImfCloseTiledInputFile(__in);\n} catch (const std::exception& e) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderM44fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(10);\nfloat m[4][4];\n\nImfHeaderM44fAttribute(__hdr, name, m);"
+    },
+    {
+      "name": "ImfOutputWritePixels_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfOutputFile *"
+        }
+      ],
+      "template": "if (__out == nullptr) FUZZ_BAIL();\n\nint numScanLines = FUZZ_PARAM(int);\n\nif (numScanLines <= 0) FUZZ_BAIL();\n\nint result = ImfOutputWritePixels(__out, numScanLines);\n\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfHeaderDisplayWindow_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nint xMin, yMin, xMax, yMax;\n\n// Invoke ImfHeaderDisplayWindow to retrieve display window values.\nImfHeaderDisplayWindow(__hdr, &xMin, &yMin, &xMax, &yMax);\n\n// Perform any necessary operations with the results or setup for further processing.\n// In a fuzzing scenario, we might log these values or check them against expected ranges."
+    },
+    {
+      "name": "ImfHeaderSetM44fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(10);\nfloat m[4][4] = {\n    { FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float) },\n    { FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float) },\n    { FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float) },\n    { FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float), FUZZ_PARAM(float) }\n};\n\nif (ImfHeaderSetM44fAttribute(__hdr, name, m) == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfTiledInputHeader_v1",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "ImfTiledInputFile*"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ImfHeader*"
+        }
+      ],
+      "template": "if (__in == nullptr) {\n    FUZZ_BAIL();\n}\n\nconst ImfHeader* tempHeader = ImfTiledInputHeader(__in);\nif (tempHeader == nullptr) {\n    FUZZ_BAIL();\n}\n\n__return = const_cast<ImfHeader*>(tempHeader);"
+    },
+    {
+      "name": "ImfDeleteHeader_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "del",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nImfDeleteHeader(__hdr);\n\n// No output arguments to initialize and no temporary objects created."
+    },
+    {
+      "name": "ImfHeaderIntAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(32);\nint value = 0;\n\nif (ImfHeaderIntAttribute(__hdr, name, &value) == 0) FUZZ_BAIL();\n\n// Normally you'd handle the `value` here if necessary."
+    },
+    {
+      "name": "ImfHeaderSetLineOrder_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) {\n    FUZZ_BAIL();\n}\n\nint lineOrder = FUZZ_PARAM(int);\nImfHeaderSetLineOrder(__hdr, lineOrder);"
+    },
+    {
+      "name": "ImfHeaderSetBox2iAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(32);\nint xMin = FUZZ_PARAM(int);\nint yMin = FUZZ_PARAM(int);\nint xMax = FUZZ_PARAM(int);\nint yMax = FUZZ_PARAM(int);\n\nif (xMin >= xMax || yMin >= yMax) FUZZ_BAIL();\n\nif (ImfHeaderSetBox2iAttribute(__hdr, name, xMin, yMin, xMax, yMax) == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfHeaderCompression_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nint compression = ImfHeaderCompression(__hdr);\nif (compression < 0) FUZZ_BAIL();\n\n// Any output arguments are initialized when invoking the API."
+    },
+    {
+      "name": "ImfFloatToHalf_v0",
+      "variables": [
+        {
+          "name": "__h",
+          "dir": "new",
+          "typ": "ImfHalf"
+        }
+      ],
+      "template": "float f = FUZZ_PARAM(float);\n\n// Initialize the output argument\n__h = ImfHalf();\n\n// Invoke the ImfFloatToHalf function\nImfFloatToHalf(f, &__h);\n\n// Check for potential errors (though unnecessary here because the API should handle this, it maintains safety)\nif (__h == ImfHalf()) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "ImfHeaderScreenWindowWidth_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nfloat width = ImfHeaderScreenWindowWidth(__hdr);\n\nif (width < 0) FUZZ_BAIL();\n\n// Additional processing with width if needed, clean up actions if any."
+    },
+    {
+      "name": "ImfHeaderSetCompression_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) {\n    FUZZ_BAIL();\n}\n\nint compression = FUZZ_PARAM(int);\nImfHeaderSetCompression(__hdr, compression);\n"
+    },
+    {
+      "name": "ImfHeaderSetScreenWindowWidth_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\nfloat width = FUZZ_PARAM(float);\nImfHeaderSetScreenWindowWidth(__hdr, width);"
+    },
+    {
+      "name": "ImfNewRound12logLut_v0",
+      "variables": [],
+      "template": "int channels = FUZZ_PARAM(int);\n\nif (channels <= 0) {\n    FUZZ_BAIL();\n}\n\nImfLut* lut = ImfNewRound12logLut(channels);\nif (lut == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Assuming lut requires cleanup, but since it's allocated outside of our context,\n// we don't have to free it unless we explicitly did, to follow the library's ownership rules."
+    },
+    {
+      "name": "ImfNewRound12logLut_v1",
+      "variables": [
+        {
+          "name": "__result",
+          "dir": "new",
+          "typ": "ImfLut*"
+        }
+      ],
+      "template": "int channels = FUZZ_PARAM(int);\n__result = ImfNewRound12logLut(channels);\nif (__result == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHalfToFloat_v0",
+      "variables": [
+        {
+          "name": "__h",
+          "dir": "*",
+          "typ": "ImfHalf"
+        }
+      ],
+      "template": "float result;\nresult = ImfHalfToFloat(__h);\nif (result == 0.0f) { // Assuming 0.0f is an error case or invalid result\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfOutputChannels_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "ImfOutputFile*"
+        }
+      ],
+      "template": "if (__out == nullptr) {\n    FUZZ_BAIL();\n}\n\nint numChannels = ImfOutputChannels(__out);\nif (numChannels < 0) {\n    FUZZ_BAIL();\n}\n"
+    },
+    {
+      "name": "ImfTiledOutputLevelRoundingMode_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfTiledOutputFile *"
+        }
+      ],
+      "template": "if (__out == nullptr) FUZZ_BAIL();\n\nint roundingMode = ImfTiledOutputLevelRoundingMode(__out);\n\nif (roundingMode < 0) FUZZ_BAIL(); // Assuming valid rounding mode is non-negative\n\n// At this stage, we successfully retrieved the rounding mode."
+    },
+    {
+      "name": "ImfErrorMessage_v0",
+      "variables": [],
+      "template": "char error_message[1024];\ntry {\n    // Invoke ImfErrorMessage to get the current error message\n    const char* msg = ImfErrorMessage();\n    if (!msg) {\n        FUZZ_BAIL();\n    }\n    strncpy(error_message, msg, 1023);\n    error_message[1023] = '\\0';\n} catch (const std::exception& e) {\n    // Set the error message using the exception\n    strncpy(error_message, e.what(), 1023);\n    error_message[1023] = '\\0';\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfInputHeader_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfInputFile *"
+        }
+      ],
+      "template": "if (!__in) FUZZ_BAIL();\n\nconst ImfHeader* header = ImfInputHeader(__in);\n\nif (!header) FUZZ_BAIL();\n\nconst char* fileName = ImfInputFileName(__in);\nif (!fileName) FUZZ_BAIL();\n\nchar* tempFile = (char*) gf_malloc(strlen(fileName) + 1);\nif (!tempFile) FUZZ_BAIL();\nstrcpy(tempFile, fileName);\n\nif (ImfCloseInputFile(__in) != 1) {\n    gf_free(tempFile);\n    FUZZ_BAIL();\n}\n\ngf_free(tempFile);"
+    },
+    {
+      "name": "ImfOpenTiledInputFile_v0",
+      "variables": [],
+      "template": "const char* filePath = FUZZ_PARAM_FILE(128);\n\nImfTiledInputFile* tiledInputFile = ImfOpenTiledInputFile(filePath);\nif (!tiledInputFile) {\n    FUZZ_BAIL();\n}\n\n// The function successfully opened the tiled input file, further processing can be done here.\n\n// Clean up the allocated tiledInputFile if necessary, assuming the API provides a cleanup function.\nint closeResult = ImfCloseTiledInputFile(tiledInputFile);\nif (closeResult == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfOpenTiledInputFile_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "ImfTiledInputFile*"
+        }
+      ],
+      "template": "const char* filePath = FUZZ_PARAM_FILE(128);\n\n__return = ImfOpenTiledInputFile(filePath);\nif (__return == nullptr) {\n    FUZZ_BAIL();\n} \n\n// No need to clean up filePath, as it is handled by FUZZ_PARAM_FILE."
+    },
+    {
+      "name": "ImfTiledOutputWriteTile_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "ImfTiledOutputFile*"
+        }
+      ],
+      "template": "if (__out == nullptr) FUZZ_BAIL();\n\nint dx = FUZZ_PARAM(int);\nint dy = FUZZ_PARAM(int);\nint lx = FUZZ_PARAM(int);\nint ly = FUZZ_PARAM(int);\n\nint result = ImfTiledOutputWriteTile(__out, dx, dy, lx, ly);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfHeaderSetIntAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(20);\nint value = FUZZ_PARAM(int);\n\nif (ImfHeaderSetIntAttribute(__hdr, name, value) == 0) FUZZ_BAIL();\n\n// If necessary, clean up any resources (there shouldn't be any to clean up in this case)."
+    },
+    {
+      "name": "ImfDeleteLut_v0",
+      "variables": [
+        {
+          "name": "__lut",
+          "dir": "del",
+          "typ": "ImfLut*"
+        }
+      ],
+      "template": "if (!__lut) {\n    FUZZ_BAIL();\n}\n\nImfDeleteLut(__lut);\n"
+    },
+    {
+      "name": "ImfTiledOutputChannels_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfTiledOutputFile *"
+        }
+      ],
+      "template": "if (__out == NULL) {\n    FUZZ_BAIL();\n}\n\nint channels = ImfTiledOutputChannels(__out);\nif (channels < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderSetScreenWindowCenter_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nfloat x = FUZZ_PARAM(float);\nfloat y = FUZZ_PARAM(float);\n\nImfHeaderSetScreenWindowCenter(__hdr, x, y);"
+    },
+    {
+      "name": "ImfInputSetFrameBuffer_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfInputFile *"
+        },
+        {
+          "name": "__base",
+          "dir": "*",
+          "typ": "struct ImfRgba *"
+        }
+      ],
+      "template": "if (__in == NULL || __base == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t xStride = FUZZ_PARAM(size_t);\nsize_t yStride = FUZZ_PARAM(size_t);\n\nint result = ImfInputSetFrameBuffer(__in, __base, xStride, yStride);\nif (result == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfTiledOutputHeader_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfTiledOutputFile *"
+        }
+      ],
+      "template": "if (!__out) FUZZ_BAIL();\n\nconst ImfHeader* header = ImfTiledOutputHeader(__out);\nif (!header) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfTiledOutputHeader_v1",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfTiledOutputFile *"
+        },
+        {
+          "name": "__return_value",
+          "dir": "new",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__out == nullptr) {\n    FUZZ_BAIL();\n}\n\nconst ImfHeader* header = ImfTiledOutputHeader(__out);\nif (header == nullptr) {\n    FUZZ_BAIL();\n}\n\n__return_value = const_cast<ImfHeader*>(header);\n"
+    },
+    {
+      "name": "ImfHalfToFloatArray_v0",
+      "variables": [
+        {
+          "name": "__h",
+          "dir": "*",
+          "typ": "ImfHalf"
+        }
+      ],
+      "template": "const int n = FUZZ_PARAM(int);\nif (n <= 0) FUZZ_BAIL();\n\n// Allocate memory for the input and output arrays\nImfHalf* h = (ImfHalf*) gf_malloc(n * sizeof(ImfHalf));\nif (!h) FUZZ_BAIL();\nfloat* f = (float*) gf_malloc(n * sizeof(float));\nif (!f) {\n    gf_free(h);\n    FUZZ_BAIL();\n}\n\n// Initialize the input array with random values from __h\nfor (int i = 0; i < n; ++i) {\n    h[i] = __h; // Assuming __h is a representative input\n}\n\n// Call the ImfHalfToFloatArray function\nImfHalfToFloatArray(n, h, f);\n\n// Cleanup\ngf_free(h);\ngf_free(f);"
+    },
+    {
+      "name": "ImfNewRoundNBitLut_v0",
+      "variables": [],
+      "template": "unsigned int n = FUZZ_PARAM(unsigned int);\nint channels = FUZZ_PARAM(int);\n\n// Validate input parameters\nif (channels < 0 || channels > 4) FUZZ_BAIL(); // assume channels should be between 0 and 4\n\n// Invoke \"ImfNewRoundNBitLut\" with appropriate arguments\nImfLut* lut = ImfNewRoundNBitLut(n, channels);\nif (!lut) FUZZ_BAIL(); // check if lut creation failed\n\n// Initialize any output arguments - example purposes (if there were outputs to initialize, etc.)\n// No specific outputs defined in the task description, but should handle as needed.\n\n// Clean up any temporary objects\n// In this case, we don't have additional temporary objects to manage after the call,\n// but if we did, we would make sure to clean up here.\n\n// Assuming there’s a function to delete the LUT after use\n// If there’s no continuation of the logic of this function, then it could have been found necessary,\n// Nevertheless, handling deletion outside would be necessary if the output isn't handled by it.\n ImfDeleteLut(lut);"
+    },
+    {
+      "name": "ImfHeaderSetDoubleAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "const char *attr_name = FUZZ_PARAM_STR(10);\ndouble attr_value = FUZZ_PARAM(double);\n\nif (!__hdr) {\n    FUZZ_BAIL();\n}\n\nif (ImfHeaderSetDoubleAttribute(__hdr, attr_name, attr_value) == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfTiledInputLevelMode_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfTiledInputFile *"
+        }
+      ],
+      "template": "if (__in == nullptr) FUZZ_BAIL();\n\nint mode = ImfTiledInputLevelMode(__in);\nif (mode < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfTiledInputSetFrameBuffer_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "ImfTiledInputFile*"
+        },
+        {
+          "name": "__base",
+          "dir": "*",
+          "typ": "ImfRgba*"
+        }
+      ],
+      "template": "if (!__in || !__base) {\n    FUZZ_BAIL();\n}\n\nsize_t xStride = FUZZ_PARAM(size_t);\nsize_t yStride = FUZZ_PARAM(size_t);\n\nint result = ImfTiledInputSetFrameBuffer(__in, __base, xStride, yStride);\nif (result == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderSetV2iAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(16);\nint x = FUZZ_PARAM(int);\nint y = FUZZ_PARAM(int);\n\nint result = ImfHeaderSetV2iAttribute(__hdr, name, x, y);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfHeaderDataWindow_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nint xMin, yMin, xMax, yMax;\nImfHeaderDataWindow(__hdr, &xMin, &yMin, &xMax, &yMax);\n\n// Here, we can utilize xMin, yMin, xMax, yMax as needed for further processing."
+    },
+    {
+      "name": "ImfHeaderV3iAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char name[] = { FUZZ_PARAM(char), FUZZ_PARAM(char), FUZZ_PARAM(char), '\\0' };\nint x, y, z;\n\nint result = ImfHeaderV3iAttribute(__hdr, name, &x, &y, &z);\nif (result == 0) {\n    FUZZ_BAIL();\n}\n// Further processing of x, y, z if needed\n"
+    },
+    {
+      "name": "ImfHeaderBox2fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "float xMin, yMin, xMax, yMax;\n\n// Generate a random name for the attribute\nconst char* name = FUZZ_PARAM_STR(20);\n\n// Invoke the library function and check for success\nint result = ImfHeaderBox2fAttribute(__hdr, name, &xMin, &yMin, &xMax, &yMax);\nif (result != 1) {\n    FUZZ_BAIL();\n}\n\n// Clean up if needed\n// No special cleanup action is required for `name` since it points to a temporary string."
+    },
+    {
+      "name": "ImfHeaderV2iAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nint x = FUZZ_PARAM(int);\nint y = FUZZ_PARAM(int);\nconst char* name = FUZZ_PARAM_STR(10); // Assuming a name length of 10 bytes\n\nif (ImfHeaderV2iAttribute(__hdr, name, &x, &y) == 0) FUZZ_BAIL();\n\n// If the function succeeds, x and y are now initialized."
+    },
+    {
+      "name": "ImfHeaderSetV3iAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(10);\nint x = FUZZ_PARAM(int);\nint y = FUZZ_PARAM(int);\nint z = FUZZ_PARAM(int);\n\nif (ImfHeaderSetV3iAttribute(__hdr, name, x, y, z) == 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "ImfTiledOutputLevelMode_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "ImfTiledOutputFile*"
+        }
+      ],
+      "template": "if (!__out) {\n    FUZZ_BAIL();\n}\n\nint levelMode = ImfTiledOutputLevelMode(__out);\nif (levelMode < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderStringAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) {\n    FUZZ_BAIL();\n}\n\nconst char *name = FUZZ_PARAM_STR(20);\nconst char *value = nullptr;\n\nif (!ImfHeaderStringAttribute(__hdr, name, &value)) {\n    FUZZ_BAIL();\n}\n\n// Use 'value' as needed, or perform further testing."
+    },
+    {
+      "name": "ImfHeaderSetM33fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "const char *name = FUZZ_PARAM_STR(10);\nfloat m[3][3];\nfor (int i = 0; i < 3; ++i) {\n    for (int j = 0; j < 3; ++j) {\n        m[i][j] = FUZZ_PARAM(float);\n    }\n}\n\nif (ImfHeaderSetM33fAttribute(__hdr, name, m) == 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderScreenWindowCenter_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nfloat x = 0.0f;\nfloat y = 0.0f;\n\nImfHeaderScreenWindowCenter(__hdr, &x, &y);\n"
+    },
+    {
+      "name": "ImfHeaderPixelAspectRatio_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) {\n    FUZZ_BAIL();\n}\n\nfloat aspectRatio = ImfHeaderPixelAspectRatio(__hdr);\nif (aspectRatio < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderSetBox2fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(16);\nfloat xMin = FUZZ_PARAM(float);\nfloat yMin = FUZZ_PARAM(float);\nfloat xMax = FUZZ_PARAM(float);\nfloat yMax = FUZZ_PARAM(float);\n\nif (ImfHeaderSetBox2fAttribute(__hdr, name, xMin, yMin, xMax, yMax) == 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "ImfCloseInputFile_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "del",
+          "typ": "struct ImfInputFile *"
+        }
+      ],
+      "template": "if (__in == nullptr) {\n    FUZZ_BAIL();\n}\n\nif (!ImfCloseInputFile(__in)) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfCopyHeader_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) {\n    FUZZ_BAIL();\n}\n\nImfHeader* copiedHeader = ImfCopyHeader(__hdr);\nif (copiedHeader == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Assume we would perform some operations with copiedHeader here if needed.\n\n// Cleanup\nImfDeleteHeader(copiedHeader);"
+    },
+    {
+      "name": "ImfCopyHeader_v1",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        },
+        {
+          "name": "__",
+          "dir": "new",
+          "typ": "ImfHeader*"
+        }
+      ],
+      "template": "if (__hdr == nullptr) {\n    FUZZ_BAIL();\n}\n\n__ = ImfCopyHeader(__hdr);\nif (__ == nullptr) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfApplyLut_v0",
+      "variables": [
+        {
+          "name": "__lut",
+          "dir": "*",
+          "typ": "ImfLut*"
+        },
+        {
+          "name": "__data",
+          "dir": "*",
+          "typ": "ImfRgba*"
+        }
+      ],
+      "template": "if (__lut == nullptr || __data == nullptr) {\n    FUZZ_BAIL();\n}\n\nconst int nData = FUZZ_PARAM(int);\nconst int stride = FUZZ_PARAM(int);\n\nImfApplyLut(__lut, __data, nData, stride);"
+    },
+    {
+      "name": "ImfHeaderDoubleAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == nullptr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(10);\ndouble value;\nint result = ImfHeaderDoubleAttribute(__hdr, name, &value);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfHeaderBox2iAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(32);\nint xMin, yMin, xMax, yMax;\n\nif (ImfHeaderBox2iAttribute(__hdr, name, &xMin, &yMin, &xMax, &yMax) != 1) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderV2fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(10);\nfloat x, y;\n\nif (ImfHeaderV2fAttribute(__hdr, name, &x, &y) == 0) FUZZ_BAIL();\n\n// x and y are initialized by ImfHeaderV2fAttribute call\n"
+    },
+    {
+      "name": "ImfNewHeader_v0",
+      "variables": [],
+      "template": "ImfHeader* hdr = ImfNewHeader();\nif (!hdr) {\n    FUZZ_BAIL();\n}\n\n// Perform any necessary initialization on hdr if needed\n// (e.g., setting up specific attributes). For now, we assume defaults are acceptable.\n\n// Clean up: we manage the memory for the header using ImfDeleteHeader.\nImfDeleteHeader(hdr);"
+    },
+    {
+      "name": "ImfNewHeader_v1",
+      "variables": [
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "    // Allocate memory for the header using the library API.\n    __return = ImfNewHeader();\n\n    // Check if the header was created successfully.\n    if (__return == nullptr) {\n        FUZZ_BAIL();\n    }\n\n    // Further initialization or operations can be performed here, if necessary.\n    // However, since the only main operation is to create a new header, we can stop here."
+    },
+    {
+      "name": "ImfHeaderV3fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(32);\nfloat x, y, z;\n\nint result = ImfHeaderV3fAttribute(__hdr, name, &x, &y, &z);\nif (result == 0) FUZZ_BAIL();\n\n// Clean up not needed, as no temporary objects were created\n"
+    },
+    {
+      "name": "ImfHeaderLineOrder_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nint randomLineOrder = FUZZ_PARAM(int);\nImfHeaderSetLineOrder(__hdr, randomLineOrder);\n\nint currentLineOrder = ImfHeaderLineOrder(__hdr);\nif (currentLineOrder != randomLineOrder) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfOpenInputFile_v0",
+      "variables": [],
+      "template": "const char *filename = FUZZ_PARAM_FILE(32);\n\nImfInputFile *inputFile = ImfOpenInputFile(filename);\nif (inputFile == nullptr) {\n    FUZZ_BAIL();\n}\n\n// Perform any necessary initialization on inputFile\n\n// Clean up temporary objects if applicable\n"
+    },
+    {
+      "name": "ImfOpenInputFile_v1",
+      "variables": [
+        {
+          "name": "__ImfInputFile_",
+          "dir": "new",
+          "typ": "ImfInputFile*"
+        }
+      ],
+      "template": "const char* filename = FUZZ_PARAM_FILE(1024);\n\n__ImfInputFile_ = ImfOpenInputFile(filename);\n\nif (!__ImfInputFile_) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfTiledOutputTileYSize_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfTiledOutputFile *"
+        }
+      ],
+      "template": "if (__out == nullptr) {\n    FUZZ_BAIL();\n}\n\nint tileYSize = ImfTiledOutputTileYSize(__out);\nif (tileYSize < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderSetV3fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_STR(10);\nfloat x = FUZZ_PARAM(float);\nfloat y = FUZZ_PARAM(float);\nfloat z = FUZZ_PARAM(float);\n\nint result = ImfHeaderSetV3fAttribute(__hdr, name, x, y, z);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfTiledInputLevelRoundingMode_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfTiledInputFile *"
+        }
+      ],
+      "template": "if (__in == nullptr) FUZZ_BAIL();\nint roundingMode = ImfTiledInputLevelRoundingMode(__in);\nif (roundingMode < 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "ImfTiledInputTileYSize_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfTiledInputFile *"
+        }
+      ],
+      "template": "if (__in == nullptr) {\n    FUZZ_BAIL();\n}\n\nint tileYSize = ImfTiledInputTileYSize(__in);\nif (tileYSize < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "ImfHeaderSetDisplayWindow_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\nint xMin = FUZZ_PARAM(int);\nint yMin = FUZZ_PARAM(int);\nint xMax = FUZZ_PARAM(int);\nint yMax = FUZZ_PARAM(int);\nImfHeaderSetDisplayWindow(__hdr, xMin, yMin, xMax, yMax);"
+    },
+    {
+      "name": "ImfHeaderSetV2fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(20);\nfloat x = FUZZ_PARAM(float);\nfloat y = FUZZ_PARAM(float);\n\nint result = ImfHeaderSetV2fAttribute(__hdr, name, x, y);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfInputFileName_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfInputFile *"
+        }
+      ],
+      "template": "if (__in == NULL) FUZZ_BAIL();\n\nconst char *fileName = ImfInputFileName(__in);\nif (fileName == NULL) FUZZ_BAIL();\n\nsize_t fileNameLength = strlen(fileName);\nif (fileNameLength == 0) FUZZ_BAIL();\n\nconst char *tempFileName = FUZZ_PARAM_FILE(64);\nif (tempFileName == NULL) FUZZ_BAIL();\n\n// Assume we would perform actions with tempFileName and fileName\n\n// No dynamic memory was allocated to free here as per provided API guidance."
+    },
+    {
+      "name": "ImfOutputSetFrameBuffer_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "struct ImfOutputFile *"
+        },
+        {
+          "name": "__base",
+          "dir": "*",
+          "typ": "struct ImfRgba *"
+        }
+      ],
+      "template": "size_t xStride = FUZZ_PARAM(size_t);\nsize_t yStride = FUZZ_PARAM(size_t);\n\nif (!__out || !__base) FUZZ_BAIL();\n\nint result = ImfOutputSetFrameBuffer(__out, __base, xStride, yStride);\nif (result == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfOpenOutputFile_v0",
+      "variables": [],
+      "template": "const char* filename = FUZZ_PARAM_FILE(1024);\nImfHeader* header = ImfNewHeader();\nif (!header) FUZZ_BAIL();\nint channels = FUZZ_PARAM(int);\n\nImfOutputFile* outFile = ImfOpenOutputFile(filename, header, channels);\n\nif (!outFile) {\n    ImfDeleteHeader(header);\n    FUZZ_BAIL();\n}\n\n// Normally would do something with outFile here, but since no output args are specified, we won't.\n\nImfCloseOutputFile(outFile);\nImfDeleteHeader(header);\n"
+    },
+    {
+      "name": "ImfOpenOutputFile_v1",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nconst char* name = FUZZ_PARAM_FILE(100); // passing a random file path\nint channels = FUZZ_PARAM(int); // number of channels is randomized\n\nImfOutputFile* outputFile = ImfOpenOutputFile(name, __hdr, channels);\nif (outputFile == NULL) FUZZ_BAIL();\n\n// Normally we would do something with outputFile here, such as storing it for later use.\n// However, since this is a fuzzing context, we may not need to perform further operations.\n\n// Clean up if necessary (e.g., close the output file later)"
+    },
+    {
+      "name": "ImfHeaderSetPixelAspectRatio_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nfloat pixelAspectRatio = FUZZ_PARAM(float);\n\nImfHeaderSetPixelAspectRatio(__hdr, pixelAspectRatio);"
+    },
+    {
+      "name": "ImfTiledOutputSetFrameBuffer_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "ImfTiledOutputFile*"
+        },
+        {
+          "name": "__base",
+          "dir": "*",
+          "typ": "ImfRgba*"
+        }
+      ],
+      "template": "if (!__out || !__base) FUZZ_BAIL();\n\nsize_t xStride = FUZZ_PARAM(size_t);\nsize_t yStride = FUZZ_PARAM(size_t);\n\nif (ImfTiledOutputSetFrameBuffer(__out, __base, xStride, yStride) == 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfCloseOutputFile_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "del",
+          "typ": "ImfOutputFile*"
+        }
+      ],
+      "template": "if (!__out) {\n    FUZZ_BAIL();\n}\n\nint result = ImfCloseOutputFile(__out);\n\nif (result == 0) {\n    FUZZ_BAIL();\n}\n\ngf_free(__out);"
+    },
+    {
+      "name": "ImfHeaderSetDataWindow_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) {\n    FUZZ_BAIL();\n}\n\nint xMin = FUZZ_PARAM(int);\nint yMin = FUZZ_PARAM(int);\nint xMax = FUZZ_PARAM(int);\nint yMax = FUZZ_PARAM(int);\n\nImfHeaderSetDataWindow(__hdr, xMin, yMin, xMax, yMax);"
+    },
+    {
+      "name": "ImfHeaderFloatAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(10);\nfloat value;\n\nif (ImfHeaderFloatAttribute(__hdr, name, &value) == 0) FUZZ_BAIL();\n\n// If the function succeeded, we can check the value or perform more actions if needed."
+    },
+    {
+      "name": "ImfCloseTiledOutputFile_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "del",
+          "typ": "ImfTiledOutputFile*"
+        }
+      ],
+      "template": "if (__out == nullptr) {\n    FUZZ_BAIL();\n}\n\nImfCloseTiledOutputFile(__out);\n\n// Cleanup memory is handled by the API, no need to delete __out here."
+    },
+    {
+      "name": "ImfHeaderSetFloatAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (!__hdr) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(10);\nfloat value = FUZZ_PARAM(float);\n\nif (ImfHeaderSetFloatAttribute(__hdr, name, value) == 0) FUZZ_BAIL();\n\n// No dynamic allocation to clean up."
+    },
+    {
+      "name": "ImfHeaderM33fAttribute_v0",
+      "variables": [
+        {
+          "name": "__hdr",
+          "dir": "*",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "if (__hdr == NULL) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(16);\nfloat m[3][3];\n\nif (ImfHeaderM33fAttribute(__hdr, name, m) != 1) FUZZ_BAIL();\n\n// The parameters are assumed to be used or checked correctly within the function,"
+    },
+    {
+      "name": "ImfTiledOutputWriteTiles_v0",
+      "variables": [
+        {
+          "name": "__out",
+          "dir": "*",
+          "typ": "ImfTiledOutputFile*"
+        }
+      ],
+      "template": "if (__out == nullptr) FUZZ_BAIL();\n\nint dxMin = FUZZ_PARAM(int);\nint dxMax = FUZZ_PARAM(int);\nint dyMin = FUZZ_PARAM(int);\nint dyMax = FUZZ_PARAM(int);\nint lx = FUZZ_PARAM(int);\nint ly = FUZZ_PARAM(int);\n\nint result = ImfTiledOutputWriteTiles(__out, dxMin, dxMax, dyMin, dyMax, lx, ly);\n\nif (result == 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "ImfTiledInputReadTiles_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "ImfTiledInputFile*"
+        }
+      ],
+      "template": "if (!__in) FUZZ_BAIL();\n\nint dxMin = FUZZ_PARAM(int);\nint dxMax = FUZZ_PARAM(int);\nint dyMin = FUZZ_PARAM(int);\nint dyMax = FUZZ_PARAM(int);\nint lx = FUZZ_PARAM(int);\nint ly = FUZZ_PARAM(int);\n\nif (dxMin > dxMax || dyMin > dyMax) FUZZ_BAIL();\n\nif (!ImfTiledInputReadTiles(__in, dxMin, dxMax, dyMin, dyMax, lx, ly)) FUZZ_BAIL();"
+    },
+    {
+      "name": "ImfTiledInputTileXSize_v0",
+      "variables": [
+        {
+          "name": "__in",
+          "dir": "*",
+          "typ": "struct ImfTiledInputFile *"
+        }
+      ],
+      "template": "if (!__in) { FUZZ_BAIL(); }\n\nint tileXSize = ImfTiledInputTileXSize(__in);\nif (tileXSize < 0) { FUZZ_BAIL(); }\n\n// If necessary, perform some operation using tileXSize before exiting."
+    },
+    {
+      "name": "ImfFloatToHalfArray_v0",
+      "variables": [
+        {
+          "name": "__h",
+          "dir": "new",
+          "typ": "ImfHalf"
+        }
+      ],
+      "template": "const int n = FUZZ_PARAM(int);\nfloat* f = (float*) gf_malloc(n * sizeof(float));\nif (!f) FUZZ_BAIL();\nfor (int i = 0; i < n; ++i) {\n    f[i] = FUZZ_PARAM(float);\n}\n\nImfHalf* h = (ImfHalf*) gf_malloc(n * sizeof(ImfHalf));\nif (!h) {\n    gf_free(f);\n    FUZZ_BAIL();\n}\n\nImfFloatToHalfArray(n, f, h);\n\nfor (int i = 0; i < n; ++i) {\n    __h = h[i]; // Assuming you want the last output value\n}\n\ngf_free(f);\ngf_free(h);"
+    },
+    {
+      "name": "new ImfHalf",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfHalf"
+        }
+      ],
+      "template": "float random_value = FUZZ_PARAM(float);\nImfFloatToHalf(random_value, &object);\nif (object < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new ImfRgba*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfRgba*"
+        }
+      ],
+      "template": "object = (ImfRgba*)gf_malloc(sizeof(ImfRgba));\nif (!object) FUZZ_BAIL();\n\nobject->r = FUZZ_PARAM(ImfHalf);\nobject->g = FUZZ_PARAM(ImfHalf);\nobject->b = FUZZ_PARAM(ImfHalf);\nobject->a = FUZZ_PARAM(ImfHalf);"
+    },
+    {
+      "name": "new ImfOutputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfOutputFile*"
+        }
+      ],
+      "template": "const char* filename = FUZZ_PARAM_FILE(128);\nconst ImfHeader* header = nullptr; // Assuming we need to initialize this correctly based on the API constraints\nint channels = FUZZ_PARAM(int);\n\n// Attempt to open the output file using the library API\nobject = ImfOpenOutputFile(filename, header, channels);\nif (!object) {\n    FUZZ_BAIL();\n}\n\n// Clean up temporary file if created\n// Assuming the filename is managed outside of this function and will be deleted after use\n// If the API fails, FUZZ_BAIL() will be triggered immediately\n"
+    },
+    {
+      "name": "new struct ImfTiledOutputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfTiledOutputFile *"
+        }
+      ],
+      "template": "const char *filename = FUZZ_PARAM_FILE(32);\nconst ImfHeader *header = nullptr; // Assuming you can substitute this with a valid ImfHeader setup if required\nint channels = FUZZ_PARAM(int);\nint xSize = FUZZ_PARAM(int);\nint ySize = FUZZ_PARAM(int);\nint mode = FUZZ_PARAM(int);\nint rmode = FUZZ_PARAM(int);\n\nobject = ImfOpenTiledOutputFile(filename, header, channels, xSize, ySize, mode, rmode);\nif (!object) {\n    FUZZ_BAIL();\n}\n\n// If the file must be closed later or if additional APIs need to be invoked, take care of that appropriately."
+    },
+    {
+      "name": "new ImfTiledOutputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfTiledOutputFile*"
+        }
+      ],
+      "template": "const char* filename = FUZZ_PARAM_FILE(64);\nconst ImfHeader* header = NULL; // Assuming we will use default header, or we need to create it in fuzz\nint channels = FUZZ_PARAM(int);\nint xSize = FUZZ_PARAM(int);\nint ySize = FUZZ_PARAM(int);\nint mode = FUZZ_PARAM(int);\nint rmode = FUZZ_PARAM(int);\n\nobject = ImfOpenTiledOutputFile(filename, header, channels, xSize, ySize, mode, rmode);\nif (!object) {\n    FUZZ_BAIL();\n}\n\n// Assuming more processing may follow, no need for cleanup here as the object is managed by the library."
+    },
+    {
+      "name": "new struct ImfHeader *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "object = ImfNewHeader();\nif (!object) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new struct ImfOutputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfOutputFile *"
+        }
+      ],
+      "template": "ImfHeader* header = ImfNewHeader();\nif (!header) {\n    FUZZ_BAIL();\n}\n\nconst char* filename = FUZZ_PARAM_FILE(1024);\nint channels = FUZZ_PARAM(int);\n\nobject = ImfOpenOutputFile(filename, header, channels);\nif (!object) {\n    ImfDeleteHeader(header);\n    FUZZ_BAIL();\n}\n\nImfDeleteHeader(header);"
+    },
+    {
+      "name": "new struct ImfInputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfInputFile *"
+        }
+      ],
+      "template": "const char* filename = FUZZ_PARAM_FILE(128);\nobject = ImfOpenInputFile(filename);\nif (!object) {\n    FUZZ_BAIL();\n}\n// Assuming that object is successfully created, no need for further memory management as per library API."
+    },
+    {
+      "name": "new ImfLut*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfLut*"
+        }
+      ],
+      "template": "object = ImfNewRound12logLut(FUZZ_PARAM(int));\nif (!object) {\n    FUZZ_BAIL();\n}\n// Note: No cleanup is needed as the memory management is handled by the API."
+    },
+    {
+      "name": "new struct ImfRgba",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfRgba"
+        }
+      ],
+      "template": "\n    // Initialize the ImfRgba object with random values for r, g, b, a\n    object.r = FUZZ_PARAM(ImfHalf);\n    object.g = FUZZ_PARAM(ImfHalf);\n    object.b = FUZZ_PARAM(ImfHalf);\n    object.a = FUZZ_PARAM(ImfHalf);\n\n    // Check if the object is valid after initialization (all components should be in valid range)\n    if (object.r > 65535 || object.g > 65535 || object.b > 65535 || object.a > 65535) {\n        FUZZ_BAIL();\n    }\n"
+    },
+    {
+      "name": "new struct ImfLut *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfLut *"
+        }
+      ],
+      "template": "object = ImfNewRound12logLut(FUZZ_PARAM(int));\nif (!object) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new struct ImfTiledInputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfTiledInputFile *"
+        }
+      ],
+      "template": "object = ImfOpenTiledInputFile(FUZZ_PARAM_FILE(100));\nif (!object) FUZZ_BAIL();"
+    },
+    {
+      "name": "new ImfInputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfInputFile*"
+        }
+      ],
+      "template": "const char* filename = FUZZ_PARAM_FILE(10);\nobject = ImfOpenInputFile(filename);\nif (!object) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new ImfTiledInputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "ImfTiledInputFile*"
+        }
+      ],
+      "template": "object = ImfOpenTiledInputFile(FUZZ_PARAM_FILE(50));\nif (!object) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new struct ImfRgba *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "struct ImfRgba *"
+        }
+      ],
+      "template": "object = (ImfRgba *)gf_malloc(sizeof(ImfRgba));\nif (!object) FUZZ_BAIL();\n\nobject->r = FUZZ_PARAM(ImfHalf);\nobject->g = FUZZ_PARAM(ImfHalf);\nobject->b = FUZZ_PARAM(ImfHalf);\nobject->a = FUZZ_PARAM(ImfHalf);"
+    },
+    {
+      "name": "delete ImfHalf",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfHalf"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfRgba*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfRgba*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfOutputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfOutputFile*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfTiledOutputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfTiledOutputFile *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfTiledOutputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfTiledOutputFile*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfHeader *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfHeader *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfOutputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfOutputFile *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfInputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfInputFile *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfLut*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfLut*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfRgba",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfRgba"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfHeader*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfHeader*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfLut *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfLut *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfTiledInputFile *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfTiledInputFile *"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfInputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfInputFile*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete ImfTiledInputFile*",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "ImfTiledInputFile*"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete struct ImfRgba *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "struct ImfRgba *"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

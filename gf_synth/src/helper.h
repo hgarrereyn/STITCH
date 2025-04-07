@@ -77,22 +77,22 @@ std::string generate_declaration(const std::string& var_name, const T& value) {
 template <typename T>
 void get_input(void *input, T *value) {
     if (sizeof(T) <= sizeof(void *)) {
-        std::memcpy(value, &input, sizeof(T));
+        std::memcpy((void *)value, &input, sizeof(T));
     } else {
         T *ptr = (T *)input;
-        std::memcpy(value, ptr, sizeof(T));
-        free(ptr);
+        std::memcpy((void *)value, (void *)ptr, sizeof(T));
+        free((void *)ptr);
     }
 }
 
 template <typename T>
 void set_output(void **output, T *value) {
     if (sizeof(T) <= sizeof(void *)) {
-        std::memcpy(output, value, sizeof(T));
+        std::memcpy(output, (void *)value, sizeof(T));
     } else {
         T *ptr = (T *)malloc(sizeof(T));
-        std::memcpy(ptr, value, sizeof(T));
-        *output = ptr;
+        std::memcpy((void *)ptr, (void *)value, sizeof(T));
+        *output = (void *)ptr;
     }
 }
 
@@ -138,9 +138,10 @@ extern "C" {
     }
 
     void GRAPHFUZZ_POST_INIT() {
-        for (void *ptr : gf_allocations) {
-            free(ptr);
-        }
+        // Skip this to avoid double-free if harness is incorrect
+        // for (void *ptr : gf_allocations) {
+        //     free(ptr);
+        // }
         for (const std::string& filename : gf_files) {
             remove(filename.c_str());
         }
