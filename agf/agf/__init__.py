@@ -1,25 +1,15 @@
 import argparse
 
-# from . import autoconf
-from . import autoschema
-from . import agents
-# from .rag import rag
-from . import write
-from .runner import runner
-from .utils import ctags
-from . import build
+from .build.build import register as register_build
+from .flows import register as register_flows
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-    # autoconf.register(subparsers)
-    autoschema.register(subparsers)
-    agents.register(subparsers)
-    # rag.register(subparsers)
-    write.register(subparsers)
-    runner.register(subparsers)
-    ctags.register(subparsers)
-    build.register(subparsers)
+    register_build(subparsers)
+    register_flows(subparsers)
+
     args = parser.parse_args()
     if hasattr(args, 'func'):
         args.func(args)

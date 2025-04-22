@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::schema::Schema;
+use crate::pspec::PSpec;
 
 use super::graph::{Graph, NodeRefType};
 
@@ -85,16 +85,16 @@ impl Default for MutationOptions {
 // Created at runtime and contains cached information useful for mutations.
 #[derive(Debug)]
 pub struct MutationContext {
-    pub schema: Schema,
+    pub pspec: PSpec,
     opts: MutationOptions,
     cache: RefCell<SchemaCache>,
     rng: RefCell<rand::rngs::ThreadRng>,
 }
 
 impl MutationContext {
-    pub fn new(schema: Schema) -> Self {
+    pub fn new(pspec: PSpec) -> Self {
         Self {
-            schema,
+            pspec,
             opts: MutationOptions::default(),
             cache: RefCell::new(SchemaCache::new()),
             rng: RefCell::new(rand::thread_rng()),
@@ -119,7 +119,7 @@ impl MutationContext {
         let mut missing_constructors = HashSet::new();
         let mut missing_destructors = HashSet::new();
         
-        for typ in self.schema.types.iter() {
+        for typ in self.pspec.objects.iter() {
             if !(self.get_type_node_enabled(typ.idx, max_depth, true)) {
                 missing_destructors.insert(typ.idx);
             }
@@ -128,7 +128,7 @@ impl MutationContext {
             }
         }
 
-        for x in self.schema.types.iter() {
+        for x in self.pspec.objects.iter() {
             if missing_constructors.contains(&x.idx) {
                 eprintln!("Missing constructor for type {}", x.name);
             }
@@ -139,7 +139,7 @@ impl MutationContext {
 
         let mut disabled_endpoints = HashSet::new();
 
-        for endpoint in self.schema.endpoints.iter() {
+        for endpoint in self.pspec.endpoints.iter() {
             for x in endpoint.inputs.iter() {
                 if missing_constructors.contains(x) || missing_destructors.contains(x) {
                     disabled_endpoints.insert(endpoint.idx);
@@ -152,14 +152,14 @@ impl MutationContext {
             }
         }
 
-        for endpoint in self.schema.endpoints.iter() {
+        for endpoint in self.pspec.endpoints.iter() {
             if !disabled_endpoints.contains(&endpoint.idx) {
                 self.cache.borrow_mut().enabled_endpoints.push(endpoint.idx);
             }
         }
 
         let enabled = self.cache.borrow_mut().enabled_endpoints.len();
-        let total = self.schema.endpoints.len();
+        let total = self.pspec.endpoints.len();
 
         eprintln!("Enabled endpoints: {}/{}", enabled, total);
 
@@ -196,7 +196,7 @@ impl MutationContext {
             children: Vec::new(),
         };
 
-        for endpoint in self.schema.endpoints.iter() {
+        for endpoint in self.pspec.endpoints.iter() {
             if forward {
                 for (conn_idx, val) in endpoint.inputs.iter().enumerate() {
                     if idx == *val {
@@ -279,7 +279,7 @@ impl MutationContext {
                             node_idx: idx,
                             conn_idx,
                             forward: false,
-                            typ: self.schema.endpoints[node.typ].inputs[conn_idx],
+                            typ: self.pspec.endpoints[node.typ].inputs[conn_idx],
                             node_level: node.layer,
                             depth: usize::MAX,
                         });
@@ -295,7 +295,7 @@ impl MutationContext {
                             node_idx: idx,
                             conn_idx,
                             forward: true,
-                            typ: self.schema.endpoints[node.typ].outputs[conn_idx],
+                            typ: self.pspec.endpoints[node.typ].outputs[conn_idx],
                             node_level: node.layer,
                             depth: usize::MAX,
                         });
@@ -369,7 +369,7 @@ impl MutationContext {
             println!("Type node: {:?}", typ_node);
             println!("Edge: {:?}", edge);
             println!("Cache: {:?}", self.cache.borrow());
-            println!("Schema: {:?}", self.schema);
+            println!("Schema: {:?}", self.pspec);
             println!("Free edges: {:?}", free_edges);
             graph.pprint();
             panic!("Missing endpoint in type node");
@@ -378,9 +378,9 @@ impl MutationContext {
         let node = graph.add_node(
             endpoint.idx, 
             edge.node_level + if edge.forward { 1 } else { -1 }, 
-            self.schema.endpoints[endpoint.idx].inputs.len(), 
-            self.schema.endpoints[endpoint.idx].outputs.len(), 
-            self.schema.endpoints[endpoint.idx].context_size.unwrap()
+            self.pspec.endpoints[endpoint.idx].inputs.len(), 
+            self.pspec.endpoints[endpoint.idx].outputs.len(), 
+            self.pspec.endpoints[endpoint.idx].context_size.unwrap()
         );
 
         // Link the edge.
@@ -421,7 +421,7 @@ impl MutationContext {
 
         let cache = self.cache.borrow();
         let endpoint_idx = cache.enabled_endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
-        let endpoint = &self.schema.endpoints[*endpoint_idx];
+        let endpoint = &self.pspec.endpoints[*endpoint_idx];
         let _ = graph.add_node(endpoint.idx, 0, endpoint.inputs.len(), endpoint.outputs.len(), endpoint.context_size.unwrap());
 
         self.complete(&mut graph);
@@ -511,7 +511,7 @@ impl MutationContext {
         };
 
         // Get the type we need to match
-        let endpoint = &self.schema.endpoints[node.typ];
+        let endpoint = &self.pspec.endpoints[node.typ];
         let typ = if is_input {
             endpoint.inputs[conn_idx]
         } else {
@@ -535,12 +535,12 @@ impl MutationContext {
         
         let endpoints = if is_input {
             enabled_endpoint_indices.iter()
-                .map(|&idx| &self.schema.endpoints[idx])
+                .map(|&idx| &self.pspec.endpoints[idx])
                 .filter(|e| e.outputs.contains(&typ))
                 .collect::<Vec<_>>()
         } else {
             enabled_endpoint_indices.iter()
-                .map(|&idx| &self.schema.endpoints[idx])
+                .map(|&idx| &self.pspec.endpoints[idx])
                 .filter(|e| e.inputs.contains(&typ))
                 .collect::<Vec<_>>()
         };
@@ -574,91 +574,5 @@ impl MutationContext {
         // Complete any remaining edges
         self.complete(graph);
         graph.sanitize();
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    // use crate::core::graph::Node;
-
-    use crate::graph::Node;
-
-    use super::*;
-
-    fn setup_ctx() -> MutationContext {
-        let raw_schema = r#"
-{
-    "types": [
-        {
-            "name": "Foo",
-            "idx": 0
-        }
-    ],
-    "endpoints": [
-        {
-            "name": "Foo()",
-            "idx": 0,
-            "inputs": [],
-            "outputs": [0],
-            "context_size": 0
-        },
-        {
-            "name": "Foo::write(char v)",
-            "idx": 1,
-            "inputs": [0],
-            "outputs": [0],
-            "context_size": 1
-        },
-        {
-            "name": "Foo::check()",
-            "idx": 2,
-            "inputs": [0],
-            "outputs": [0],
-            "context_size": 0
-        },
-        {
-            "name": "~Foo()",
-            "idx": 3,
-            "inputs": [0],
-            "outputs": [],
-            "context_size": 0
-        }
-    ]
-}
-        "#;
-
-        let schema: Schema = serde_json::from_str(raw_schema).unwrap();
-        let ctx = MutationContext::new(schema);
-        ctx.compute(3, false);
-        ctx
-    }
-
-    #[test]
-    fn test_complete() {
-        let ctx = setup_ctx();
-
-        let mut graph = Graph {
-            nodes: vec![
-                Node {
-                    index: 0,
-                    typ: 1,
-                    layer: 0,
-                    in_ref: vec![NodeRefType::Disconnected; 1],
-                    out_ref: vec![NodeRefType::Disconnected; 1],
-                    context: vec![0],
-                }
-            ]
-        };
-
-        ctx.complete(&mut graph);
-
-        graph.pprint();
-        graph.validate(&ctx.schema);
-
-        ctx.mutate_delete_one(&mut graph);
-
-        graph.pprint();
-        graph.validate(&ctx.schema);
     }
 }

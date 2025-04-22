@@ -1,0 +1,753 @@
+use std::{collections::HashMap, fmt};
+
+use regex::Regex;
+use serde::{Serialize, Deserialize};
+
+use crate::{grammar::{Assignment, Context, EnumDef, GrammarError, Leaf, ParserWithCtx, Ty, VarDef}, pspec::{PAttr, PAttrType, PEndpoint, PObject, PSpec, PVariableMapping}};
+
+
+// ------------------------------------------------------------------------------------------------
+// External fuzzer specification
+// ------------------------------------------------------------------------------------------------
+
+/// External fuzzer specification.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Spec {
+    pub objects: Vec<Object>,
+    pub endpoints: Vec<Endpoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Object {
+    pub name: String,
+
+    #[serde(default)]
+    pub attrs: Vec<Attr>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum AttrType {
+    #[serde(rename = "int")]
+    Int,
+    #[serde(rename = "enum")]
+    Enum { variants: Vec<String> },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Attr {
+    pub name: String,
+    #[serde(flatten)]
+    pub attr_type: AttrType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Endpoint {
+    pub name: String,
+
+    #[serde(default)]
+    pub variables: Vec<Variable>,
+
+    pub template: String,
+
+    #[serde(default)]
+    pub preconditions: Vec<String>,
+
+    #[serde(default)]
+    pub effects: Vec<String>,
+
+    // #[serde(default)]
+    // pub constraints: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Variable {
+    pub name: String,
+    pub typ: String,
+    #[serde(default)]
+    pub dir: VariableDir,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub enum VariableDir {
+    #[serde(rename = "*")]
+    InOut,
+    #[serde(rename = "new")]
+    New,
+    #[serde(rename = "del")]
+    Del,
+}
+
+impl Default for VariableDir {
+    fn default() -> Self {
+        VariableDir::InOut
+    }
+}
+
+// ------------------------------------------------------------------------------------------------
+// Validation errors
+// ------------------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+pub enum ValidationError {
+    Endpoint(usize, String, EndpointValidationError),
+}
+
+impl fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ValidationError::Endpoint(idx, name, error) => write!(f, "Endpoint \"{}\" at index {} is invalid:\n{}", name, idx, error),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub enum EndpointValidationError {
+    DuplicateEffectTarget(Leaf, Vec<Assignment>),
+    ParsingError(String, GrammarError),
+}
+
+
+impl fmt::Display for EndpointValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EndpointValidationError::DuplicateEffectTarget(_target, effects) => write!(f, "More than one effect for the same target: ({})", effects.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ")),
+            EndpointValidationError::ParsingError(expr, error) => write!(f, "Error while parsing \"{}\":\n{}", expr, error),
+        }
+    }
+}
+impl Spec {
+    pub fn build_pspec(&self) -> Result<PSpec, Vec<ValidationError>> {
+        let mut pspec = PSpec::new();
+        let mut spec_errors = vec![];
+
+        let mut object_idx = 0;
+        for object in self.objects.iter() {
+            pspec.objects.push(PObject {
+                name: object.name.clone(),
+                idx: object_idx,
+                attrs: object.attrs.iter().map(|attr| PAttr {
+                    name: attr.name.clone(),
+                    typ: match &attr.attr_type {
+                        AttrType::Int => PAttrType::Int,
+                        AttrType::Enum { variants } => PAttrType::Enum { variants: variants.clone() },
+                    },
+                }).collect(),
+            });
+            object_idx += 1;
+        }
+
+        let type_to_idx = self.objects.iter().enumerate().map(|(i, o)| (o.name.clone(), i)).collect::<HashMap<_, _>>();
+
+        let mut endpoint_idx = 0;
+        for endpoint in self.endpoints.iter() {
+            let res = endpoint.build_pspec(&type_to_idx, endpoint_idx, &pspec.objects);
+            match res {
+                Ok(ep) => pspec.endpoints.push(ep),
+                Err(errors) => spec_errors.extend(
+                    errors.into_iter().map(|e| ValidationError::Endpoint(endpoint_idx, endpoint.name.clone(), e))
+                ),
+            }
+            endpoint_idx += 1;
+        }
+
+        if !spec_errors.is_empty() {
+            return Err(spec_errors);
+        }
+
+        Ok(pspec)
+    }
+}
+
+impl Endpoint {
+    pub fn build_pspec(&self, type_to_idx: &HashMap<String, usize>, endpoint_idx: usize, objects: &[PObject]) -> Result<PEndpoint, Vec<EndpointValidationError>> {
+        let mut endpoint_errors = vec![];
+        
+        let mut inputs = vec![];
+        let mut outputs = vec![];
+        let mut args = vec![];
+
+        let mut input_vars = vec![];
+        let mut output_vars = vec![];
+        let mut mappings = vec![];
+
+        // Replace all instances of a variable name surrounded by non-word characters with "@@name@@"
+        let mut template = self.template.clone();
+        for v in self.variables.iter() {
+            let re = Regex::new(&format!(r"(\b{}\b)", v.name)).unwrap();
+            template = re.replace_all(&template, &format!("@@{}@@", v.name)).to_string();
+        }
+
+        let mut pre_template = String::new();
+        let mut post_template = String::new();
+
+        for v in self.variables.iter() {
+            match v.dir {
+                VariableDir::InOut => {
+                    if let Some(idx) = type_to_idx.get(&v.typ) {
+                        inputs.push(*idx);
+                        outputs.push(*idx);
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
+                        post_template.push_str(&format!("$o{} = $i{};\n", outputs.len() - 1, inputs.len() - 1));
+                        input_vars.push(v.name.clone());
+                        output_vars.push(v.name.clone());
+                        mappings.push(PVariableMapping {
+                            name: v.name.clone(),
+                            in_idx: Some(inputs.len() - 1),
+                            out_idx: Some(outputs.len() - 1),
+                        });
+                    } else {
+                        args.push(v.typ.clone());
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
+                    }
+                },
+                VariableDir::New => {
+                    if let Some(idx) = type_to_idx.get(&v.typ) {
+                        outputs.push(*idx);
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$o{}", outputs.len() - 1));
+                        output_vars.push(v.name.clone());
+                        mappings.push(PVariableMapping {
+                            name: v.name.clone(),
+                            in_idx: None,
+                            out_idx: Some(outputs.len() - 1),
+                        });
+                    } else {
+                        // Ignore new arg types
+                        // TODO: warning
+                        args.push(v.typ.clone());
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
+                    }
+                },
+                VariableDir::Del => {
+                    if let Some(idx) = type_to_idx.get(&v.typ) {
+                        inputs.push(*idx);
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
+                        input_vars.push(v.name.clone());
+                        mappings.push(PVariableMapping {
+                            name: v.name.clone(),
+                            in_idx: Some(inputs.len() - 1),
+                            out_idx: None,
+                        });
+                    } else {
+                        // Ignore del arg types
+                        // TODO: warning
+                        args.push(v.typ.clone());
+                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
+                    }
+                },
+            }
+        }
+
+        {
+            // Find all instances of FUZZ_PARAM(<T>), and replace them with $a{i}
+            let fuzz_param_re = Regex::new(r"FUZZ_PARAM\(([^)]+)\)").unwrap();
+            let mut template_with_fuzz = template.clone();
+
+            // Find all instances of FUZZ_PARAM
+            let matches: Vec<_> = fuzz_param_re.find_iter(&template).collect();
+            for m in matches {
+                let cap = fuzz_param_re.captures(&template[m.start()..m.end()]).unwrap();
+                let param_type = cap.get(1).unwrap().as_str().trim().to_string();
+                
+                // Add to args
+                args.push(param_type);
+                
+                // Replace with the appropriate $a{i} reference
+                let replacement = format!("$a{}", args.len() - 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            }
+
+            // Use the updated template with FUZZ_PARAM replaced
+            template = template_with_fuzz;
+        }
+        {
+            // Find all instances of FUZZ_PARAM_STR(<N>) and replace them with (char *)$aN
+            let fuzz_param_str_re = Regex::new(r"FUZZ_PARAM_STR\((\d+)\)").unwrap();
+            let mut template_with_fuzz = template.clone();
+
+            let matches: Vec<_> = fuzz_param_str_re.find_iter(&template).collect();
+            for m in matches {
+                let cap = fuzz_param_str_re.captures(&template[m.start()..m.end()]).unwrap();
+                let len = cap.get(1).unwrap().as_str().trim().parse::<usize>().unwrap();
+
+                // Add to args
+                args.push(format!("char[{}]", len + 1));
+
+                // Null terminate the string
+                pre_template.push_str(&format!("$a{}[{}] = 0;\n", args.len() - 1, len));
+
+                // Replace with the appropriate $a{i} reference
+                let replacement = format!("((const char *)$a{})", args.len() - 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            }
+
+            // Use the updated template with FUZZ_PARAM_STR replaced
+            template = template_with_fuzz;
+        }
+        {
+            // Find all instances of FUZZ_PARAM_FILE(<N>) and replace them with gf_fuzz_param::write_to_temp_file($aN, N)
+            let fuzz_param_file_re = Regex::new(r"FUZZ_PARAM_FILE\((\d+)\)").unwrap();
+            let mut template_with_fuzz = template.clone();
+
+            let matches: Vec<_> = fuzz_param_file_re.find_iter(&template).collect();
+            for m in matches {
+                let cap = fuzz_param_file_re.captures(&template[m.start()..m.end()]).unwrap();
+                let len = cap.get(1).unwrap().as_str().trim().parse::<usize>().unwrap();
+
+                // Add to args
+                args.push(format!("char[{}]", len));
+
+                // Replace with the appropriate $a{i} reference
+                let replacement = format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len);
+                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            }
+
+            // Use the updated template with FUZZ_PARAM_FILE replaced
+            template = template_with_fuzz;
+        }
+
+        let mut full_template = String::new();
+        if !pre_template.is_empty() {
+            full_template.push_str(&pre_template);
+        }
+        full_template.push_str(&template);
+        if !post_template.is_empty() {
+            full_template.push_str("\n");
+            full_template.push_str(&post_template);
+        }
+
+        // Precondition references input objects
+        let precondition_ctx = self.build_context(&inputs, &input_vars, objects);
+        let precondition_parser = ParserWithCtx::new(&precondition_ctx);
+        
+        let mut preconditions = vec![];
+        for p in self.preconditions.iter() {
+            match precondition_parser.parse_constraint(p) {
+                Ok(c) => preconditions.push(c),
+                Err(e) => endpoint_errors.push(EndpointValidationError::ParsingError(p.clone(), e)),
+            }
+        }
+
+        // Effect references output objects
+        let effect_ctx = self.build_context(&outputs, &output_vars, objects);
+        let effect_parser = ParserWithCtx::new(&effect_ctx);
+        
+        let mut effects = vec![];
+        for p in self.effects.iter() {
+            match effect_parser.parse_assignment(p) {
+                Ok(c) => effects.push(c),
+                Err(e) => endpoint_errors.push(EndpointValidationError::ParsingError(p.clone(), e)),
+            }
+        }
+
+        // Ensure there are no duplicate effect targets
+        let mut effect_targets = HashMap::new();
+        for effect in effects.iter() {
+            effect_targets.entry(effect.target.clone()).or_insert_with(Vec::new).push(effect.clone());
+        }
+
+        for (target, effects) in effect_targets.iter() {
+            if effects.len() > 1 {
+                endpoint_errors.push(EndpointValidationError::DuplicateEffectTarget(target.clone(), effects.clone()));
+            }
+        }
+
+        if !endpoint_errors.is_empty() {
+            return Err(endpoint_errors);
+        }
+
+        Ok(PEndpoint {
+            name: self.name.clone(),
+            idx: endpoint_idx,
+            inputs,
+            outputs,
+            args,
+            template: full_template,
+
+            input_vars,
+            output_vars,
+            mappings,
+
+            preconditions,
+            effects,
+
+            // Autogenerated
+            context_size: None,
+        })
+    }
+
+    fn build_context(&self, indexes: &[usize], names: &[String], objects: &[PObject]) -> Context {
+        let mut vars = HashMap::new();
+
+        for (idx, name) in indexes.iter().zip(names.iter()) {
+            let object = &objects[*idx];
+            let object_name = &object.name;
+        
+            let mut fields = HashMap::new();
+            for attr in object.attrs.iter() {
+                fields.insert(attr.name.clone(), match &attr.typ {
+                    PAttrType::Int => Ty::Int,
+                    PAttrType::Enum { .. } => Ty::Enum(format!("{}::{}", object_name, attr.name)),
+                });
+            }
+
+            vars.insert(name.clone(), VarDef {
+                name: name.clone(),
+                fields,
+            });
+        }
+
+        let mut enums = HashMap::new();
+
+        for idx in indexes.iter() {
+            let object = &objects[*idx];
+            let object_name = &object.name;
+
+            for attr in object.attrs.iter() {
+                if let PAttrType::Enum { variants } = &attr.typ {
+                    enums.insert(format!("{}::{}", object_name, attr.name), EnumDef {
+                        name: format!("{}::{}", object_name, attr.name),
+                        variants: variants.iter().map(|v| v.clone()).collect(),
+                    });
+                }
+            }
+        }
+        
+        Context {
+            vars,
+            globals: HashMap::new(),
+            enums,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::grammar::{BoolAtom, BoolExpr, CmpOp, Constraint, EnumExpr, Expr, IntAtom, IntExpr, Leaf};
+
+    use super::*;
+    
+    #[test]
+    fn test_convert_fuzz_param() {
+        let spec_json = r#"
+        {
+            "objects": [],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [],
+                    "template": "int z = FUZZ_PARAM(int);"
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec().unwrap();
+        
+        assert_eq!(pspec.endpoints[0], PEndpoint {
+            name: "test_func".to_string(),
+            idx: 0,
+            inputs: vec![],
+            outputs: vec![],
+            args: vec!["int".to_string()],
+            template: "int z = $a0;".to_string(),
+            mappings: vec![],
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn test_convert_fuzz_param_str() {
+        let spec_json = r#"
+        {
+            "objects": [],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [],
+                    "template": "int z = FUZZ_PARAM_STR(10);"
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec().unwrap() ;
+        
+        assert_eq!(pspec.endpoints[0], PEndpoint {
+            name: "test_func".to_string(),
+            idx: 0,
+            inputs: vec![],
+            outputs: vec![],
+            args: vec!["char[11]".to_string()],
+            template: "$a0[10] = 0;\nint z = ((const char *)$a0);".to_string(),
+            mappings: vec![],
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn test_convert_fuzz_param_file() {
+        let spec_json = r#"
+        {
+            "objects": [],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [],
+                    "template": "int z = FUZZ_PARAM_FILE(256);"
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec().unwrap();
+        
+        assert_eq!(pspec.endpoints[0], PEndpoint {
+            name: "test_func".to_string(),
+            idx: 0,
+            inputs: vec![],
+            outputs: vec![],
+            args: vec!["char[256]".to_string()],
+            template: "int z = gf_fuzz_param::write_to_temp_file($a0, 256);".to_string(),
+            mappings: vec![],
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn test_encode_constraints() {
+        let spec_json = r#"
+        {
+            "objects": [
+                {
+                    "name": "foo",
+                    "attrs": [
+                        {
+                            "name": "x",
+                            "type": "int"
+                        },
+                        {
+                            "name": "y",
+                            "type": "enum",
+                            "variants": ["A", "B", "C"]
+                        }
+                    ]
+                }
+            ],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [
+                        {
+                            "name": "z",
+                            "typ": "foo",
+                            "dir": "*"
+                        }
+                    ],
+                    "template": "test_func(z);",
+                    "preconditions": [
+                        "z.x > 0"
+                    ],
+                    "effects": [
+                        "z.x := 5",
+                        "z.y := B"
+                    ]
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec().unwrap();
+        
+        println!("{}", pspec.pprint());
+
+        assert_eq!(pspec.endpoints[0], PEndpoint {
+            name: "test_func".to_string(),
+            idx: 0,
+            inputs: vec![0],
+            outputs: vec![0],
+            args: vec![],
+            template: "test_func($i0);\n$o0 = $i0;\n".to_string(),
+            input_vars: vec!["z".to_string()],
+            output_vars: vec!["z".to_string()],
+            mappings: vec![PVariableMapping {
+                name: "z".to_string(),
+                in_idx: Some(0),
+                out_idx: Some(0),
+            }],
+            preconditions: vec![Constraint {
+                expr: BoolExpr::Atom(BoolAtom::Cmp(IntExpr::Atom(IntAtom::Leaf(Leaf::Var("z".to_string(), "x".to_string()))), CmpOp::Gt, IntExpr::Atom(IntAtom::IntLit(0))))
+            }],
+            effects: vec![Assignment {
+                target: Leaf::Var("z".to_string(), "x".to_string()),
+                expr: Expr::Int(IntExpr::Atom(IntAtom::IntLit(5))),
+            }, Assignment {
+                target: Leaf::Var("z".to_string(), "y".to_string()),
+                expr: Expr::Enum(EnumExpr::Variant {
+                    enum_name: Some("foo::y".to_string()),
+                    variant: "B".to_string(),
+                }),
+            }],
+            context_size: None,
+        });
+    }
+
+    #[test]
+    fn test_encode_complex() {
+        let spec_json = r#"
+        {
+            "objects": [
+                {
+                    "name": "foo",
+                    "attrs": [
+                        {
+                            "name": "x",
+                            "type": "int"
+                        },
+                        {
+                            "name": "y",
+                            "type": "enum",
+                            "variants": ["A", "B", "C"]
+                        }
+                    ]
+                },
+                {
+                    "name": "bar",
+                    "attrs": [
+                        {
+                            "name": "x",
+                            "type": "enum",
+                            "variants": ["FOO", "BAR"]
+                        },
+                        {
+                            "name": "y",
+                            "type": "int"
+                        }
+                    ]
+                }
+            ],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [
+                        {
+                            "name": "a",
+                            "typ": "foo",
+                            "dir": "*"
+                        },
+                        {
+                            "name": "b",
+                            "typ": "bar",
+                            "dir": "*"
+                        },
+                        {
+                            "name": "c",
+                            "typ": "bar",
+                            "dir": "new"
+                        }
+                    ],
+                    "template": "test_func(a, b, c);",
+                    "preconditions": [
+                        "a.x > 0",
+                        "b.x is FOO"
+                    ],
+                    "effects": [
+                        "a.x := 5",
+                        "a.y := C",
+                        "b.y := 10",
+                        "c.x := FOO",
+                        "c.y := 20 + a.x"
+                    ]
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec().unwrap();
+        
+        println!("{}", pspec.pprint());
+    }
+
+    #[test]
+    fn test_spec_errors() {
+        let spec_json = r#"
+        {
+            "objects": [
+                {
+                    "name": "foo",
+                    "attrs": [
+                        {
+                            "name": "x",
+                            "type": "int"
+                        },
+                        {
+                            "name": "y",
+                            "type": "enum",
+                            "variants": ["A", "B", "C"]
+                        }
+                    ]
+                },
+                {
+                    "name": "bar",
+                    "attrs": [
+                        {
+                            "name": "x",
+                            "type": "enum",
+                            "variants": ["FOO", "BAR"]
+                        },
+                        {
+                            "name": "y",
+                            "type": "int"
+                        }
+                    ]
+                }
+            ],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [
+                        {
+                            "name": "a",
+                            "typ": "foo",
+                            "dir": "*"
+                        },
+                        {
+                            "name": "b",
+                            "typ": "bar",
+                            "dir": "*"
+                        },
+                        {
+                            "name": "c",
+                            "typ": "bar",
+                            "dir": "*"
+                        }
+                    ],
+                    "template": "test_func(a, b, c);",
+                    "preconditions": [
+                        "a.x > 0",
+                        "b.x is FOO",
+                        "zorph + 234"
+                    ],
+                    "effects": [
+                        "a.x := scree",
+                        "b.y := 10",
+                        "b.y := 11"
+                    ]
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec();
+        
+        match pspec {
+            Ok(pspec) => println!("{}", pspec.pprint()),
+            Err(errors) => {
+                for error in errors {
+                    println!("-----\n{}", error);
+                }
+            }
+        }
+    }
+}

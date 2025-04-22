@@ -16,18 +16,18 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN cargo install casr
 
+COPY /agf/requirements.txt /requirements.txt
+RUN pip install -r requirements.txt
+
 COPY rust-toolchain.toml /src/rust-toolchain.toml
 COPY /gf_core /src/gf_core
 COPY /gf_libafl /src/gf_libafl
-COPY /gf_synth /src/gf_synth
-COPY /agf /src/agf
 
 ENV LIBAFL_EDGES_MAP_SIZE=400000
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/src/gf_libafl/target \
     --mount=type=cache,target=/src/gf_core/target \
-    --mount=type=cache,target=/src/gf_synth/target \
     --mount=type=cache,target=/root/.rustup \
     cd /src/gf_libafl && \
     OUT_DIR=/deps cargo build --release && \
@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     cp target/release/libgf_libafl.a /root/.cargo/bin/libgf_libafl.a && \
     mkdir -p /src/tmp && \
     cp -r target/release/build/libafl_cc-* /src/tmp && \
-    cd /src/gf_synth && \
+    cd /src/gf_core && \
     cargo build --release && \
     cargo install --path .
 
@@ -43,6 +43,7 @@ RUN cd /src/gf_libafl && \
     mkdir -p target/release/build && \
     cp -r /src/tmp/libafl_cc-* target/release/build/
 
+COPY /agf /src/agf
+
 RUN cd /src/agf && \
-    pip install -r requirements.txt && \
     pip install -e .

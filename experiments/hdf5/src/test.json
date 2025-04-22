@@ -1,0 +1,783 @@
+{
+  "endpoints": [
+    {
+      "name": "H5Gunlink_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *name = FUZZ_PARAM_FILE(32); /* Generate a random 32-byte filename */\n\n/* Validate input parameters */\nif (__loc_id < 0) FUZZ_BAIL();\n\n/* Invoke H5Gunlink */\nherr_t result = H5Gunlink(__loc_id, name);\nif (result < 0) FUZZ_BAIL();\n\n/* Clean up any temporary objects created */\n// No dynamic memory allocated to free as we're using a temporary file."
+    },
+    {
+      "name": "H5Iiterate_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        },
+        {
+          "name": "__op",
+          "dir": "*",
+          "typ": "H5I_iterate_func_t"
+        }
+      ],
+      "template": "if (__type <= H5I_UNINIT || __type >= H5I_NTYPES) {\n    FUZZ_BAIL();\n}\n\nif (__op == NULL) {\n    FUZZ_BAIL();\n}\n\nherr_t result = H5Iiterate(__type, __op, NULL);\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gclose_v0",
+      "variables": [
+        {
+          "name": "__group_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (H5Gclose(__group_id) < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gget_info_by_idx_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__group_info",
+          "dir": "new",
+          "typ": "H5G_info_t *"
+        }
+      ],
+      "template": "if (__loc_id < 0 || __group_info == nullptr) FUZZ_BAIL();\n\nH5_index_t idx_type = static_cast<H5_index_t>(FUZZ_PARAM(int) % H5_INDEX_N);\nH5_iter_order_t order = static_cast<H5_iter_order_t>(FUZZ_PARAM(int) % H5_ITER_N);\nhsize_t n = FUZZ_PARAM(size_t);\n\n__group_info = static_cast<H5G_info_t *>(gf_malloc(sizeof(H5G_info_t)));\nif (__group_info == nullptr) FUZZ_BAIL();\n\nherr_t status = H5Gget_info_by_idx(__loc_id, nullptr, idx_type, order, n, __group_info, H5P_DEFAULT);\nif (status < 0) {\n    gf_free(__group_info);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gget_info_by_idx_v1",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__group_info",
+          "dir": "new",
+          "typ": "H5G_info_t *"
+        },
+        {
+          "name": "__lapl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if(__loc_id < 0 || __lapl_id < 0 || __group_info == nullptr) {\n    FUZZ_BAIL();\n}\n\nH5_index_t idx_type = static_cast<H5_index_t>(FUZZ_PARAM(int) % 3);\nH5_iter_order_t order = static_cast<H5_iter_order_t>(FUZZ_PARAM(int) % 3);\nhsize_t n = FUZZ_PARAM(size_t);\n\n__group_info = (H5G_info_t *)gf_malloc(sizeof(H5G_info_t));\nif(__group_info == nullptr) {\n    FUZZ_BAIL();\n}\n\nherr_t ret = H5Gget_info_by_idx(__loc_id, nullptr, idx_type, order, n, __group_info, __lapl_id);\nif(ret < 0) {\n    gf_free(__group_info);\n    __group_info = nullptr;\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Idec_ref_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__id < 0) FUZZ_BAIL();\n\nint ret_value;\nret_value = H5Idec_ref(__id);\nif (ret_value < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Idestroy_type_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "    // Check for valid input parameter\n    if (__type < H5I_UNINIT || __type >= H5I_NTYPES) {\n        FUZZ_BAIL();\n    }\n\n    // Invoke the H5Idestroy_type API\n    herr_t result = H5Idestroy_type(__type);\n\n    // Check for errors in the API call\n    if (result < 0) {\n        FUZZ_BAIL();\n    }"
+    },
+    {
+      "name": "H5Iinc_ref_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__id < 0) {\n    FUZZ_BAIL();\n}\n\nint ret_value = H5Iinc_ref(__id);\nif (ret_value < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gget_objtype_by_idx_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__ret_value",
+          "dir": "new",
+          "typ": "H5G_obj_t"
+        }
+      ],
+      "template": "if (__loc_id <= 0) {\n    FUZZ_BAIL();\n}\n\nhsize_t idx = FUZZ_PARAM(unsigned int);\nH5G_obj_t result;\n\nresult = H5Gget_objtype_by_idx(__loc_id, idx);\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\n__ret_value = result;"
+    },
+    {
+      "name": "H5Iget_name_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "char *name = (char *)gf_malloc(256);\nif (name == NULL) FUZZ_BAIL();\n\nsize_t size = 256;\nssize_t status = H5Iget_name(__id, name, size);\nif (status < 0) {\n    gf_free(name);\n    FUZZ_BAIL();\n}\n\n// Use the name for further operations or validation if needed\n\n// Free the allocated memory\ngf_free(name);"
+    },
+    {
+      "name": "H5Iget_type_ref_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "int ref_count = H5Iget_type_ref(__type);\nif (ref_count < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Iregister_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "if (__type < H5I_UNINIT || __type >= H5I_NTYPES) FUZZ_BAIL();\n\nconst char *temp_file = FUZZ_PARAM_FILE(1024);\n\nhid_t result = H5Iregister(__type, (const void *)temp_file);\nif (result < 0) FUZZ_BAIL();\n\n// Clean-up (if needed)\n"
+    },
+    {
+      "name": "H5Gflush_v0",
+      "variables": [
+        {
+          "name": "__group_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__group_id < 0) FUZZ_BAIL();\n\nherr_t ret_value = H5Gflush(__group_id);\nif (ret_value < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Gget_info_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__group_info",
+          "dir": "new",
+          "typ": "H5G_info_t *"
+        }
+      ],
+      "template": "if (__loc_id < 0) FUZZ_BAIL();\n\n__group_info = (H5G_info_t *)gf_malloc(sizeof(H5G_info_t));\nif (!__group_info) FUZZ_BAIL();\n\nherr_t status = H5Gget_info(__loc_id, __group_info);\nif (status < 0) {\n    gf_free(__group_info);\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gcreate1_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *name = FUZZ_PARAM_STR(10); // Create a random name with 10 bytes\nsize_t size_hint = FUZZ_PARAM(size_t); // Random size hint\n\n// Validate the input parameters\nif (!name || !*name) FUZZ_BAIL();\nif (size_hint > UINT32_MAX) FUZZ_BAIL();\n\n// Invoke the H5Gcreate1 function\nhid_t group_id = H5Gcreate1(__loc_id, name, size_hint);\n\n// Check for errors in the return value\nif (group_id < 0) FUZZ_BAIL();\n\n// Clean up would typically go here (if any)"
+    },
+    {
+      "name": "H5Gget_objinfo_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__statbuf",
+          "dir": "new",
+          "typ": "H5G_stat_t"
+        }
+      ],
+      "template": "if (__loc_id < 0) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_FILE(10);\nhbool_t follow_link = FUZZ_PARAM(hbool_t);\n\n// Initialize output structure to avoid any uninitialized memory access.\nmemset(&__statbuf, 0, sizeof(__statbuf));\n\nif (H5Gget_objinfo(__loc_id, name, follow_link, &__statbuf) < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gget_create_plist_v0",
+      "variables": [
+        {
+          "name": "__group_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__ret_value",
+          "dir": "new",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__group_id < 0) FUZZ_BAIL();\n\n__ret_value = H5Gget_create_plist(__group_id);\n\nif (__ret_value < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Gmove2_v0",
+      "variables": [
+        {
+          "name": "__src_loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__dst_loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *src_name = FUZZ_PARAM_STR(10);\nconst char *dst_name = FUZZ_PARAM_STR(10);\n\n// Validate that the strings are not null or empty\nif (!src_name || !*src_name) FUZZ_BAIL();\nif (!dst_name || !*dst_name) FUZZ_BAIL();\n\n// Invoke the H5Gmove2 API function\nherr_t result = H5Gmove2(__src_loc_id, src_name, __dst_loc_id, dst_name);\n\n// Check the result of the API call\nif (result < 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "H5Gset_comment_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *name = FUZZ_PARAM_STR(10);\nconst char *comment = FUZZ_PARAM_STR(100);\n\nif (!name || !*name) FUZZ_BAIL();\n\nherr_t result = H5Gset_comment(__loc_id, name, comment);\nif (result < 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "H5Iregister_type_v0",
+      "variables": [],
+      "template": "{ \n    size_t hash_size = 0; // hash_size is unused\n    unsigned reserved = FUZZ_PARAM(unsigned);\n    H5I_free_t free_func = (H5I_free_t)(uintptr_t)FUZZ_PARAM(uint32_t); // Use a random uint32_t as a pointer to free function\n\n    // Call H5Iregister_type\n    H5I_type_t new_type = H5Iregister_type(hash_size, reserved, free_func);\n    if (new_type == H5I_BADID) {\n        FUZZ_BAIL();\n    }\n}"
+    },
+    {
+      "name": "H5Gget_num_objs_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "hsize_t num_objs;\n\n// Validate the input parameter\nH5I_type_t id_type = H5Iget_type(__loc_id);\nif (!(H5I_GROUP == id_type || H5I_FILE == id_type)) {\n    FUZZ_BAIL();\n}\nif (!&num_objs) {\n    FUZZ_BAIL();\n}\n\n// Call H5Gget_num_objs with the required arguments\nherr_t ret = H5Gget_num_objs(__loc_id, &num_objs);\nif (ret < 0) {\n    FUZZ_BAIL();\n}\n\n// Clean up and exit successfully\n// No dynamic memory here to free as no temporary objects were created."
+    },
+    {
+      "name": "H5Gopen2_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *name = FUZZ_PARAM_STR(16); /* Random 16-byte string */\nhid_t gapl_id = FUZZ_PARAM(hid_t); /* Random group access property list identifier */\n\n/* Call the H5Gopen2 API function */\nhid_t group_id = H5Gopen2(__loc_id, name, gapl_id);\n\n/* Check for failure of the H5Gopen2 call */\nif (group_id < 0) {\n    FUZZ_BAIL();\n}\n\n/* Clean up is not required as the function does not dynamically allocate memory */"
+    },
+    {
+      "name": "H5Gopen2_v1",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__gapl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *group_name = FUZZ_PARAM_FILE(256); // Random file path\n\n// Attempt to open the group using H5Gopen2\nhid_t group_id = H5Gopen2(__loc_id, group_name, __gapl_id);\nif (group_id < 0) {\n    FUZZ_BAIL(); // Indicate that the operation failed\n}\n\n// Clean up any temporary resources if needed\n// In this case, we are using a file path and it will be cleaned up by the fuzzing environment."
+    },
+    {
+      "name": "H5Iis_valid_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__id < 0) FUZZ_BAIL();\n\nH5I_type_t type = H5Iget_type(__id);\nif (type == H5I_BADID) FUZZ_BAIL();\n\nif (!H5Iis_valid(__id)) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Iobject_verify_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "if (__id < 0) FUZZ_BAIL();\nif (__type < 1) FUZZ_BAIL();\n\nvoid *result = H5Iobject_verify(__id, __type);\nif (result == NULL) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Iinc_type_ref_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "if (__type < H5I_BADID) { FUZZ_BAIL(); }\n\nherr_t status = H5Iinc_type_ref(__type);\nif (status < 0) { FUZZ_BAIL(); }"
+    },
+    {
+      "name": "H5Iclear_type_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "if (__type <= 0 || __type >= H5I_NTYPES) FUZZ_BAIL();\n\nherr_t result = H5Iclear_type(__type, true);\nif (result < 0) FUZZ_BAIL();\n"
+    },
+    {
+      "name": "H5Iget_file_id_v0",
+      "variables": [
+        {
+          "name": "__obj_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__obj_id < 0) FUZZ_BAIL();\n\n__return = H5Iget_file_id(__obj_id);\nif (__return < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Iget_type_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "H5I_type_t type;\n\ntype = H5Iget_type(__id);\nif (type == H5I_BADID) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Glink_v0",
+      "variables": [
+        {
+          "name": "__cur_loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "H5G_link_t type = (H5G_link_t)__type;\nconst char *cur_name = FUZZ_PARAM_STR(32);\nconst char *new_name = FUZZ_PARAM_STR(32);\n\nif (!cur_name || !*cur_name || !new_name || !*new_name) {\n    FUZZ_BAIL();\n}\n\nherr_t result = H5Glink(__cur_loc_id, type, cur_name, new_name);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gmove_v0",
+      "variables": [
+        {
+          "name": "__src_loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *src_name = FUZZ_PARAM_FILE(16);  \nconst char *dst_name = FUZZ_PARAM_FILE(16);  \n\nherr_t ret_value = H5Gmove(__src_loc_id, src_name, dst_name);  \nif (ret_value < 0) {  \n    FUZZ_BAIL();  \n}  \n\n// Clean up temporary file allocations\nif (src_name) {  \n    gf_free((void *)src_name);  \n}  \nif (dst_name) {  \n    gf_free((void *)dst_name);  \n}  \n"
+    },
+    {
+      "name": "H5Itype_exists_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "if (__type <= H5I_BADID || (int)__type >= H5I_NTYPES) FUZZ_BAIL();\n\nhtri_t result = H5Itype_exists(__type);\nif (result < 0) FUZZ_BAIL();\n\n// H5Itype_exists does not require further output processing as it returns a direct value."
+    },
+    {
+      "name": "H5Glink2_v0",
+      "variables": [
+        {
+          "name": "__cur_loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__new_loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "    const char *src_name = FUZZ_PARAM_FILE(100);\n    const char *dst_name = FUZZ_PARAM_FILE(100);\n    \n    // Attempt to link the object from the current location to the new location\n    herr_t status = H5Glink2(__cur_loc_id, src_name, H5L_TYPE_HARD, __new_loc_id, dst_name);\n    if (status < 0) {\n        FUZZ_BAIL();\n    }\n    \n    // Clean up temporary files used for fuzzing\n    gf_free((void*)src_name);\n    gf_free((void*)dst_name);\n"
+    },
+    {
+      "name": "H5Iget_ref_v0",
+      "variables": [
+        {
+          "name": "__id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__id < 0) FUZZ_BAIL();\n\nint ref_count = H5Iget_ref(__id);\nif (ref_count < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Gopen1_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "const char *name = FUZZ_PARAM_STR(20); // Assuming the name needs to be random string\n\n// Validate input parameters\nif (__loc_id < 0 || !name || !*name) {\n    FUZZ_BAIL();\n}\n\n// Invoke the H5Gopen1 API\nhid_t group_id = H5Gopen1(__loc_id, name);\n\n// Check for failure in invoking the API\nif (group_id < 0) {\n    FUZZ_BAIL();\n}\n\n// At this point, group_id is valid; if necessary, you can handle it further or clean up accordingly."
+    },
+    {
+      "name": "H5Inmembers_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "hsize_t num_members;\n\nif (__type <= H5I_BADID || (int)__type >= 1024) // Assuming H5I_next_type_g is 1024 (needs to be known from headers)\n    FUZZ_BAIL();\n\nherr_t result = H5Inmembers(__type, &num_members);\nif (result < 0) \n    FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Gget_objname_by_idx_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "hsize_t idx = FUZZ_PARAM(hsize_t);\nsize_t size = FUZZ_PARAM(size_t);\nchar *name = (char *)gf_malloc(size);\nif (name == NULL) FUZZ_BAIL();\n\nssize_t ret_value = H5Gget_objname_by_idx(__loc_id, idx, name, size);\nif (ret_value < 0) {\n    gf_free(name);\n    FUZZ_BAIL();\n}\n\n// Assuming further processing with ret_value if needed...\n\ngf_free(name);"
+    },
+    {
+      "name": "H5Gcreate_anon_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "hid_t gcpl_id = FUZZ_PARAM(hid_t);\n    hid_t gapl_id = FUZZ_PARAM(hid_t);\n\n    // Validate input parameters if necessary (not required here, as we're using library calls that will handle it)\n    // Invoke H5Gcreate_anon with the fuzzed parameters\n    hid_t group_id = H5Gcreate_anon(__loc_id, gcpl_id, gapl_id);\n\n    // Check if the return value is valid\n    if (group_id < 0) {\n        FUZZ_BAIL();\n    }\n\n    // Clean up any temporary objects if needed (not applicable here as no dynamic memory is used)\n    // Successfully created a group, continue as needed."
+    },
+    {
+      "name": "H5Gcreate_anon_v2",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__gapl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__loc_id < 0 || __gapl_id < 0) FUZZ_BAIL();\n\nhid_t group_id = H5Gcreate_anon(__loc_id, H5P_GROUP_CREATE_DEFAULT, __gapl_id);\n\nif (group_id < 0) FUZZ_BAIL();\n\nH5Gclose(group_id);"
+    },
+    {
+      "name": "H5Gcreate_anon_v3",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__gcpl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__gapl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "hid_t group_id = H5Gcreate_anon(__loc_id, __gcpl_id, __gapl_id);\nif (group_id < 0) { FUZZ_BAIL(); }\n// Additional setup or initialization if needed."
+    },
+    {
+      "name": "H5Giterate_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__op",
+          "dir": "*",
+          "typ": "H5G_iterate_t"
+        }
+      ],
+      "template": "if (__loc_id < 0)\n    FUZZ_BAIL();\n\n// Prepare to call H5Giterate by setting up the necessary parameters\nconst char *name = FUZZ_PARAM_STR(20);  // Random name for the group\nint *idx_p = (int *)gf_malloc(sizeof(int));\nif (!idx_p)\n    FUZZ_BAIL();\n*idx_p = -1;  // Initialize as invalid index\n\n// Invoke H5Giterate with the random parameters\nherr_t ret_value = H5Giterate(__loc_id, name, idx_p, __op, NULL);\nif (ret_value < 0)\n    FUZZ_BAIL();\n\n// Clean up allocated memory\ngf_free(idx_p);"
+    },
+    {
+      "name": "H5Idec_type_ref_v0",
+      "variables": [
+        {
+          "name": "__type",
+          "dir": "*",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "if (__type <= 0 || __type >= H5I_NTYPES) FUZZ_BAIL();\n\nherr_t result = H5Idec_type_ref(__type);\nif (result < 0) FUZZ_BAIL();"
+    },
+    {
+      "name": "H5Gget_info_by_name_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__group_info",
+          "dir": "new",
+          "typ": "H5G_info_t *"
+        }
+      ],
+      "template": "if (__loc_id < 0) FUZZ_BAIL(); // Validate the input loc_id\n\n__group_info = (H5G_info_t *)gf_malloc(sizeof(H5G_info_t));\nif (__group_info == NULL) FUZZ_BAIL(); // Check for memory allocation failure\n\nconst char *name = FUZZ_PARAM_STR(32); // Retrieve a random name string\n\nherr_t status = H5Gget_info_by_name(__loc_id, name, __group_info, H5P_DEFAULT);\nif (status < 0) {\n    gf_free(__group_info); // Clean up memory in case of error\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "H5Gget_info_by_name_v1",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__group_info",
+          "dir": "new",
+          "typ": "H5G_info_t *"
+        },
+        {
+          "name": "__lapl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "H5G_info_t *temp_info = (H5G_info_t *)gf_malloc(sizeof(H5G_info_t));\nif (!temp_info) FUZZ_BAIL();\n\nif (H5Gget_info_by_name(__loc_id, FUZZ_PARAM_FILE(10), temp_info, __lapl_id) < 0) {\n    gf_free(temp_info);\n    FUZZ_BAIL();\n}\n\n__group_info = temp_info;"
+    },
+    {
+      "name": "H5Gget_comment_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__loc_id <= 0) FUZZ_BAIL();\n\nsize_t bufsize = FUZZ_PARAM(size_t);\nchar *buf = (char *)gf_malloc(bufsize);\nif (bufsize > 0 && buf == NULL) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(10);\n\nint ret = H5Gget_comment(__loc_id, name, bufsize, buf);\nif (ret < 0) { gf_free(buf); FUZZ_BAIL(); }\n\n// Handle the retrieved comment if needed (not specified in task)\n\ngf_free(buf);"
+    },
+    {
+      "name": "H5Gget_linkval_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "if (__loc_id < 0) FUZZ_BAIL();\n\nsize_t size = FUZZ_PARAM(size_t);\nconst char *name = FUZZ_PARAM_FILE(1024);\nchar *buf = (char *)gf_malloc(size);\nif (!buf) FUZZ_BAIL();\n\nherr_t ret = H5Gget_linkval(__loc_id, name, size, buf);\nif (ret < 0) {\n    gf_free(buf);\n    FUZZ_BAIL();\n}\n\n// Process buf if needed, before free.\ngf_free(buf);"
+    },
+    {
+      "name": "H5Gcreate2_v0",
+      "variables": [
+        {
+          "name": "__loc_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__lcpl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__gcpl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__gapl_id",
+          "dir": "*",
+          "typ": "hid_t"
+        },
+        {
+          "name": "__return",
+          "dir": "new",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "    // Generate a random name for the group\n    const char *name = FUZZ_PARAM_STR(64);\n    // Initialize the return variable\n    __return = H5I_INVALID_HID;\n    // Invoke the H5Gcreate2 function\n    hid_t result = H5Gcreate2(__loc_id, name, __lcpl_id, __gcpl_id, __gapl_id);\n    // Check the result for errors\n    if (result < 0) {\n        FUZZ_BAIL();\n    }\n    // Set the output variable to the result\n    __return = result;\n"
+    },
+    {
+      "name": "new H5G_stat_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "H5G_stat_t"
+        }
+      ],
+      "template": "hid_t loc_id = FUZZ_PARAM(hid_t);\nconst char *name = FUZZ_PARAM_STR(32);\nsize_t size_hint = FUZZ_PARAM(size_t);\n\n// Initialize output object\nmemset(&object, 0, sizeof(H5G_stat_t));\n\n// Create the group using the library API\nhid_t group_id = H5Gcreate2(loc_id, name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);\nif (group_id < 0) {\n    FUZZ_BAIL();\n}\n\n// Optionally obtain object information\n// Assuming this function or similar exists to fill object stats from the created group\nif (H5Gget_objinfo(group_id, name, 0, &object) < 0) {\n    H5Gclose(group_id);\n    FUZZ_BAIL();\n}\n\n// Cleanup\nH5Gclose(group_id);"
+    },
+    {
+      "name": "new H5G_iterate_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "H5G_iterate_t"
+        }
+      ],
+      "template": "hid_t group_id;\nint *idx_p = NULL;\n\n// Set some parameter values for the H5Giterate call\nconst char *name = FUZZ_PARAM_STR(255);\n\n// Call H5Giterate to initialize and manipulate the object\nherr_t ret_value = H5Giterate(group_id, name, idx_p, object, NULL);\n\nif (ret_value < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new H5G_obj_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "H5G_obj_t"
+        }
+      ],
+      "template": "hid_t loc_id = 0; // Assuming a valid location ID for the group creation\nconst char *name = FUZZ_PARAM_STR(20); // Random name for the group\nsize_t size_hint = FUZZ_PARAM(size_t); // Random size hint\n\n// Create the group (H5Gcreate1 uses the name and size_hint)\nhid_t group_id = H5Gcreate1(loc_id, name, size_hint);\nif (group_id < 0) {\n    FUZZ_BAIL();\n}\n\n// Successfully created a group, let's determine its object type\nobject = H5G_DATASET; // This will depend on the context; setting it to a valid type.\n\n// Clean up by closing the group\nif (H5Gclose(group_id) < 0) {\n    FUZZ_BAIL();\n}"
+    },
+    {
+      "name": "new H5G_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "new",
+          "typ": "H5G_info_t *"
+        }
+      ],
+      "template": "hid_t loc_id = FUZZ_PARAM(hid_t);\nconst char *name = FUZZ_PARAM_FILE(100); // Assuming a maximum name length of 100 bytes\nhid_t lcpl_id = FUZZ_PARAM(hid_t);\nhid_t gcpl_id = FUZZ_PARAM(hid_t);\nhid_t gapl_id = FUZZ_PARAM(hid_t);\n\n// Create a new group and link it into the file, checking for success.\nhid_t group_id = H5Gcreate2(loc_id, name, lcpl_id, gcpl_id, gapl_id);\nif (group_id < 0) {\n    FUZZ_BAIL();\n}\n\n// Now retrieve the information about the newly created group.\nif (H5Gget_info(group_id, object) < 0) {\n    FUZZ_BAIL();\n}\n\n// Successful operation, no need for additional cleanup as no temporary allocations were made that require freeing."
+    },
+    {
+      "name": "delete H5I_iterate_func_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5I_iterate_func_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5I_free_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5I_free_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5I_search_func_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5I_search_func_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete hid_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "hid_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5G_stat_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5G_stat_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5G_iterate_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5G_iterate_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5G_obj_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5G_obj_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5I_type_t",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5I_type_t"
+        }
+      ],
+      "template": "// empty"
+    },
+    {
+      "name": "delete H5G_info_t *",
+      "variables": [
+        {
+          "name": "object",
+          "dir": "del",
+          "typ": "H5G_info_t *"
+        }
+      ],
+      "template": "// empty"
+    }
+  ]
+}

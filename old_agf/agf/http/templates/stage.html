@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}AGF - Stage {{ stage }} Details{% endblock %}
+
+{% block header %}Stage {{ stage }} Details{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        line-height: 1.4;
+    }
+    a {
+        color: #0033cc;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    .back-link {
+        margin-bottom: 10px;
+        display: inline-block;
+    }
+    .crash-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 14px;
+    }
+    .crash-table th, .crash-table td {
+        border: 1px solid #ccc;
+        padding: 5px 8px;
+        text-align: left;
+    }
+    .crash-table th {
+        background-color: #eee;
+    }
+    .crash-count {
+        color: #c00;
+    }
+    .status-badge {
+        display: inline-block;
+        padding: 2px 4px;
+        font-size: 12px;
+        border-radius: 2px;
+    }
+    .status-reproduced {
+        background-color: #e8f5fd;
+        color: #0078d4;
+        border: 1px solid #b3dbff;
+    }
+    .status-minimized {
+        background-color: #e6ffed;
+        color: #1a7f37;
+        border: 1px solid #b7ecc5;
+    }
+    .section {
+        margin-bottom: 20px;
+    }
+    .view-link {
+        font-size: 12px;
+    }
+    .timestamp {
+        color: #666;
+        font-size: 12px;
+    }
+    .time-col {
+        white-space: nowrap;
+        width: 110px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stage-details">
+    <div class="section">
+        <p>
+            <a href="{{ url_for('index') }}" class="back-link">&laquo; Back to all stages</a>
+        </p>
+        <p>Stage {{ stage }} - Created: {{ stage_details.stage.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p>Coverage: {{ stage_details.stage.coverage_percent }}%</p>
+    </div>
+    
+    <div class="section">
+        <h3>Crashes ({{ stage_details.crash_buckets|length }})</h3>
+        {% if stage_details.crash_buckets %}
+            <table class="crash-table">
+                <thead>
+                    <tr>
+                        <th class="time-col">First Seen</th>
+                        <th class="time-col">Last Seen</th>
+                        <th>Hash</th>
+                        <th>Crash Type</th>
+                        <th>Count</th>
+                        <th>Status</th>
+                        <th>Repro</th>
+                        <th>Minimized</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for bucket in stage_details.crash_buckets %}
+                    <tr>
+                        <td class="timestamp">{{ bucket.first_found_at|time_ago }}</td>
+                        <td class="timestamp">{{ bucket.last_found_at|time_ago }}</td>
+                        <td>{{ bucket.hsh }}</td>
+                        <td>{{ bucket.info }}</td>
+                        <td>
+                            <a href="{{ url_for('crash_details', stage=stage, hash=bucket.hsh) }}" class="crash-count">
+                                {{ bucket.crash_count }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if bucket.has_reproduced %}
+                                <span class="status-badge status-reproduced">reproduced</span>
+                            {% endif %}
+                            {% if bucket.has_minimized %}
+                                <span class="status-badge status-minimized">minimized</span>
+                            {% endif %}
+                            {% if not bucket.has_reproduced and not bucket.has_minimized %}
+                                <span class="status-badge">raw</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if bucket.has_reproduced %}
+                                <a href="{{ url_for('view_reproducer', stage=stage, hash=bucket.hsh) }}" class="view-link">view</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if bucket.has_minimized %}
+                                <a href="{{ url_for('view_minimized', stage=stage, hash=bucket.hsh) }}" class="view-link">view</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>No crashes found in this stage.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

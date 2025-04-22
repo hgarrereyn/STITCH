@@ -25,8 +25,8 @@ use libafl_targets::{
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::components::{filter_reloader::FilterReloaderStage, filtered_mutator::FilteredMutator, graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate}, runtime_metadata::{MetadataLoggerStage, RuntimeMetadata}};
-use gf_core::{filter::FilterManager, harness::{Harness, InvokeResult}, mutation::MutationContext, schema::Schema};
+use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, runtime_metadata::{MetadataLoggerStage, RuntimeMetadata}};
+use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec};
 
 /// The actual fuzzer
 pub fn fuzz(
@@ -153,29 +153,36 @@ pub fn fuzz(
         5,
     )?;
 
-    let filter_dir = filter_dir.unwrap_or(PathBuf::from("."));
-    let filter_manager = Rc::new(RefCell::new(FilterManager::new(filter_dir.to_string_lossy().to_string()).unwrap()));
-    (*filter_manager).borrow_mut().reload(true);
-
-    let reloader = FilterReloaderStage::new(filter_manager.clone(), Duration::from_secs(10), true);
+    // let graph_mutator = StdMutationalStage::new(
+    //     FilteredMutator::new(
+    //         filter_manager,
+    //         ctx.clone(),
+    //         StdMOptMutator::new(
+    //             &mut state,
+    //             tuple_list!(
+    //                 GraphMutateDeleteOne::new(ctx.clone()),
+    //                 GraphMutateIsolateComponent::new(ctx.clone()),
+    //                 GraphMutateRegenerate::new(ctx.clone()),
+    //                 GraphMutateAddOne::new(ctx.clone()),
+    //             ),
+    //             7,
+    //             5,
+    //         )?,
+    //         10
+    //     ),
+    // );
 
     let graph_mutator = StdMutationalStage::new(
-        FilteredMutator::new(
-            filter_manager,
-            ctx.clone(),
-            StdMOptMutator::new(
-                &mut state,
-                tuple_list!(
-                    GraphMutateDeleteOne::new(ctx.clone()),
-                    GraphMutateIsolateComponent::new(ctx.clone()),
-                    GraphMutateRegenerate::new(ctx.clone()),
-                    GraphMutateAddOne::new(ctx.clone()),
-                ),
-                7,
-                5,
-            )?,
-            10
-        ),
+        GraphMutatorSelector::new(
+            0.02,
+            3,
+            tuple_list!(
+                GraphMutateDeleteOne::new(ctx.clone()),
+                GraphMutateIsolateComponent::new(ctx.clone()),
+                GraphMutateRegenerate::new(ctx.clone()),
+                GraphMutateAddOne::new(ctx.clone()),
+            )
+        )
     );
 
     let context_stage = StdMutationalStage::new(
@@ -290,7 +297,6 @@ pub fn fuzz(
 
     let mut stages = tuple_list!(
         metadata_logger,
-        reloader,
         graph_mutator,
         tracing,
         i2s,

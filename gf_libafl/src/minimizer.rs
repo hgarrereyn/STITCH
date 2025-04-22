@@ -5,7 +5,7 @@ use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventRestarter, SimpleRe
 use libafl_bolts::{rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::tuple_list};
 
 use crate::components::graph_input::GraphInput;
-use gf_core::{harness::Harness, mutation::MutationContext, schema::Schema};
+use gf_core::{harness::Harness, mutation::MutationContext};
 
 
 pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness: Harness, full_write: bool, ctx: Rc<MutationContext>) {

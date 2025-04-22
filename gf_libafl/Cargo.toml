@@ -16,7 +16,6 @@ lto = true
 
 [dependencies]
 gf_core = { path = "../gf_core" }
-pyo3 = { version = "0.23.4", features = ["auto-initialize"] }
 
 libafl = { version = "0.14.1" }
 libafl_cc = { version = "0.14.1" }

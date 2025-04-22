@@ -1,6 +1,6 @@
-gf_core/target/
-gf_libafl/target/
-gf_synth/target/
+**/target/
+**/target/
+**/target/
 **/.cache
 **/.DS_Store
 **/*.egg-info

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block header %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        line-height: 1.4;
+    }
+    a {
+        color: #0033cc;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    .back-link {
+        margin-bottom: 10px;
+        display: inline-block;
+    }
+    .code-container {
+        background-color: #f8f8f8;
+        padding: 10px;
+        border: 1px solid #ddd;
+        font-family: monospace;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        font-size: 13px;
+        margin-top: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="code-view">
+    <p>
+        <a href="{{ back_url }}" class="back-link">&laquo; Back</a>
+    </p>
+    
+    <div class="code-container">{{ code }}</div>
+</div>
+{% endblock %} 
