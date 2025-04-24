@@ -83,8 +83,8 @@ impl PartialEq for PEndpoint {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PVariableMapping {
     pub name: String,
-    pub in_idx: Option<usize>,
-    pub out_idx: Option<usize>,
+    pub in_idx: usize,
+    pub out_idx: usize,
 }
 
 impl PSpec {

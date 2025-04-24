@@ -30,6 +30,7 @@ def decref(a: A):
     a.refcount -= 1
 
 def del_a(a: A):
+    assert a.refcount == 0
     pass
 
 def sub_a(a: A) -> B:
@@ -166,7 +167,9 @@ funcs = []
 
 for i in range(1):
     funcs.extend([
-        Func(name=f'init_{i}', inputs=[], outputs=[0], effects=[EffectSetField(output_idx=0, attr='refcount', value=2)]),
+        Func(name=f'init_{i}', inputs=[], outputs=[0], effects=[
+            EffectSetField(output_idx=0, attr='refcount', value=2)]
+        ),
         Func(name=f'new_a_{i}', inputs=[], outputs=[0], effects=[EffectSetField(output_idx=0, attr='refcount', value=2)]),
         Func(name=f'use_a_{i}', inputs=[0], outputs=[0], mappings=[(0,0)]),
         Func(name=f'incref_{i}', inputs=[0], outputs=[0], mappings=[(0,0)], effects=[EffectIncField(output_idx=0, attr='refcount')]),
@@ -179,7 +182,7 @@ for i in range(1):
         Func(name=f'sub_a_{i}', inputs=[0], outputs=[1,0], mappings=[(0,1)], effects=[
             EffectSetField(output_idx=0, attr='state', value='initialized'),
         ], constraints=[
-            ConstraintOutlives(object_idx_a=1, object_idx_b=0)
+            ConstraintOutlives(object_idx_a=0, object_idx_b=1)
         ]),
         Func(name=f'new_b_{i}', inputs=[], outputs=[1], effects=[EffectSetField(output_idx=0, attr='state', value='initialized')]),
         Func(name=f'prepare_b_{i}', inputs=[1], outputs=[1], mappings=[(0,0)], effects=[EffectSetField(output_idx=0, attr='state', value='prepared')]),

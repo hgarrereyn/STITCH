@@ -8,6 +8,9 @@ use pest::Parser;
 use pest_derive::Parser;
 use colored::Colorize;
 use serde::{Serialize, Deserialize};
+use smtlib::{Bool, Sorted, Storage};
+
+use crate::sampler::sampler::{EnumAttr, FieldAttr, IntAttr};
 
 // ────────────────────────────────────────────────────────────────────────────────
 //  Grammar
@@ -152,6 +155,113 @@ pub struct Assignment {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Constraint {
     pub expr: BoolExpr,
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+//  Evaluation
+// ────────────────────────────────────────────────────────────────────────────────
+
+pub struct EvalCtx<'a> {
+    pub st: &'a Storage,
+    pub vars: HashMap<Leaf, FieldAttr<'a>>,
+    pub enums: HashMap<String, EnumDef>,
+}
+
+impl<'a> Expr {
+    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+        match self {
+            Expr::Int(e) => e.eval(ctx),
+            Expr::Enum(e) => e.eval(ctx),
+        }
+    }
+}
+
+impl<'a> IntExpr {
+    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+        match self {
+            IntExpr::Atom(a) => a.eval(ctx),
+            IntExpr::Add(l, r) => {
+                let l = l.eval(ctx).int_val();
+                let r = r.eval(ctx).int_val();
+                FieldAttr::VarInt(IntAttr::new_var(&ctx.st, l + r))
+            },
+            IntExpr::Sub(l, r) => {
+                let l = l.eval(ctx).int_val();
+                let r = r.eval(ctx).int_val();
+                FieldAttr::VarInt(IntAttr::new_var(&ctx.st, l - r))
+            },
+        }
+    }
+}
+
+impl<'a> IntAtom {
+    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+        match self {
+            IntAtom::IntLit(i) => FieldAttr::VarInt(IntAttr::new_const(&ctx.st, *i)),
+            IntAtom::Leaf(l) => ctx.vars[l].clone(),
+            IntAtom::Expr(e) => e.eval(ctx),
+        }
+    }
+}
+
+impl<'a> EnumExpr {
+    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+        match self {
+            EnumExpr::Leaf(l) => ctx.vars[l].clone(),
+            EnumExpr::Variant { enum_name, variant } => {
+                let enum_def = ctx.enums.get(enum_name.as_ref().unwrap()).unwrap();
+                let variant_idx = enum_def.variants.iter().position(|v| v == variant).unwrap();
+                FieldAttr::VarEnum(EnumAttr::new_var(&ctx.st, enum_def.variants.len(), variant_idx))
+            },
+        }
+    }
+}
+
+impl<'a> BoolExpr {
+    pub fn eval(&self, ctx: &EvalCtx<'a>) -> Bool<'a> {
+        match self {
+            BoolExpr::Atom(a) => a.eval(ctx),
+            BoolExpr::And(l, r) => {
+                let l = l.eval(ctx);
+                let r = r.eval(ctx);
+                l & r
+            },
+            BoolExpr::Or(l, r) => {
+                let l = l.eval(ctx);
+                let r = r.eval(ctx);
+                l | r
+            },
+        }
+    }
+}
+
+impl<'a> BoolAtom {
+    pub fn eval(&self, ctx: &EvalCtx<'a>) -> Bool<'a> {
+        match self {
+            BoolAtom::Expr(e) => e.eval(ctx),
+            BoolAtom::Cmp(l, op, r) => {
+                let l = l.eval(ctx);
+                let r = r.eval(ctx);
+
+                let l_int = l.int_val();
+                let r_int = r.int_val();
+
+                match op {
+                    CmpOp::Eq => l_int._eq(r_int),
+                    CmpOp::Ne => l_int._neq(r_int),
+                    CmpOp::Gt => l_int.gt(r_int),
+                    CmpOp::Ge => l_int.ge(r_int),
+                    CmpOp::Lt => l_int.lt(r_int),
+                    CmpOp::Le => l_int.le(r_int),
+                }
+            },
+            BoolAtom::EnumIs(e1, e2) => {
+                let e1 = e1.eval(ctx);
+                let e2 = e2.eval(ctx);
+                e1.eq(&e2)
+            },
+        }
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -346,7 +456,7 @@ pub enum Ty {
 #[derive(Clone, Debug)]
 pub struct EnumDef {
     pub name: String,
-    pub variants: HashSet<String>,
+    pub variants: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -668,7 +778,7 @@ impl<'a> ParserWithCtx<'a> {
 
     fn validate_variant(&self, enum_name: &str, variant: &str) -> Result<(), GrammarError> {
         match self.ctx.lookup_enum(enum_name) {
-            Some(ed) if ed.variants.contains(variant) => Ok(()),
+            Some(ed) if ed.variants.contains(&variant.to_string()) => Ok(()),
             _ => Err(GrammarError::UnknownEnumVariant {
                 enum_name: enum_name.to_string(),
                 variant: variant.to_string(),

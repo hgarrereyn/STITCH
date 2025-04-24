@@ -194,8 +194,8 @@ impl Endpoint {
                         output_vars.push(v.name.clone());
                         mappings.push(PVariableMapping {
                             name: v.name.clone(),
-                            in_idx: Some(inputs.len() - 1),
-                            out_idx: Some(outputs.len() - 1),
+                            in_idx: inputs.len() - 1,
+                            out_idx: outputs.len() - 1,
                         });
                     } else {
                         args.push(v.typ.clone());
@@ -207,11 +207,11 @@ impl Endpoint {
                         outputs.push(*idx);
                         template = template.replace(&format!("@@{}@@", v.name), &format!("$o{}", outputs.len() - 1));
                         output_vars.push(v.name.clone());
-                        mappings.push(PVariableMapping {
-                            name: v.name.clone(),
-                            in_idx: None,
-                            out_idx: Some(outputs.len() - 1),
-                        });
+                        // mappings.push(PVariableMapping {
+                        //     name: v.name.clone(),
+                        //     in_idx: None,
+                        //     out_idx: Some(outputs.len() - 1),
+                        // });
                     } else {
                         // Ignore new arg types
                         // TODO: warning
@@ -224,11 +224,11 @@ impl Endpoint {
                         inputs.push(*idx);
                         template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
                         input_vars.push(v.name.clone());
-                        mappings.push(PVariableMapping {
-                            name: v.name.clone(),
-                            in_idx: Some(inputs.len() - 1),
-                            out_idx: None,
-                        });
+                        // mappings.push(PVariableMapping {
+                        //     name: v.name.clone(),
+                        //     in_idx: Some(inputs.len() - 1),
+                        //     out_idx: None,
+                        // });
                     } else {
                         // Ignore del arg types
                         // TODO: warning
@@ -573,8 +573,8 @@ mod tests {
             output_vars: vec!["z".to_string()],
             mappings: vec![PVariableMapping {
                 name: "z".to_string(),
-                in_idx: Some(0),
-                out_idx: Some(0),
+                in_idx: 0,
+                out_idx: 0,
             }],
             preconditions: vec![Constraint {
                 expr: BoolExpr::Atom(BoolAtom::Cmp(IntExpr::Atom(IntAtom::Leaf(Leaf::Var("z".to_string(), "x".to_string()))), CmpOp::Gt, IntExpr::Atom(IntAtom::IntLit(0))))
