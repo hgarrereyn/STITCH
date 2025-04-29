@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-use crate::{graph::{Graph, Node, NodeRef, NodeRefType}, pspec::PSpec};
+use crate::{graph::{Graph, Node, NodeRef, NodeRefType}, pspec::{self, PSpec}};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,7 +101,7 @@ impl SGraph {
         dot
     }
 
-    pub fn to_graph(&self) -> Graph {
+    pub fn to_graph(&self, pspec: &PSpec) -> Graph {
         let mut nodes = Vec::new();
 
         for (node_idx, node) in self.nodes.iter().enumerate() {
@@ -115,13 +115,15 @@ impl SGraph {
                 conn_idx: e.other_conn_idx,
             })).collect();
 
+            let context_size = pspec.endpoints[node.func_idx].context_size.unwrap_or(0);
+
             nodes.push(Node {
                 index: node_idx,
                 typ: node.func_idx,
                 layer: node_idx as isize,
                 in_ref,
                 out_ref,
-                context: Vec::new(),
+                context: vec![0; context_size],
             });
         }
 

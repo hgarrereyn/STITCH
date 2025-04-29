@@ -48,6 +48,8 @@ pub struct PEndpoint {
 
     pub preconditions: Vec<Constraint>,
     pub effects: Vec<Assignment>,
+    pub role: PEndpointRole,
+    pub outlives: Vec<POutlivesConstraint>,
 
     // Filled in at runtime
     pub context_size: Option<usize>,
@@ -68,6 +70,8 @@ impl Default for PEndpoint {
             preconditions: vec![],
             effects: vec![],
             context_size: None,
+            role: PEndpointRole::None,
+            outlives: vec![],
         }
     }
 }
@@ -95,6 +99,19 @@ impl PSpec {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PEndpointRole {
+    None,
+    LibraryInitializer,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct POutlivesConstraint {
+    pub a: String,
+    pub b: String,
+}
+
 
 // ────────────────────────────────────────────────────────────────────────────────
 //  Pretty printing
@@ -143,6 +160,15 @@ impl PSpec {
             for effect in &endpoint.effects {
                 s.push_str(&format!("    {}\n", effect.pprint()));
             }
+
+            // role
+            s.push_str(&format!("  Role: {:?}\n", endpoint.role));
+            // outlives
+            s.push_str("  Outlives:\n");
+            for outlives in &endpoint.outlives {
+                s.push_str(&format!("    {} > {}\n", outlives.a, outlives.b));
+            }
+
             s.push_str("--------------------------------\n");
             s.push_str(&format!("{}\n", endpoint.template));
             s.push_str("--------------------------------\n");

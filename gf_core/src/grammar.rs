@@ -1,16 +1,21 @@
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 use colored::Colorize;
+use rustsat::instances::SatInstance;
+use rustsat::types::Var;
 use serde::{Serialize, Deserialize};
-use smtlib::{Bool, Sorted, Storage};
 
-use crate::sampler::sampler::{EnumAttr, FieldAttr, IntAttr};
+use crate::sampler::expr::FieldAttr;
+use crate::sampler::util::{and_clause, or_clause};
+
 
 // ────────────────────────────────────────────────────────────────────────────────
 //  Grammar
@@ -161,14 +166,14 @@ pub struct Constraint {
 //  Evaluation
 // ────────────────────────────────────────────────────────────────────────────────
 
-pub struct EvalCtx<'a> {
-    pub st: &'a Storage,
-    pub vars: HashMap<Leaf, FieldAttr<'a>>,
+pub struct EvalCtx {
+    pub vars: HashMap<Leaf, FieldAttr>,
     pub enums: HashMap<String, EnumDef>,
+    pub instance: Rc<RefCell<SatInstance>>,
 }
 
-impl<'a> Expr {
-    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+impl Expr {
+    pub fn eval(&self, ctx: &EvalCtx) -> FieldAttr {
         match self {
             Expr::Int(e) => e.eval(ctx),
             Expr::Enum(e) => e.eval(ctx),
@@ -176,89 +181,87 @@ impl<'a> Expr {
     }
 }
 
-impl<'a> IntExpr {
-    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+impl IntExpr {
+    pub fn eval(&self, ctx: &EvalCtx) -> FieldAttr {
         match self {
             IntExpr::Atom(a) => a.eval(ctx),
             IntExpr::Add(l, r) => {
-                let l = l.eval(ctx).int_val();
-                let r = r.eval(ctx).int_val();
-                FieldAttr::VarInt(IntAttr::new_var(&ctx.st, l + r))
+                let l = l.eval(ctx);
+                let r = r.eval(ctx);
+                println!("Adding {:?} and {:?}", l, r);
+                l.add(&r, &mut ctx.instance.borrow_mut())
             },
             IntExpr::Sub(l, r) => {
-                let l = l.eval(ctx).int_val();
-                let r = r.eval(ctx).int_val();
-                FieldAttr::VarInt(IntAttr::new_var(&ctx.st, l - r))
+                let l = l.eval(ctx);
+                let r = r.eval(ctx);
+                l.sub(&r, &mut ctx.instance.borrow_mut())
             },
         }
     }
 }
 
-impl<'a> IntAtom {
-    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+impl IntAtom {
+    pub fn eval(&self, ctx: &EvalCtx) -> FieldAttr {
         match self {
-            IntAtom::IntLit(i) => FieldAttr::VarInt(IntAttr::new_const(&ctx.st, *i)),
+            IntAtom::IntLit(i) => FieldAttr::const_int(&mut ctx.instance.borrow_mut(), *i as u32),
             IntAtom::Leaf(l) => ctx.vars[l].clone(),
             IntAtom::Expr(e) => e.eval(ctx),
         }
     }
 }
 
-impl<'a> EnumExpr {
-    pub fn eval(&self, ctx: &EvalCtx<'a>) -> FieldAttr<'a> {
+impl EnumExpr {
+    pub fn eval(&self, ctx: &EvalCtx) -> FieldAttr {
         match self {
             EnumExpr::Leaf(l) => ctx.vars[l].clone(),
             EnumExpr::Variant { enum_name, variant } => {
                 let enum_def = ctx.enums.get(enum_name.as_ref().unwrap()).unwrap();
                 let variant_idx = enum_def.variants.iter().position(|v| v == variant).unwrap();
-                FieldAttr::VarEnum(EnumAttr::new_var(&ctx.st, enum_def.variants.len(), variant_idx))
+                FieldAttr::const_enum(&mut ctx.instance.borrow_mut(), enum_def.variants.clone(), variant_idx)
             },
         }
     }
 }
 
-impl<'a> BoolExpr {
-    pub fn eval(&self, ctx: &EvalCtx<'a>) -> Bool<'a> {
+impl BoolExpr {
+    pub fn eval(&self, ctx: &EvalCtx) -> Var {
         match self {
             BoolExpr::Atom(a) => a.eval(ctx),
             BoolExpr::And(l, r) => {
                 let l = l.eval(ctx);
                 let r = r.eval(ctx);
-                l & r
+                and_clause(&mut ctx.instance.borrow_mut(), &[l, r])
             },
             BoolExpr::Or(l, r) => {
                 let l = l.eval(ctx);
                 let r = r.eval(ctx);
-                l | r
+                or_clause(&mut ctx.instance.borrow_mut(), &[l, r])
             },
         }
     }
 }
 
-impl<'a> BoolAtom {
-    pub fn eval(&self, ctx: &EvalCtx<'a>) -> Bool<'a> {
+impl BoolAtom {
+    pub fn eval(&self, ctx: &EvalCtx) -> Var {
         match self {
             BoolAtom::Expr(e) => e.eval(ctx),
             BoolAtom::Cmp(l, op, r) => {
                 let l = l.eval(ctx);
                 let r = r.eval(ctx);
 
-                let l_int = l.int_val();
-                let r_int = r.int_val();
-
                 match op {
-                    CmpOp::Eq => l_int._eq(r_int),
-                    CmpOp::Ne => l_int._neq(r_int),
-                    CmpOp::Gt => l_int.gt(r_int),
-                    CmpOp::Ge => l_int.ge(r_int),
-                    CmpOp::Lt => l_int.lt(r_int),
-                    CmpOp::Le => l_int.le(r_int),
+                    CmpOp::Eq => l.eq(&r, &mut ctx.instance.borrow_mut()),
+                    CmpOp::Ne => l.ne(&r, &mut ctx.instance.borrow_mut()),
+                    CmpOp::Gt => l.gt(&r, &mut ctx.instance.borrow_mut()),
+                    CmpOp::Ge => l.ge(&r, &mut ctx.instance.borrow_mut()),
+                    CmpOp::Lt => l.lt(&r, &mut ctx.instance.borrow_mut()),
+                    CmpOp::Le => l.le(&r, &mut ctx.instance.borrow_mut()),
                 }
             },
             BoolAtom::EnumIs(e1, e2) => {
                 let e1 = e1.eval(ctx);
                 let e2 = e2.eval(ctx);
-                e1.eq(&e2)
+                e1.eq(&e2, &mut ctx.instance.borrow_mut())
             },
         }
     }

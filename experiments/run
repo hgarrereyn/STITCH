@@ -40,6 +40,12 @@ def run(args):
     cmd = ['docker', 'run', '--name', f'agf-experiment-{args.experiment}', '--privileged', '-it'] + pkeys + ['-p', f'{args.port}:{args.port}']
     if args.detach:
         cmd += ['-d']
+    
+    # Check if experiment src directory exists and mount it
+    exp_src_path = Path(args.experiment) / 'src'
+    if exp_src_path.exists():
+        cmd += ['-v', f'{exp_src_path.absolute()}:/fuzz/src']
+    
     if args.mount:
         mount_path = Path('..') / args.mount
         if not mount_path.exists():

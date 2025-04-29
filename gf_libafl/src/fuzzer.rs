@@ -2,7 +2,7 @@ use core::{cell::RefCell, time::Duration};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::{
-    borrow::BorrowMut, fs::{File, OpenOptions}, io::{self, Write}, path::PathBuf, process, rc::Rc, sync::Arc
+    borrow::BorrowMut, fs::{File, OpenOptions}, io::{self, Write}, num::NonZeroUsize, path::PathBuf, process, rc::Rc, sync::Arc
 };
 use tempfile;
 
@@ -25,8 +25,8 @@ use libafl_targets::{
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, runtime_metadata::{MetadataLoggerStage, RuntimeMetadata}};
-use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec};
+use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::GraphMutateSolver, runtime_metadata::{MetadataLoggerStage, RuntimeMetadata}};
+use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, sampler::{encoder::EncoderConfig, multisampler::MultiSampler}};
 
 /// The actual fuzzer
 pub fn fuzz(
@@ -141,8 +141,9 @@ pub fn fuzz(
     println!("Let's fuzz :)");
 
     // Setup a randomic Input2State stage
-    let i2s = StdMutationalStage::new(
+    let i2s = StdMutationalStage::with_max_iterations(
         GraphMutateBytes::new(ctx.clone(), StdScheduledMutator::new(tuple_list!(I2SRandReplace::new()))),
+        NonZeroUsize::new(1).unwrap()
     );
 
     // Setup a MOPT mutator
@@ -172,16 +173,31 @@ pub fn fuzz(
     //     ),
     // );
 
+    // let graph_mutator = StdMutationalStage::new(
+    //     GraphMutatorSelector::new(
+    //         0.02,
+    //         3,
+    //         tuple_list!(
+    //             GraphMutateDeleteOne::new(ctx.clone()),
+    //             GraphMutateIsolateComponent::new(ctx.clone()),
+    //             GraphMutateRegenerate::new(ctx.clone()),
+    //             GraphMutateAddOne::new(ctx.clone()),
+    //         )
+    //     )
+    // );
+
+    let mut ms = MultiSampler::new(&ctx.pspec, EncoderConfig::default());
+
+    let initial_seed = ms.sample_one();
+    let initial_seed_input = GraphInput {
+        graph: initial_seed.unwrap().to_graph(&ctx.pspec),
+    };
+
     let graph_mutator = StdMutationalStage::new(
-        GraphMutatorSelector::new(
-            0.02,
-            3,
-            tuple_list!(
-                GraphMutateDeleteOne::new(ctx.clone()),
-                GraphMutateIsolateComponent::new(ctx.clone()),
-                GraphMutateRegenerate::new(ctx.clone()),
-                GraphMutateAddOne::new(ctx.clone()),
-            )
+        GraphMutateSolver::new(
+            ctx.pspec.clone(),
+            ms,
+            0.02
         )
     );
 
@@ -332,13 +348,7 @@ pub fn fuzz(
 
     // If corpus is empty, add a seed
     if state.corpus().count() == 0 {
-        let g = ctx.generate();
-
-        let input = GraphInput {
-            graph: g,
-        };
-
-        fuzzer.add_input(&mut state, &mut executor, &mut mgr, input)?;
+        fuzzer.add_input(&mut state, &mut executor, &mut mgr, initial_seed_input)?;
     }
 
     // Remove target output (logs still survive)

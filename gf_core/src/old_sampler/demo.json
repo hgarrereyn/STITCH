@@ -1,0 +1,64 @@
+{
+    "objects": [
+        {
+            "name": "number",
+            "attrs": [
+                {
+                    "name": "x",
+                    "type": "int"
+                },
+                {
+                    "name": "state",
+                    "type": "enum",
+                    "variants": ["FULL", "EMPTY"]
+                }
+            ]
+        }
+    ],
+    "endpoints": [
+        {
+            "name": "new_number",
+            "variables": [{ "name": "z", "typ": "number", "dir": "new" }],
+            "template": "z = new_number();",
+            "preconditions": [],
+            "effects": [
+                "z.x := 1",
+                "z.state := FULL"
+            ]
+        },   
+        {
+            "name": "merge_number",
+            "variables": [
+                { "name": "z", "typ": "number", "dir": "*" },
+                { "name": "w", "typ": "number", "dir": "*" }
+            ],
+            "template": "merge_number(z, w);",
+            "preconditions": [],
+            "effects": [
+                "z.x := z.x + w.x",
+                "z.state := FULL",
+                "w.x := 0",
+                "w.state := EMPTY"
+            ]
+        },
+        {
+            "name": "discard_number",
+            "variables": [{ "name": "z", "typ": "number", "dir": "del" }],
+            "template": "discard_number(z);",
+            "preconditions": [
+                "z.state is EMPTY"
+            ],
+            "effects": []
+        },
+        {
+            "name": "submit_number",
+            "variables": [{ "name": "z", "typ": "number", "dir": "del" }],
+            "template": "submit_number(z);",
+            "preconditions": [
+                "z.x == 4",
+                "z.state is FULL"
+            ],
+            "effects": []
+        }
+    ]
+}

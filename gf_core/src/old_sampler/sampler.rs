@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, sync::atomic::{AtomicUsize, Ordering}};
 
 use smtlib::{
     backend::z3_binary::Z3Binary, prelude::*, terms::{Const, StaticSorted}, Backend, Bool, Int, Model, SatResultWithModel, Solver, Storage
@@ -6,7 +6,7 @@ use smtlib::{
 
 use colored::Colorize;
 
-use crate::{grammar::{EnumDef, EvalCtx, Leaf}, pspec::{PAttr, PAttrType, PSpec}};
+use crate::{grammar::{EnumDef, EvalCtx, Leaf}, pspec::{PAttr, PAttrType, PEndpointRole, PSpec}};
 
 use super::sgraph::{SEdge, SGraph, SNode};
 
@@ -25,7 +25,6 @@ use super::sgraph::{SEdge, SGraph, SNode};
 pub struct Sampler<'st> {
     pub pspec: PSpec,
     pub st: &'st Storage,
-    pub solver: Solver<'st, Z3Binary>,
     pub config: SamplerConfig,
 
     // (node_idx, func_idx) -> Bool
@@ -56,6 +55,7 @@ pub struct Sampler<'st> {
     pub output_to_object: HashMap<(usize, usize, usize), Const<'st, Bool<'st>>>,
 }
 
+#[derive(Clone, Debug)]
 pub struct SamplerConfig {
     pub max_calls: usize,
     pub max_args: usize,
@@ -68,12 +68,83 @@ impl Default for SamplerConfig {
     }
 }
 
-fn at_most_one<'st, B: Backend>(s: &mut Solver<'st, B>, vars: &[&Bool<'st>]) {
+// def atMostN(X, n):
+//         # Output CNF clauses that ensure that no more than n of 
+//         # the literals in (the list) X are true
+//         # See Knuth: formulas (18) and (19)
+//         result = []
+//         S = [sat.newVars(len(X) - n) for k in range(n)]
+//         for j in range(0, len(X)-n):
+//             result.append([-X[j], S[0][j]])
+//             for k in range(0, n):
+//                 if k < n-1:
+//                     if j < len(X) - n - 1:
+//                         result.append([-S[k][j], S[k][j+1]])
+//                     result.append([-X[j+k+1], -S[k][j], S[k+1][j]]) 
+//                 else:
+//                     if j < len(X) - n - 1:
+//                         result.append([-S[k][j], S[k][j+1]]) 
+//                     result.append([-X[j+k+1], -S[k][j]]) 
+//         return result
+
+// Global AMN counter that gets incremented each time a new AMN is created
+static AMN_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+// fn at_most_n<'st, B: Backend>(s: &mut Solver<'st, B>, vars: &[&Bool<'st>], n: usize) {
+//     let S = (0..n).map(
+//         |i| (0..(vars.len() - n)).map(
+//             |j| Bool::new_const(s.st(), &format!("at_most_n_{}_{}_{}", AMN_COUNTER.fetch_add(1, Ordering::Relaxed), i, j))
+//         ).collect::<Vec<_>>()
+//     ).collect::<Vec<_>>();
+    
+//     for j in 0..(vars.len() - n) {
+//         s.assert(!*vars[j] | S[0][j]).unwrap();
+
+//         for k in 0..n {
+//             if k < n-1 {
+//                 if j < vars.len() - n - 1 {
+//                     s.assert(!*S[k][j] | *S[k][j+1]).unwrap();
+//                 }
+//                 s.assert(!*vars[j+k+1] | !*S[k][j] | *S[k+1][j]).unwrap();
+//             } else {
+//                 if j < vars.len() - n - 1 {
+//                     s.assert(!*S[k][j] | *S[k][j+1]).unwrap();
+//                 }
+//                 s.assert(!*vars[j+k+1] | !*S[k][j]).unwrap();
+//             }
+//         }
+//     }
+// }
+
+static AMO_BINARY_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn at_most_one_binary<'st, B: Backend>(s: &mut Solver<'st, B>, vars: &[&Bool<'st>]) {
+    let bs_size = (vars.len().ilog2() + 1) as usize;
+    
+    let S = (0..bs_size).map(
+        |i| Bool::new_const(s.st(), &format!("at_most_one_binary_{}_{}", AMO_BINARY_COUNTER.fetch_add(1, Ordering::Relaxed), i))
+    ).collect::<Vec<_>>();
+
     for i in 0..vars.len() {
-        for j in i+1..vars.len() {
-            s.assert(!(*vars[i] & *vars[j])).unwrap();
+        // Enforce binary representation of x_i
+        for j in 0..bs_size {
+            let val = (i >> j) & 1;
+            implies(s, vars[i], &S[j]._eq(Bool::new(s.st(), val == 1)));
         }
     }
+}
+
+fn at_most_one_pairwise<'st, B: Backend>(s: &mut Solver<'st, B>, vars: &[&Bool<'st>]) {
+    for i in 0..vars.len() {
+        for j in i+1..vars.len() {
+            s.assert(!*vars[i] | !*vars[j]).unwrap();
+        }
+    }
+}
+
+fn at_most_one<'st, B: Backend>(s: &mut Solver<'st, B>, vars: &[&Bool<'st>]) {
+    at_most_one_binary(s, vars);
+    // at_most_one_pairwise(s, vars);
 }
 
 fn exactly_one<'st, B: Backend>(s: &mut Solver<'st, B>, vars: &[&Bool<'st>]) {
@@ -234,11 +305,9 @@ fn get_idx<'st>(model: &Model, values: &[Const<'st, Bool<'st>>]) -> Option<usize
 
 impl<'st> Sampler<'st> {
     pub fn new(pspec: PSpec, st: &'st Storage, config: SamplerConfig) -> Self {
-        let solver = Solver::new(st, Z3Binary::new("z3").unwrap()).unwrap();
         Self {
             pspec,
             st,
-            solver,
             config,
             node_type: HashMap::new(),
             object_alive: HashMap::new(),
@@ -249,15 +318,15 @@ impl<'st> Sampler<'st> {
         }
     }
 
-    pub fn setup(&mut self) {
+    pub fn setup<B: Backend>(&mut self, solver: &mut Solver<'st, B>) {
         println!("Setting up sampler");
-        self.init_vars();
+        self.init_vars(solver);
         println!("Initialized variables");
-        self.init_constraints();
+        self.init_constraints(solver);
         println!("Initialized constraints");
     }
 
-    fn init_vars(&mut self) {
+    fn init_vars<B: Backend>(&mut self, solver: &mut Solver<'st, B>) {
         // Determine which function is called at each node
         for node_idx in 0..self.config.max_calls {
             for func_idx in 0..self.pspec.endpoints.len() {
@@ -295,7 +364,7 @@ impl<'st> Sampler<'st> {
                         self.object_attributes.insert(
                             (state_idx, instance_idx, attr.name.clone()),
                             FieldAttr::from_pattr(
-                                &mut self.solver,
+                                solver,
                                 &format!("attr_{}_{}_{}_{}", object_idx, attr_idx, state_idx, iter_idx),
                                 attr
                             )
@@ -340,47 +409,55 @@ impl<'st> Sampler<'st> {
         }
     }
 
-    fn init_constraints(&mut self) {
+    fn init_constraints<B: Backend>(&mut self, solver: &mut Solver<'st, B>) {
         // Each node must have exactly one function type
+        println!("[*] Initializing node type constraints");
         for node_idx in 0..self.config.max_calls {
             let vars: Vec<_> = self.node_type.iter()
                 .filter(|((k_node_idx, _), _)| node_idx == *k_node_idx)
                 .map(|(_, node_type)| &**node_type)
                 .collect();
-            exactly_one(&mut self.solver, &vars);
+            exactly_one(solver, &vars);
         }
 
         // First node must not be skipped
-        self.solver.assert(self.node_type[&(0, usize::MAX)]._eq(false)).unwrap();
+        solver.assert(self.node_type[&(0, usize::MAX)]._eq(false)).unwrap();
 
         // Skip cannot be followed by a non-skip node
+        println!("[*] Initializing skip constraints");
         for node_idx_a in 1..self.config.max_calls {
             for node_idx_b in node_idx_a+1..self.config.max_calls {
                 let skip_a = self.node_type[&(node_idx_a, usize::MAX)];
                 let skip_b = self.node_type[&(node_idx_b, usize::MAX)];
-                implies(&mut self.solver, &skip_a, &skip_b);
+                implies(solver, &skip_a, &skip_b);
             }
         }
 
         // Initial object states are dead
+        println!("[*] Initializing initial object state constraints");
         for object_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
-            self.solver.assert(self.object_alive[&(0, object_idx)]._eq(false)).unwrap();
+            solver.assert(self.object_alive[&(0, object_idx)]._eq(false)).unwrap();
         }
 
         // Final object states are dead
+        println!("[*] Initializing final object state constraints");
         for object_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
-            self.solver.assert(self.object_alive[&(self.config.max_calls, object_idx)]._eq(false)).unwrap();
+            solver.assert(self.object_alive[&(self.config.max_calls, object_idx)]._eq(false)).unwrap();
         }
 
         // Nothing is consumed at the start
+        println!("[*] Initializing initial object consumption constraints");
         for object_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
-            self.solver.assert(self.object_consumed[&(0, object_idx)]._eq(false)).unwrap();
+            solver.assert(self.object_consumed[&(0, object_idx)]._eq(false)).unwrap();
         }
 
         // Each input must be mapped to exactly one object (or disconnected)
+        println!("[*] Initializing input mapping constraints");
         for node_idx in 0..self.config.max_calls {
+            println!("[*] Initializing input mapping constraints for node {}", node_idx);
             for input_idx in 0..self.config.max_args {
-                exactly_one(&mut self.solver, &self.input_to_object.iter()
+                println!("[*] Initializing input mapping constraints for node {} input {}", node_idx, input_idx);
+                exactly_one(solver, &self.input_to_object.iter()
                     .filter(|((k_node_idx, k_input_idx, _), _)| node_idx == *k_node_idx && input_idx == *k_input_idx)
                     .map(|(_, input_to_object)| &**input_to_object)
                     .collect::<Vec<_>>().as_slice());
@@ -388,9 +465,12 @@ impl<'st> Sampler<'st> {
         }
 
         // Each output must be mapped to exactly one object (or disconnected)
+        println!("[*] Initializing output mapping constraints");
         for node_idx in 0..self.config.max_calls {
+            println!("[*] Initializing output mapping constraints for node {}", node_idx);
             for output_idx in 0..self.config.max_args {
-                exactly_one(&mut self.solver, &self.output_to_object.iter()
+                println!("[*] Initializing output mapping constraints for node {} output {}", node_idx, output_idx);
+                exactly_one(solver, &self.output_to_object.iter()
                     .filter(|((k_node_idx, k_output_idx, _), _)| node_idx == *k_node_idx && output_idx == *k_output_idx)
                     .map(|(_, output_to_object)| &**output_to_object)
                     .collect::<Vec<_>>().as_slice());
@@ -398,13 +478,14 @@ impl<'st> Sampler<'st> {
         }
 
         // Each real object can be an input or an output at most once
+        println!("[*] Initializing object mapping constraints");
         for node_idx in 0..self.config.max_calls {
             for object_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
-                at_most_one(&mut self.solver, &self.input_to_object.iter()
+                at_most_one(solver, &self.input_to_object.iter()
                     .filter(|((k_node_idx, _, k_instance_idx), _)| node_idx == *k_node_idx && object_idx == *k_instance_idx)
                     .map(|(_, input_to_object)| &**input_to_object)
                     .collect::<Vec<_>>().as_slice());
-                at_most_one(&mut self.solver, &self.output_to_object.iter()
+                at_most_one(solver, &self.output_to_object.iter()
                     .filter(|((k_node_idx, _, k_instance_idx), _)| node_idx == *k_node_idx && object_idx == *k_instance_idx)
                     .map(|(_, output_to_object)| &**output_to_object)
                     .collect::<Vec<_>>().as_slice());
@@ -412,6 +493,7 @@ impl<'st> Sampler<'st> {
         }
         
         // Enforce function number of inputs/outputs
+        println!("[*] Initializing function input/output constraints");
         for node_idx in 0..self.config.max_calls {
             for func_idx in 0..self.pspec.endpoints.len() {
                 let cond = self.node_type[&(node_idx, func_idx)];
@@ -426,10 +508,10 @@ impl<'st> Sampler<'st> {
                             .fold(Bool::new(self.st, false), |acc, input_to_object| acc | input_to_object);
 
                         // If the node is of the correct type, then the input must be mapped to an object of the correct type
-                        implies(&mut self.solver, &cond, &is_correct_type);
+                        implies(solver, &cond, &is_correct_type);
                     } else {
                         // No input
-                        implies(&mut self.solver, &cond, &self.input_to_object[&(node_idx, inout_idx, usize::MAX)]);
+                        implies(solver, &cond, &self.input_to_object[&(node_idx, inout_idx, usize::MAX)]);
                     }
 
                     if inout_idx < self.pspec.endpoints[func_idx].outputs.len() {
@@ -441,25 +523,27 @@ impl<'st> Sampler<'st> {
                             .fold(Bool::new(self.st, false), |acc, output_to_object| acc | output_to_object);
 
                         // If the node is of the correct type, then the output must be mapped to an object of the correct type
-                        implies(&mut self.solver, &cond, &is_correct_type);
+                        implies(solver, &cond, &is_correct_type);
                     } else {
                         // No output
-                        implies(&mut self.solver, &cond, &self.output_to_object[&(node_idx, inout_idx, usize::MAX)]);
+                        implies(solver, &cond, &self.output_to_object[&(node_idx, inout_idx, usize::MAX)]);
                     }
                 }
             }
         }
 
         // Skip function can have no inputs or outputs
+        println!("[*] Initializing skip function constraints");
         for node_idx in 0..self.config.max_calls {
             let cond = self.node_type[&(node_idx, usize::MAX)];
             for inout_idx in 0..self.config.max_args {
-                implies(&mut self.solver, &cond, &self.input_to_object[&(node_idx, inout_idx, usize::MAX)]);
-                implies(&mut self.solver, &cond, &self.output_to_object[&(node_idx, inout_idx, usize::MAX)]);
+                implies(solver, &cond, &self.input_to_object[&(node_idx, inout_idx, usize::MAX)]);
+                implies(solver, &cond, &self.output_to_object[&(node_idx, inout_idx, usize::MAX)]);
             }
         }
 
         // For consistency, enforce mapping input/output must be the same object
+        println!("[*] Initializing input/output consistency constraints");
         for node_idx in 0..self.config.max_calls {
             for func_idx in 0..self.pspec.endpoints.len() {
                 let cond = self.node_type[&(node_idx, func_idx)];
@@ -468,13 +552,14 @@ impl<'st> Sampler<'st> {
                     for instance_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
                         let is_input = self.input_to_object[&(node_idx, mapping.in_idx, instance_idx)];
                         let is_output = self.output_to_object[&(node_idx, mapping.out_idx, instance_idx)];
-                        implies(&mut self.solver, &cond, &is_input._eq(is_output));
+                        implies(solver, &cond, &is_input._eq(is_output));
                     }
                 }
             }
         }
 
         // An object can only be an input if it was alive in the previous state
+        println!("[*] Initializing input constraints");
         for state_idx in 0..self.config.max_calls {
             for instance_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
                 let was_alive = self.object_alive[&(state_idx, instance_idx)];
@@ -483,11 +568,12 @@ impl<'st> Sampler<'st> {
                     .map(|input_idx| self.input_to_object[&(state_idx, input_idx, instance_idx)])
                     .fold(Bool::new(self.st, false), |acc, input_to_object| acc | input_to_object);
 
-                implies(&mut self.solver, &is_input, &was_alive);
+                implies(solver, &is_input, &was_alive);
             }
         }
 
         // An object can only be an output if it was dead in the previous state and not consumed, or was an input this state
+        println!("[*] Initializing output constraints");
         for state_idx in 0..self.config.max_calls {
             for instance_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
                 let was_dead = self.object_alive[&(state_idx, instance_idx)]._eq(false);
@@ -501,12 +587,13 @@ impl<'st> Sampler<'st> {
                     .map(|output_idx| self.output_to_object[&(state_idx, output_idx, instance_idx)])
                     .fold(Bool::new(self.st, false), |acc, output_to_object| acc | output_to_object);
             
-                implies(&mut self.solver, &is_output, &(is_input | (was_dead & is_consumed._eq(false))));
+                implies(solver, &is_output, &(is_input | (was_dead & is_consumed._eq(false))));
             }
         }
 
         // An object is alive in the state if it was alive in the previous state and not an input this state, or was an output this state
         // An object is consumed if it was alive in the previous state and was an input this state and not an output this state
+        println!("[*] Initializing object state constraints");
         for state_idx in 1..self.config.max_calls + 1 {
             for instance_idx in 0..(self.pspec.objects.len() * self.config.instances_per_object) {
                 let was_alive = self.object_alive[&(state_idx - 1, instance_idx)];
@@ -524,12 +611,13 @@ impl<'st> Sampler<'st> {
                 let is_alive = self.object_alive[&(state_idx, instance_idx)];
                 let is_consumed = self.object_consumed[&(state_idx, instance_idx)];
 
-                self.solver.assert(is_alive._eq(((was_alive & was_input._eq(false)) | was_output))).unwrap();
-                self.solver.assert(is_consumed._eq(was_consumed | (was_alive & was_input & was_output._eq(false)))).unwrap();
+                solver.assert(is_alive._eq(((was_alive & was_input._eq(false)) | was_output))).unwrap();
+                solver.assert(is_consumed._eq(was_consumed | (was_alive & was_input & was_output._eq(false)))).unwrap();
             }
         }
 
         // Object attributes are preserved unless set by an effect
+        println!("[*] Initializing object attribute constraints");
         for state_idx in 0..self.config.max_calls {
             for func_idx in 0..self.pspec.endpoints.len() {
                 let is_func_active = self.node_type[&(state_idx, func_idx)];
@@ -604,7 +692,7 @@ impl<'st> Sampler<'st> {
                         let next_attr = &self.object_attributes[&(state_idx + 1, instance_idx, target_field.clone())];
                         let target_value = effect.expr.eval(&effect_ctx);
 
-                        implies(&mut self.solver, &cond, &target_value.eq(&next_attr.clone().to_var()));
+                        implies(solver, &cond, &target_value.eq(&next_attr.clone().to_var()));
                     }
                 }
 
@@ -632,7 +720,7 @@ impl<'st> Sampler<'st> {
                             let prev_attr_val = prev_attr.clone().to_var(); 
                             let next_attr_val = next_attr.clone().to_var();
 
-                            implies(&mut self.solver, &cond, &prev_attr_val.eq(&next_attr_val));
+                            implies(solver, &cond, &prev_attr_val.eq(&next_attr_val));
                         }
                     }
                 }
@@ -640,6 +728,7 @@ impl<'st> Sampler<'st> {
         }
 
         // If an object was alive, and not used as an input, then copy its attributes to the next state
+        println!("[*] Initializing object attribute copy constraints");
         for state_idx in 0..self.config.max_calls {
             for object_idx in 0..self.pspec.objects.len() {
                 for iter_idx in 0..self.config.instances_per_object {
@@ -659,13 +748,14 @@ impl<'st> Sampler<'st> {
                         let prev_attr_val = prev_attr.clone().to_var();
                         let next_attr_val = next_attr.clone().to_var();
 
-                        implies(&mut self.solver, &cond, &prev_attr_val.eq(&next_attr_val));
+                        implies(solver, &cond, &prev_attr_val.eq(&next_attr_val));
                     }
                 }
             }
         }
 
         // Preconditions
+        println!("[*] Initializing preconditions");
         for state_idx in 0..self.config.max_calls {
             for func_idx in 0..self.pspec.endpoints.len() {
                 let is_func_active = self.node_type[&(state_idx, func_idx)];
@@ -716,18 +806,118 @@ impl<'st> Sampler<'st> {
 
                 for precondition in self.pspec.endpoints[func_idx].preconditions.iter() {
                     let satisfied = precondition.expr.eval(&precondition_ctx);
-                    implies(&mut self.solver, &is_func_active, &satisfied);
+                    implies(solver, &is_func_active, &satisfied);
+                }
+            }
+        }
+    
+        // Outlives
+        println!("[*] Initializing outlives constraints");
+        for state_idx in 0..self.config.max_calls {
+            for func_idx in 0..self.pspec.endpoints.len() {
+                let is_func_active = self.node_type[&(state_idx, func_idx)];
+                let func = &self.pspec.endpoints[func_idx];
+
+                for outlives in func.outlives.iter() {
+                    let output_idx_a = func.output_vars.iter().position(|o| o == &outlives.a).unwrap();
+                    let output_idx_b = func.output_vars.iter().position(|o| o == &outlives.b).unwrap();
+                    
+                    let object_idx_a = func.outputs[output_idx_a];
+                    let object_idx_b = func.outputs[output_idx_b];
+
+                    for iter_idx_a in 0..self.config.instances_per_object {
+                        for iter_idx_b in 0..self.config.instances_per_object {
+                            let instance_idx_a = object_idx_a * self.config.instances_per_object + iter_idx_a;
+                            let instance_idx_b = object_idx_b * self.config.instances_per_object + iter_idx_b;
+
+                            let is_target_a = self.output_to_object[&(state_idx, output_idx_a, instance_idx_a)];
+                            let is_target_b = self.output_to_object[&(state_idx, output_idx_b, instance_idx_b)];
+
+                            let cond = is_func_active & is_target_a & is_target_b;
+
+                            let mut options = vec![];
+                            for next_state_idx in state_idx + 1..self.config.max_calls+1 {
+                                let is_alive_a = self.object_alive[&(next_state_idx, instance_idx_a)];
+                                let is_consumed_b = self.object_consumed[&(next_state_idx, instance_idx_b)];
+
+                                options.push(is_alive_a & is_consumed_b);
+                            }
+
+                            implies(solver, &cond, &options.iter().fold(Bool::new(self.st, false), |acc, option| acc | *option));
+                        }
+                    }
+                }
+            }
+        }
+    
+        // Library initializers must be called and must be the first function(s) called, and cannot be called more than once.
+        println!("[*] Initializing library initializer constraints");
+        let initializer_idxs = self.pspec.endpoints.iter().enumerate()
+            .filter(|(_, e)| matches!(e.role, PEndpointRole::LibraryInitializer))
+            .map(|(idx, _)| idx)
+            .collect::<Vec<_>>();
+
+        assert!(initializer_idxs.len() <= self.config.max_calls, "Too many library initializers for the number of calls");
+
+        // First N functions must be initializers
+        println!("[*] Initializing library initializer constraints (first N)");
+        for node_idx in 0..initializer_idxs.len() {
+            let is_initializer = initializer_idxs.iter()
+                .map(|idx| self.node_type[&(node_idx, *idx)])
+                .fold(Bool::new(self.st, false), |acc, is_initializer| acc | is_initializer);
+
+            solver.assert(is_initializer).unwrap();
+        }
+
+        // Remaining functions must not be initializers
+        println!("[*] Initializing library initializer constraints (remaining)");
+        for node_idx in initializer_idxs.len()..self.config.max_calls {
+            let is_initializer = initializer_idxs.iter()
+                .map(|idx| self.node_type[&(node_idx, *idx)])
+                .fold(Bool::new(self.st, false), |acc, is_initializer| acc | is_initializer);
+
+            solver.assert(!is_initializer).unwrap();
+        }
+
+        // Library initializers cannot be called more than once
+        // (we can optimize by checking only the first N functions)
+        println!("[*] Initializing library initializer constraints (no more than once)");
+        for initializer_idx in 0..initializer_idxs.len() {
+            for node_a in 0..initializer_idxs.len() {
+                for node_b in initializer_idx + 1..initializer_idxs.len() {
+                    let is_initializer_a = self.node_type[&(node_a, initializer_idx)];
+                    let is_initializer_b = self.node_type[&(node_b, initializer_idx)];
+                    
+                    let cond = is_initializer_a & is_initializer_b;
+                    solver.assert(!cond).unwrap();
                 }
             }
         }
     }
 
-    pub fn require_func_active(&mut self, func_idx: usize) {
+    pub fn require_func_active<B: Backend>(&mut self, solver: &mut Solver<'st, B>, func_idx: usize) {
         let is_func_active = (0..self.config.max_calls)
             .map(|state_idx| self.node_type[&(state_idx, func_idx)])
             .fold(Bool::new(self.st, false), |acc, is_func_active| acc | is_func_active);
 
-        self.solver.assert(is_func_active).unwrap();
+        solver.assert(is_func_active).unwrap();
+    }
+
+    pub fn exclude_graph<B: Backend>(&mut self, solver: &mut Solver<'st, B>, graph: &SGraph) {
+        // At least one of the node types must be different from the graph
+        let mut comps = vec![];
+        for node_idx in 0..self.config.max_calls {
+            let node_type = if node_idx < graph.nodes.len() {
+                graph.nodes[node_idx].func_idx
+            } else {
+                usize::MAX
+            };
+
+            let is_different = !*self.node_type[&(node_idx, node_type)];
+            comps.push(is_different);
+        }
+
+        solver.assert(comps.iter().fold(Bool::new(self.st, false), |acc, comp| acc | *comp)).unwrap();
     }
 
     pub fn debug_print(&self, model: &Model) {
@@ -837,9 +1027,10 @@ impl<'st> Sampler<'st> {
         println!("ALIVE: {} Consumed: {}", alive.join(", "), consumed.join(", "));
     }
 
-    pub fn sample(&mut self, with_pspec: bool) -> Option<SGraph> {
-        match self.solver.check_sat_with_model() {
+    pub fn sample<B: Backend>(&mut self, solver: &mut Solver<'st, B>, with_pspec: bool) -> Option<SGraph> {
+        match solver.check_sat_with_model() {
             Ok(SatResultWithModel::Sat(model)) => {
+                self.debug_print(&model);
                 Some(self.build_sgraph(&model, with_pspec))
             }
             _ => None,
@@ -942,12 +1133,27 @@ impl<'st> Sampler<'st> {
 mod tests {
     use std::{fs::File, io::Write, process::Command};
 
-    use smtlib::SatResultWithModel;
-
     use crate::spec::Spec;
 
     use super::*;
     
+    fn new_pspec(spec: &str) -> PSpec {
+        let spec: Spec = serde_json::from_str(spec).unwrap();
+        spec.build_pspec().unwrap()
+    }
+    
+    fn sample_spec(pspec: &PSpec, config: SamplerConfig, require_func_active: usize) -> SGraph {
+        let st = Storage::new();
+        let mut sampler = Sampler::new(pspec.clone(), &st, config);
+        let mut solver = Solver::new(&st, Z3Binary::new("z3").unwrap()).unwrap();
+        sampler.setup(&mut solver);
+
+        sampler.require_func_active(&mut solver, require_func_active);
+
+        let sgraph = sampler.sample(&mut solver, true).unwrap();
+        sgraph
+    }
+
     #[test]
     fn test_sampler_single() {
         let spec_json = r#"
@@ -971,7 +1177,7 @@ mod tests {
             "endpoints": [
                 {
                     "name": "init_foo",
-                    "variables": [{ "name": "z", "typ": "foo", "dir": "new" }],
+                    "variables": [{ "name": "z", "type": "foo", "dir": "new" }],
                     "template": "z = init_foo();",
                     "preconditions": [],
                     "effects": [
@@ -981,7 +1187,7 @@ mod tests {
                 },   
                 {
                     "name": "use_foo",
-                    "variables": [{ "name": "z", "typ": "foo", "dir": "*" }],
+                    "variables": [{ "name": "z", "type": "foo", "dir": "*" }],
                     "template": "use_foo(z);",
                     "preconditions": [],
                     "effects": [
@@ -990,7 +1196,7 @@ mod tests {
                 },
                 {
                     "name": "switch_foo",
-                    "variables": [{ "name": "z", "typ": "foo", "dir": "*" }],
+                    "variables": [{ "name": "z", "type": "foo", "dir": "*" }],
                     "template": "switch_foo(z);",
                     "preconditions": [
                         "z.x == 2"
@@ -1001,7 +1207,7 @@ mod tests {
                 },
                 {
                     "name": "del_foo",
-                    "variables": [{ "name": "z", "typ": "foo", "dir": "del" }],
+                    "variables": [{ "name": "z", "type": "foo", "dir": "del" }],
                     "template": "del_foo(z);",
                     "preconditions": [
                         "z.x == 3",
@@ -1019,13 +1225,14 @@ mod tests {
         let st = Storage::new();
         let config = SamplerConfig::default();
         let mut sampler = Sampler::new(pspec.clone(), &st, config);
-        sampler.setup();
+        let mut solver = Solver::new(&st, Z3Binary::new("z3").unwrap()).unwrap();
+        sampler.setup(&mut solver);
 
-        sampler.require_func_active(0);
+        sampler.require_func_active(&mut solver, 0);
 
-        let sgraph = sampler.sample(true).unwrap();
+        let sgraph = sampler.sample(&mut solver, true).unwrap();
 
-        let graph = sgraph.to_graph();
+        let graph = sgraph.to_graph(&pspec);
         graph.pprint();
 
         // Save the sgraph to json
@@ -1072,7 +1279,7 @@ mod tests {
             "endpoints": [
                 {
                     "name": "new_number",
-                    "variables": [{ "name": "z", "typ": "number", "dir": "new" }],
+                    "variables": [{ "name": "z", "type": "number", "dir": "new" }],
                     "template": "z = new_number();",
                     "preconditions": [],
                     "effects": [
@@ -1083,8 +1290,8 @@ mod tests {
                 {
                     "name": "merge_number",
                     "variables": [
-                        { "name": "z", "typ": "number", "dir": "*" },
-                        { "name": "w", "typ": "number", "dir": "*" }
+                        { "name": "z", "type": "number", "dir": "*" },
+                        { "name": "w", "type": "number", "dir": "*" }
                     ],
                     "template": "merge_number(z, w);",
                     "preconditions": [],
@@ -1097,7 +1304,7 @@ mod tests {
                 },
                 {
                     "name": "discard_number",
-                    "variables": [{ "name": "z", "typ": "number", "dir": "del" }],
+                    "variables": [{ "name": "z", "type": "number", "dir": "del" }],
                     "template": "discard_number(z);",
                     "preconditions": [
                         "z.state is EMPTY"
@@ -1106,10 +1313,10 @@ mod tests {
                 },
                 {
                     "name": "submit_number",
-                    "variables": [{ "name": "z", "typ": "number", "dir": "del" }],
+                    "variables": [{ "name": "z", "type": "number", "dir": "del" }],
                     "template": "submit_number(z);",
                     "preconditions": [
-                        "z.x == 2",
+                        "z.x == 4",
                         "z.state is FULL"
                     ],
                     "effects": []
@@ -1128,13 +1335,14 @@ mod tests {
             ..Default::default()
         };
         let mut sampler = Sampler::new(pspec.clone(), &st, config);
-        sampler.setup();
+        let mut solver = Solver::new(&st, Z3Binary::new("z3").unwrap()).unwrap();
+        sampler.setup(&mut solver);
 
-        sampler.require_func_active(0);
+        sampler.require_func_active(&mut solver, 0);
 
-        let sgraph = sampler.sample(true).unwrap();
+        let sgraph = sampler.sample(&mut solver, true).unwrap();
 
-        let graph = sgraph.to_graph();
+        let graph = sgraph.to_graph(&pspec);
         graph.pprint();
 
         // Save the sgraph to json
@@ -1156,5 +1364,158 @@ mod tests {
             .unwrap();
 
         println!("Wrote sgraph to sgraph.dot");
+    }
+
+    #[test]
+    fn test_sampler_outlives() {
+        let spec1 = r#"
+        {
+            "objects": [
+                { "name": "foo" },
+                { "name": "bar" }
+            ],
+            "endpoints": [
+                {
+                    "name": "new_a",
+                    "variables": [{ "name": "a", "type": "foo", "dir": "new" }],
+                    "template": "a = new_a();"
+                },
+                {
+                    "name": "new_b",
+                    "variables": [{ "name": "b", "type": "bar", "dir": "new" }],
+                    "template": "b = new_b();"
+                },
+                {
+                    "name": "use",
+                    "variables": [
+                        { "name": "a", "type": "foo", "dir": "*" },
+                        { "name": "b", "type": "bar", "dir": "*" }
+                    ],
+                    "template": "use(a, b);",
+                    "outlives": [
+                        { "a": "a", "b": "b" }
+                    ]
+                },
+                {
+                    "name": "del_a",
+                    "variables": [{ "name": "a", "type": "foo", "dir": "del" }],
+                    "template": "del_a(a);"
+                },
+                {
+                    "name": "del_b",
+                    "variables": [{ "name": "b", "type": "bar", "dir": "del" }],
+                    "template": "del_b(b);"
+                }
+            ]
+        }
+        "#;
+        let spec2 = r#"
+        {
+            "objects": [
+                { "name": "foo" },
+                { "name": "bar" }
+            ],
+            "endpoints": [
+                {
+                    "name": "new_a",
+                    "variables": [{ "name": "a", "type": "foo", "dir": "new" }],
+                    "template": "a = new_a();"
+                },
+                {
+                    "name": "new_b",
+                    "variables": [{ "name": "b", "type": "bar", "dir": "new" }],
+                    "template": "b = new_b();"
+                },
+                {
+                    "name": "use",
+                    "variables": [
+                        { "name": "a", "type": "foo", "dir": "*" },
+                        { "name": "b", "type": "bar", "dir": "*" }
+                    ],
+                    "template": "use(a, b);",
+                    "outlives": [
+                        { "a": "b", "b": "a" }
+                    ]
+                },
+                {
+                    "name": "del_a",
+                    "variables": [{ "name": "a", "type": "foo", "dir": "del" }],
+                    "template": "del_a(a);"
+                },
+                {
+                    "name": "del_b",
+                    "variables": [{ "name": "b", "type": "bar", "dir": "del" }],
+                    "template": "del_b(b);"
+                }
+            ]
+        }
+        "#;
+
+        let pspec1 = new_pspec(spec1);
+        let pspec2 = new_pspec(spec2);
+
+        let config = SamplerConfig {
+            max_calls: 5,
+            max_args: 2,
+            instances_per_object: 2,
+        };
+
+        let spec1 = sample_spec(&pspec1, config.clone(), 2);
+        let spec2 = sample_spec(&pspec2, config.clone(), 2);
+
+        let graph1 = spec1.to_graph(&pspec1);
+        let graph2 = spec2.to_graph(&pspec2);
+
+        let typ1 = graph1.nodes.iter().map(|n| n.typ).collect::<Vec<_>>();
+        let typ2 = graph2.nodes.iter().map(|n| n.typ).collect::<Vec<_>>();
+
+        assert_eq!(typ1[2..], vec![2,4,3]);
+        assert_eq!(typ2[2..], vec![2,3,4]);
+    }
+
+    #[test]
+    fn test_sampler_initializer() {
+        let spec1 = r#"
+        {
+            "objects": [
+                { "name": "foo" }
+            ],
+            "endpoints": [
+                {
+                    "name": "init",
+                    "variables": [],
+                    "template": "init();",
+                    "role": "library_initializer"
+                },
+                {
+                    "name": "init2",
+                    "variables": [],
+                    "template": "init2();",
+                    "role": "library_initializer"
+                },
+                {
+                    "name": "new_a",
+                    "variables": [{ "name": "a", "type": "foo", "dir": "new" }],
+                    "template": "a = new_a();"
+                },
+                {
+                    "name": "del_a",
+                    "variables": [{ "name": "a", "type": "foo", "dir": "del" }],
+                    "template": "del_a(a);"
+                }
+            ]
+        }
+        "#;
+
+        let pspec1 = new_pspec(spec1);
+
+        let config = SamplerConfig {
+            max_calls: 5,
+            max_args: 2,
+            instances_per_object: 2,
+        };
+
+        let spec1 = sample_spec(&pspec1, config.clone(), 2);
+        let graph1 = spec1.to_graph(&pspec1);
     }
 }

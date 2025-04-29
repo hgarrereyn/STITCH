@@ -1,4 +1,87 @@
 {
+  "objects": [
+    { "name": "ares_addr6ttl" },
+    { "name": "ares_addr_node" },
+    { "name": "ares_addr_port_node" },
+    { "name": "ares_addrinfo" },
+    { "name": "ares_addrinfo_cname" },
+    { "name": "ares_addrinfo_hints" },
+    { "name": "ares_addrinfo_node" },
+    { "name": "ares_addrttl" },
+    { "name": "ares_bool_t" },
+    { "name": "ares_caa_reply" },
+    { "name": "ares_channel_t *" },
+    { "name": "ares_evsys_t" },
+    { "name": "ares_fd_events_t *" },
+    { "name": "ares_fd_events_t" },
+    { "name": "ares_mx_reply" },
+    { "name": "ares_naptr_reply" },
+    { "name": "ares_options" },
+    { "name": "ares_process_flag_t *" },
+    { "name": "ares_process_flag_t" },
+    { "name": "ares_server_failover_options" },
+    { "name": "ares_soa_reply" },
+    { "name": "ares_socket_bind_flags_t" },
+    { "name": "ares_socket_connect_flags_t" },
+    { "name": "ares_socket_functions" },
+    { "name": "ares_socket_functions_ex" },
+    { "name": "ares_socket_opt_t" },
+    { "name": "ares_socket_t" },
+    { "name": "ares_socklen_t" },
+    { "name": "ares_srv_reply" },
+    { "name": "ares_ssize_t" },
+    { "name": "ares_status_t" },
+    { "name": "ares_txt_ext" },
+    { "name": "ares_txt_reply" },
+    { "name": "ares_uri_reply" },
+    { "name": "struct ares_addr *" },
+    { "name": "struct ares_addr" },
+    { "name": "struct ares_addr6ttl *" },
+    { "name": "struct ares_addr6ttl" },
+    { "name": "struct ares_addr_node *" },
+    { "name": "struct ares_addr_node" },
+    { "name": "struct ares_addr_port_node *" },
+    { "name": "struct ares_addr_port_node" },
+    { "name": "struct ares_addrinfo *" },
+    { "name": "struct ares_addrinfo" },
+    { "name": "struct ares_addrinfo_cname *" },
+    { "name": "struct ares_addrinfo_cname" },
+    { "name": "struct ares_addrinfo_hints *" },
+    { "name": "struct ares_addrinfo_hints" },
+    { "name": "struct ares_addrinfo_node *" },
+    { "name": "struct ares_addrinfo_node" },
+    { "name": "struct ares_addrttl *" },
+    { "name": "struct ares_addrttl" },
+    { "name": "struct ares_caa_reply *" },
+    { "name": "struct ares_caa_reply" },
+    { "name": "struct ares_channeldata *" },
+    { "name": "struct ares_in6_addr *" },
+    { "name": "struct ares_in6_addr" },
+    { "name": "struct ares_mx_reply *" },
+    { "name": "struct ares_mx_reply" },
+    { "name": "struct ares_naptr_reply *" },
+    { "name": "struct ares_naptr_reply" },
+    { "name": "struct ares_options *" },
+    { "name": "struct ares_options" },
+    { "name": "struct ares_server_failover_options *" },
+    { "name": "struct ares_server_failover_options" },
+    { "name": "struct ares_soa_reply *" },
+    { "name": "struct ares_soa_reply" },
+    { "name": "struct ares_socket_functions *" },
+    { "name": "struct ares_socket_functions_ex *" },
+    { "name": "struct ares_srv_reply *" },
+    { "name": "struct ares_srv_reply" },
+    { "name": "struct ares_txt_ext *" },
+    { "name": "struct ares_txt_reply *" },
+    { "name": "struct ares_txt_reply" },
+    { "name": "struct ares_uri_reply *" },
+    { "name": "struct ares_uri_reply" },
+    { "name": "struct hostent *" },
+    { "name": "struct sockaddr *" },
+    { "name": "struct sockaddr" },
+    { "name": "struct timeval *" },
+    { "name": "struct timeval" }
+  ],
   "endpoints": [
     {
       "name": "ares_reinit_v0",
@@ -6,12 +89,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__ares_reinit",
           "dir": "new",
-          "typ": "ares_status_t"
+          "type": "ares_status_t"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n__ares_reinit = ares_reinit(__channel);\n\nif (__ares_reinit != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -27,7 +110,7 @@
         {
           "name": "__host",
           "dir": "new",
-          "typ": "struct hostent *"
+          "type": "struct hostent *"
         }
       ],
       "template": "const unsigned char *abuf = (const unsigned char *)FUZZ_PARAM_FILE(256);\nsize_t alen = FUZZ_PARAM(size_t);\n\n// Initialize the output hostent pointer\n__host = NULL;\nares_dns_record_t *dnsrec = NULL;\n\n// Invoke the ares_dns_parse function\nares_status_t status = ares_dns_parse(abuf, alen, 0, &dnsrec);\n\n// Check the status returned by the function\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\n// Assuming we continue processing, we would convert dnsrec to hostent.\n// However, this implementation assumes just invoking the API."
@@ -38,7 +121,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\n\nconst char *csv_data = FUZZ_PARAM_STR(256);\n\nint result = ares_set_servers_csv(__channel, csv_data);\nif (result != 0) FUZZ_BAIL();"
@@ -54,7 +137,7 @@
         {
           "name": "__host",
           "dir": "new",
-          "typ": "struct hostent *"
+          "type": "struct hostent *"
         }
       ],
       "template": "struct hostent *temp_host = NULL;\nunsigned char *abuf = (unsigned char *)FUZZ_PARAM_FILE(256);\nint alen = FUZZ_PARAM(int);\nstruct ares_addr6ttl *addrttls = NULL;\nint *naddrttls = NULL;\n\nif (alen < 0) FUZZ_BAIL();\n\nint status = ares_parse_aaaa_reply(abuf, alen, &temp_host, addrttls, naddrttls);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\n__host = temp_host;\n\n// Clean-up logic can go here if needed."
@@ -65,7 +148,7 @@
         {
           "name": "__addrttls",
           "dir": "new",
-          "typ": "struct ares_addr6ttl *"
+          "type": "struct ares_addr6ttl *"
         }
       ],
       "template": "if (!__addrttls) FUZZ_BAIL();\n\nconst char *abuf = FUZZ_PARAM_FILE(100);\nint alen = FUZZ_PARAM(int);\nint naddrttls = FUZZ_PARAM(int);\n\nstruct hostent *host = NULL;\n\n// Clear the output structure\nmemset(__addrttls, 0, sizeof(struct ares_addr6ttl));\n\nint status = ares_parse_aaaa_reply((const unsigned char *)abuf, alen, &host, __addrttls, &naddrttls);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\nif (host != NULL) {\n    ares_free_hostent(host);\n}"
@@ -81,7 +164,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nunsigned int local_ip = FUZZ_PARAM(unsigned int);\n\nares_set_local_ip4(__channel, local_ip);"
@@ -92,7 +175,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t query_count = ares_queue_active_queries(__channel);\nif (query_count == 0) {\n    FUZZ_BAIL();\n}"
@@ -103,7 +186,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nares_pending_write_cb callback = (ares_pending_write_cb)FUZZ_PARAM(uint64_t); // Assuming callback is a function pointer type\nif (callback == NULL) {\n    FUZZ_BAIL();\n}\n\nvoid *user_data = (void *)FUZZ_PARAM(uint64_t); // Allocating user data to be used\n\n// Invoke the library function ares_set_pending_write_cb\nares_set_pending_write_cb(__channel, callback, user_data);\n"
@@ -114,7 +197,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n// Use FUZZ_PARAM for callback and data arguments. In this case, we will generate a random callback which is merely a pointer, and random data pointer.\nvoid *data = (void *)FUZZ_PARAM(uint32_t);  // Example of random data value\n\n// Invoke the API with a random callback and data.\nares_set_server_state_callback(__channel, (ares_server_state_callback)FUZZ_PARAM(uintptr_t), data);\n// Since we do not need to clean up the callback and the existing channel data, no additional actions are needed."
@@ -125,7 +208,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *name = FUZZ_PARAM_STR(64); // Generating a random name for the query\nint dnsclass = FUZZ_PARAM(int);\nint type = FUZZ_PARAM(int);\n\nares_callback cb = [](void *arg, int status, int timeouts, unsigned char *abuf, int alen) {\n    // We can keep this empty or implement some basic result handling\n};\n\nares_query(__channel, name, dnsclass, type, cb, NULL);\n"
@@ -136,7 +219,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nfd_set read_fds;\nfd_set write_fds;\n\nFD_ZERO(&read_fds);\nFD_ZERO(&write_fds);\n\nint nfds = ares_fds(__channel, &read_fds, &write_fds);\nif (nfds < 0) {\n    FUZZ_BAIL();\n}"
@@ -147,12 +230,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__salen",
           "dir": "*",
-          "typ": "ares_socklen_t"
+          "type": "ares_socklen_t"
         }
       ],
       "template": "struct sockaddr_storage ss;\nchar host[1024];\nchar service[32];\n\n// Generate a random temporary file for sockaddr data\nconst char *sockaddr_file = FUZZ_PARAM_FILE(64);\n\n// Initialize the sockaddr_storage with fuzzable data\nmemset(&ss, 0, sizeof(ss));\nss.ss_family = AF_INET; // Assume IPV4 for this example\n\n// Check the __salen does not exceed the allocated size\nif (__salen > sizeof(ss)) {\n    FUZZ_BAIL();\n}\n\n// Prepare the callback and arguments, fuzzing the flags and arg\nares_nameinfo_callback callback = NULL;\nvoid *arg = NULL;\nint flags = 0;\n\n// Now call ares_getnameinfo\nares_getnameinfo(__channel, (const struct sockaddr *)&ss, __salen, flags, callback, arg);\n\n// If ares_getnameinfo has an error, it will handle that internally; we trust its implementation to ensure correctness."
@@ -163,7 +246,7 @@
         {
           "name": "__soa_out",
           "dir": "new",
-          "typ": "struct ares_soa_reply *"
+          "type": "struct ares_soa_reply *"
         }
       ],
       "template": "const char *abuf = FUZZ_PARAM_FILE(256);\nint alen = FUZZ_PARAM(int);\n\nif (alen < 0) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output parameter\n__soa_out = NULL;\n\n// Invoke the ares_parse_soa_reply function\nint result = ares_parse_soa_reply((const unsigned char *)abuf, alen, &__soa_out);\nif (result != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -174,7 +257,7 @@
         {
           "name": "__host",
           "dir": "new",
-          "typ": "struct hostent *"
+          "type": "struct hostent *"
         }
       ],
       "template": "const char *abuf = FUZZ_PARAM_FILE(64);  // Random 64-byte buffer\nint alen = 64; // Length of the buffer\nchar addr[16]; // Buffer for a random address (IPv4 or IPv6)\nint addrlen = sizeof(addr); // Exact size of the address buffer\nint family = FUZZ_PARAM(int); // Random family type\n\n// Initialize the output parameter\n__host = NULL;\n\n// Call the API function\nint status = ares_parse_ptr_reply((const unsigned char*)abuf, alen, addr, addrlen, family, &__host);\n\n// Check the status and handle errors\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -190,7 +273,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\n\nares_socket_t read_fd = FUZZ_PARAM(int);\nares_socket_t write_fd = FUZZ_PARAM(int);\n\nif (read_fd == ARES_SOCKET_BAD || write_fd == ARES_SOCKET_BAD) FUZZ_BAIL();\n\nares_process_fd(__channel, read_fd, write_fd);"
@@ -201,12 +284,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__read_fd",
           "dir": "*",
-          "typ": "ares_socket_t"
+          "type": "ares_socket_t"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\nif (__read_fd < 0) FUZZ_BAIL();\nares_socket_t write_fd = ARES_SOCKET_BAD;\nares_process_fd(__channel, __read_fd, write_fd);"
@@ -217,12 +300,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__write_fd",
           "dir": "*",
-          "typ": "ares_socket_t"
+          "type": "ares_socket_t"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nif (__write_fd < 0) {\n    FUZZ_BAIL();\n}\n\nares_socket_t read_fd = ARES_SOCKET_BAD; // No read FD provided in this context\n\nares_process_fd(__channel, read_fd, __write_fd);"
@@ -233,17 +316,17 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__read_fd",
           "dir": "*",
-          "typ": "ares_socket_t"
+          "type": "ares_socket_t"
         },
         {
           "name": "__write_fd",
           "dir": "*",
-          "typ": "ares_socket_t"
+          "type": "ares_socket_t"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\nif (__read_fd < 0 || __write_fd < 0) FUZZ_BAIL();\n\nares_process_fd(__channel, __read_fd, __write_fd);"
@@ -254,7 +337,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (!__channel) {\n    FUZZ_BAIL();\n}\n\nconst char *sort_list = FUZZ_PARAM_STR(1024);\nint status = ares_set_sortlist(__channel, sort_list);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -265,7 +348,7 @@
         {
           "name": "__uri_out",
           "dir": "new",
-          "typ": "struct ares_uri_reply *"
+          "type": "struct ares_uri_reply *"
         }
       ],
       "template": "if (!__uri_out) {\n    FUZZ_BAIL();\n}\n\nconst char *abuf_file = FUZZ_PARAM_FILE(256);\nsize_t alen = 256;\n\n__uri_out = NULL;\nint result = ares_parse_uri_reply((const unsigned char *)abuf_file, (int)alen, &__uri_out);\nif (result != 0) {\n    FUZZ_BAIL();\n}\n\n// No need to free __uri_out here, as the ares_parse_uri_reply manages that."
@@ -276,7 +359,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *name = FUZZ_PARAM_STR(256);\nconst char *service = FUZZ_PARAM_STR(256);\nstruct ares_addrinfo_hints hints;\nhints.ai_flags = FUZZ_PARAM(int);\nhints.ai_family = FUZZ_PARAM(int);\nhints.ai_socktype = FUZZ_PARAM(int);\nhints.ai_protocol = FUZZ_PARAM(int);\n\nares_addrinfo_callback callback = (ares_addrinfo_callback)FUZZ_PARAM(int);\nvoid *arg = (void *)FUZZ_PARAM(int);\n\nares_getaddrinfo(__channel, name, service, &hints, callback, arg);"
@@ -287,12 +370,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__hints",
           "dir": "*",
-          "typ": "struct ares_addrinfo_hints *"
+          "type": "struct ares_addrinfo_hints *"
         }
       ],
       "template": "if (__channel == NULL || __hints == NULL) {\n    FUZZ_BAIL();\n}\n\nconst char *hostname = FUZZ_PARAM_STR(128);\nconst char *service = FUZZ_PARAM_STR(16);\nstruct ares_addrinfo *result = NULL;\nares_getaddrinfo(__channel, hostname, service, __hints, [](void *arg, int status, int timeouts, struct ares_addrinfo *info) {\n    if (status != ARES_SUCCESS) {\n        FUZZ_BAIL();\n    }\n    ares_freeaddrinfo(info);\n}, NULL);"
@@ -303,7 +386,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct ares_addr_port_node *servers = (struct ares_addr_port_node *)gf_malloc(sizeof(struct ares_addr_port_node));\nif (servers == NULL) {\n    FUZZ_BAIL();\n}\n\n// Fill servers with random values (For instance, for testing, randomize ports and addresses)\nservers->family = FUZZ_PARAM(int);\nservers->udp_port = FUZZ_PARAM(int);\nservers->tcp_port = FUZZ_PARAM(int);\n\n// Example random values for ip addresses, this part should be fleshed out based on what server addresses you want to include.\nservers->addr.addr4.s_addr = FUZZ_PARAM(unsigned int);\n\nint status = ares_set_servers_ports(__channel, servers);\nif (status != ARES_SUCCESS) {\n    gf_free(servers);\n    FUZZ_BAIL();\n}\n\n// Free the allocated resources\ngf_free(servers);"
@@ -314,12 +397,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__servers",
           "dir": "*",
-          "typ": "struct ares_addr_port_node *"
+          "type": "struct ares_addr_port_node *"
         }
       ],
       "template": "if (__channel == NULL || __servers == NULL) {\n    FUZZ_BAIL();\n}\n\nint status = ares_set_servers_ports(__channel, __servers);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -330,7 +413,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct ares_addr_port_node *servers = NULL;\n\nint status = ares_get_servers_ports(__channel, &servers);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\n// Normally we would process the 'servers' list here in a real use case.\n\n// Clean up if needed (in this fuzzer context, we might not need to use this memory, \n// but we ensure proper usage)\nwhile (servers != NULL) {\n    struct ares_addr_port_node *temp = servers;\n    servers = servers->next;\n    gf_free(temp);\n}"
@@ -341,12 +424,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__servers",
           "dir": "new",
-          "typ": "struct ares_addr_port_node *"
+          "type": "struct ares_addr_port_node *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize the output variable\n__servers = NULL;\n\n// Invoke the API function and check the status\nint status = ares_get_servers_ports(__channel, &__servers);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -357,7 +440,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\n\nconst char *name = FUZZ_PARAM_STR(32);\nares_dns_class_t dnsclass = FUZZ_PARAM(ares_dns_class_t);\nares_dns_rec_type_t type = FUZZ_PARAM(ares_dns_rec_type_t);\nares_callback_dnsrec callback = (ares_callback_dnsrec) FUZZ_PARAM_FILE(64);\nvoid *arg = NULL;\nunsigned short qid;\n\nares_status_t status = ares_query_dnsrec(__channel, name, dnsclass, type, callback, arg, &qid);\nif (status != ARES_SUCCESS) FUZZ_BAIL();"
@@ -368,7 +451,7 @@
         {
           "name": "__srv_out",
           "dir": "new",
-          "typ": "struct ares_srv_reply *"
+          "type": "struct ares_srv_reply *"
         }
       ],
       "template": "    const unsigned char *abuf = (const unsigned char *)FUZZ_PARAM_FILE(512);\n    int alen_int = FUZZ_PARAM(int);\n\n    // Firstly, initialize the output parameter as NULL\n    __srv_out = NULL;\n\n    // Validate input parameters\n    if (alen_int < 0) {\n        FUZZ_BAIL();\n    }\n\n    // Invoke the API\n    int status = ares_parse_srv_reply(abuf, alen_int, &__srv_out);\n\n    // Check the status and act accordingly\n    if (status != ARES_SUCCESS) {\n        FUZZ_BAIL();\n    }"
@@ -379,7 +462,7 @@
         {
           "name": "__host",
           "dir": "*",
-          "typ": "struct hostent *"
+          "type": "struct hostent *"
         }
       ],
       "template": "if (!__host) FUZZ_BAIL();\n\nconst unsigned char *abuf = (const unsigned char *)FUZZ_PARAM_FILE(1024);\nint alen = FUZZ_PARAM(int);\nstruct ares_addrttl *addrttls = NULL;\nint naddrttls = FUZZ_PARAM(int);\n\nif (alen <= 0) FUZZ_BAIL();\n\nint result = ares_parse_a_reply(abuf, alen, &__host, addrttls, &naddrttls);\nif (result != ARES_SUCCESS) FUZZ_BAIL();\n\n// Clean up any temporary objects created\n// In this case, there were no temporary allocations that need cleanup."
@@ -390,7 +473,7 @@
         {
           "name": "__addrttls",
           "dir": "*",
-          "typ": "ares_addrttl"
+          "type": "ares_addrttl"
         }
       ],
       "template": "const char *abuf_file = FUZZ_PARAM_FILE(100);\n\nunsigned char *abuf = (unsigned char *)gf_malloc(100);\nif (abuf == NULL) {\n    FUZZ_BAIL();\n}\n\nint alen = 100;\nstruct hostent *host = NULL;\nint naddrttls = FUZZ_PARAM(int);\nint result;\n\nresult = ares_parse_a_reply(abuf, alen, &host, &__addrttls, &naddrttls);\n\nif (result != ARES_SUCCESS) {\n    gf_free(abuf);\n    FUZZ_BAIL();\n}\n\nif (host != NULL) {\n    ares_free_hostent(host);\n}\ngf_free(abuf);\n"
@@ -401,12 +484,12 @@
         {
           "name": "__host",
           "dir": "*",
-          "typ": "struct hostent *"
+          "type": "struct hostent *"
         },
         {
           "name": "__addrttls",
           "dir": "*",
-          "typ": "ares_addrttl"
+          "type": "ares_addrttl"
         }
       ],
       "template": "if (!__host) FUZZ_BAIL();\n\nconst char *abuf = FUZZ_PARAM_FILE(128);\nint alen = FUZZ_PARAM(int);\n\nint naddrttls = FUZZ_PARAM(int);\nint *naddrttlsptr = &naddrttls;\n\nint result = ares_parse_a_reply((const unsigned char *)abuf, alen, &__host, &__addrttls, naddrttlsptr);\nif (result != 0) FUZZ_BAIL();\n\n// Clean up any temporary buffers if needed\n"
@@ -422,7 +505,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nfd_set read_fds;\nfd_set write_fds;\n\n// Initialize fd_sets to empty\nFD_ZERO(&read_fds);\nFD_ZERO(&write_fds);\n\n// Invoke ares_process with the channel and the initialized fd sets\nares_process(__channel, &read_fds, &write_fds);"
@@ -433,7 +516,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "struct ares_options *options = (struct ares_options *)gf_malloc(sizeof(struct ares_options));\nif (options == NULL) {\n    FUZZ_BAIL();\n}\n\nint optmask = 0;\nmemset(options, 0, sizeof(struct ares_options));\n\nint result = ares_save_options(__channel, options, &optmask);\nif (result != 0) {\n    gf_free(options);\n    FUZZ_BAIL();\n}\n\n// Use options and optmask as needed...\n\n// Clean up allocated options\nif (options) {\n    gf_free(options);\n}"
@@ -444,7 +527,7 @@
         {
           "name": "__ai",
           "dir": "del",
-          "typ": "struct ares_addrinfo *"
+          "type": "struct ares_addrinfo *"
         }
       ],
       "template": "if (__ai == NULL) {\n    FUZZ_BAIL();\n}\n\nares_freeaddrinfo(__ai);\n"
@@ -460,7 +543,7 @@
         {
           "name": "__channel",
           "dir": "del",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nares_destroy(__channel);\n\n// The function does not require additional cleanup or output parameters."
@@ -471,7 +554,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n// Invoke the ares_cancel API\nares_cancel(__channel);\n\n// No output or cleanup needed as ares_cancel does not return a status and cleans up internally."
@@ -487,7 +570,7 @@
         {
           "name": "__caa_out",
           "dir": "new",
-          "typ": "struct ares_caa_reply *"
+          "type": "struct ares_caa_reply *"
         }
       ],
       "template": "if (!__caa_out) {\n    FUZZ_BAIL();\n}\n\nconst char *abuf = FUZZ_PARAM_FILE(256);\nint alen_int = FUZZ_PARAM(int);\n\n__caa_out = NULL;\n\nint result = ares_parse_caa_reply((const unsigned char *)abuf, alen_int, &__caa_out);\nif (result != ARES_SUCCESS) {\n    __caa_out = NULL;\n    FUZZ_BAIL();\n}"
@@ -498,12 +581,12 @@
         {
           "name": "__dest",
           "dir": "new",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__src",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__src == NULL) {\n    FUZZ_BAIL();\n}\n\n__dest = NULL; /* Initialize output to NULL in case of failure */\n\nstruct ares_options opts;\nint optmask;\n\n/* Save options of the source channel */\nif (ares_save_options(__src, &opts, &optmask) != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\n/* Initialize the destination channel based on the saved options */\nif (ares_init_options(&__dest, &opts, optmask) != ARES_SUCCESS) {\n    ares_destroy_options(&opts);\n    FUZZ_BAIL();\n}\n\nares_destroy_options(&opts); // Clean up options after initializing the new channel\n\n/* Now clone any additional options that are user-provided as per the original function's behavior */\n/* Note: Accessing struct members directly here should be avoided as per API usage; just call necessary APIs */\n"
@@ -514,7 +597,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\n\nchar *result = ares_get_servers_csv(__channel);\nif (result == NULL) FUZZ_BAIL();\n\n// Assuming we don't need to do anything with result, as it's a simple example, hence no cleanup is required."
@@ -525,7 +608,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nares_set_local_dev(__channel, FUZZ_PARAM_STR(256));"
@@ -536,12 +619,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__servers",
           "dir": "*",
-          "typ": "ares_addr_node"
+          "type": "ares_addr_node"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nint status;\nstatus = ares_set_servers(__channel, &__servers);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -562,12 +645,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__socks",
           "dir": "new",
-          "typ": "ares_socket_t"
+          "type": "ares_socket_t"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nconst int numsocks = 1;  // Assuming we just need one socket for fuzzing purposes\nares_socket_t socks[numsocks];\nint result = ares_getsock(__channel, socks, numsocks);\n\nif (result < 0) {\n    FUZZ_BAIL();\n}\n\n__socks = socks[0];"
@@ -578,12 +661,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__tvbuf",
           "dir": "*",
-          "typ": "struct timeval *"
+          "type": "struct timeval *"
         }
       ],
       "template": "if (__channel == NULL || __tvbuf == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct timeval maxtv;\nif (ares_timeout(__channel, &maxtv, __tvbuf) == NULL) {\n    FUZZ_BAIL();\n}"
@@ -594,17 +677,17 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__maxtv",
           "dir": "*",
-          "typ": "struct timeval *"
+          "type": "struct timeval *"
         },
         {
           "name": "__tvbuf",
           "dir": "*",
-          "typ": "struct timeval *"
+          "type": "struct timeval *"
         }
       ],
       "template": "if (__channel == NULL || __maxtv == NULL || __tvbuf == NULL) {\n    FUZZ_BAIL();\n}\n\nstruct timeval *result = ares_timeout(__channel, __maxtv, __tvbuf);\n\nif (result == NULL) {\n    FUZZ_BAIL();\n}"
@@ -615,7 +698,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nint timeout_ms = FUZZ_PARAM(int);\n\nares_status_t status = ares_queue_wait_empty(__channel, timeout_ms);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -626,7 +709,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) FUZZ_BAIL();\n\nunsigned char local_ip6[16];\nfor (int i = 0; i < 16; i++) {\n    local_ip6[i] = FUZZ_PARAM(unsigned char);\n}\nares_set_local_ip6(__channel, local_ip6);"
@@ -637,7 +720,7 @@
         {
           "name": "__options",
           "dir": "del",
-          "typ": "struct ares_options *"
+          "type": "struct ares_options *"
         }
       ],
       "template": "if (!__options) {\n    FUZZ_BAIL();\n}\n\nares_destroy_options(__options);\n\n// The options structure is presumably dynamically allocated and will be freed by the ares_destroy_options function, no need for additional cleanup."
@@ -648,7 +731,7 @@
         {
           "name": "__channelptr",
           "dir": "new",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channelptr != nullptr) {\n    FUZZ_BAIL();\n}\n\nint result = ares_init(&__channelptr);\nif (result != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -659,7 +742,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n// Define a suitable callback function and data to pass to the library function.\nares_sock_config_callback cb = NULL; // or assign a valid callback if needed\nvoid *data = NULL; // or create some data to pass\n\n// Invoke the ares_set_socket_configure_callback function with the provided arguments.\nares_set_socket_configure_callback(__channel, cb, data);"
@@ -670,7 +753,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nares_dns_record_t *dnsrec = NULL;\nunsigned short qid = 0;\n\n// Create a new DNS record object with random parameters\nif (ares_dns_record_create(&dnsrec, 0, 0, ARES_OPCODE_QUERY, ARES_RCODE_NOERROR) != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\n// Invoke ares_send_dnsrec\nares_status_t status = ares_send_dnsrec(__channel, dnsrec, NULL, NULL, &qid);\nif (status != ARES_SUCCESS) {\n    ares_dns_record_destroy(dnsrec);\n    FUZZ_BAIL();\n}\n\n// Clean up the DNS record object\nares_dns_record_destroy(dnsrec);"
@@ -691,7 +774,7 @@
         {
           "name": "__size",
           "dir": "*",
-          "typ": "ares_socklen_t"
+          "type": "ares_socklen_t"
         }
       ],
       "template": "if (__size == 0) FUZZ_BAIL();\n\nunsigned char *src = (unsigned char *)gf_malloc(__size);\nif (src == NULL) FUZZ_BAIL();\n\n// Fill src with random data for demonstration purposes\nfor (ares_socklen_t i = 0; i < __size; i++) {\n    src[i] = FUZZ_PARAM(uint8_t);\n}\n\nchar *dst = (char *)gf_malloc(INET_ADDRSTRLEN);\nif (dst == NULL) {\n    gf_free(src);\n    FUZZ_BAIL();\n}\n\nconst char *result = NULL;\nint af = (rand() % 2) ? AF_INET : AF_INET6;\nif (af == AF_INET) {\n    result = ares_inet_ntop(af, src, dst, __size);\n} else if (af == AF_INET6) {\n    result = ares_inet_ntop(af, src, dst, __size);\n}\n\nif (result == NULL) {\n    gf_free(src);\n    gf_free(dst);\n    FUZZ_BAIL();\n}\n\n// Output pointer will be managed by the library, just free our allocated buffer\ngf_free(src);\ngf_free(dst);"
@@ -702,7 +785,7 @@
         {
           "name": "__return_value",
           "dir": "*",
-          "typ": "ares_bool_t"
+          "type": "ares_bool_t"
         }
       ],
       "template": "if (__return_value != ARES_TRUE && __return_value != ARES_FALSE) {\n    FUZZ_BAIL();\n}\n\nif (ares_threadsafety() != __return_value) {\n    FUZZ_BAIL();\n}"
@@ -713,12 +796,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__events",
           "dir": "*",
-          "typ": "ares_fd_events_t"
+          "type": "ares_fd_events_t"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\nsize_t nevents = FUZZ_PARAM(int);\n\nares_fd_events_t *events = (ares_fd_events_t *)gf_malloc(nevents * sizeof(ares_fd_events_t));\nif (events == NULL) {\n    FUZZ_BAIL();\n}\n\n// Populate the events array with fuzzed data if necessary\nfor (size_t i = 0; i < nevents; ++i) {\n    events[i] = __events; // Use the provided events for testing\n}\n\nares_status_t status = ares_process_fds(__channel, events, nevents, 0);\n\ngf_free(events);\n\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -734,12 +817,12 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         },
         {
           "name": "__servers",
           "dir": "new",
-          "typ": "struct ares_addr_node *"
+          "type": "struct ares_addr_node *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n// Initialize output __servers to NULL\n__servers = NULL;\n\n// Invoke the ares_get_servers function\nint result = ares_get_servers(__channel, &__servers);\nif (result != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}"
@@ -750,7 +833,7 @@
         {
           "name": "__channel",
           "dir": "*",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (__channel == NULL) {\n    FUZZ_BAIL();\n}\n\n// Directly invoke ares_set_socket_callback without additional logic\nares_set_socket_callback(__channel, NULL, NULL);"
@@ -766,7 +849,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "if (ares_init(&object) != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n"
@@ -777,7 +860,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "struct ares_options *"
+          "type": "struct ares_options *"
         }
       ],
       "template": "object = (struct ares_options *)gf_malloc(sizeof(struct ares_options));\nif (!object) {\n    FUZZ_BAIL();\n}\n\n// Initialize the struct members to default values\nmemset(object, 0, sizeof(struct ares_options));\nobject->flags = 0;\nobject->timeout = FUZZ_PARAM(int);\nobject->tries = FUZZ_PARAM(int);\nobject->ndots = FUZZ_PARAM(int);\nobject->udp_port = FUZZ_PARAM(unsigned short);\nobject->tcp_port = FUZZ_PARAM(unsigned short);\nobject->socket_send_buffer_size = FUZZ_PARAM(int);\nobject->socket_receive_buffer_size = FUZZ_PARAM(int);\nobject->nservers = 0;\nobject->servers = NULL;\nobject->ndomains = 0;\nobject->domains = NULL;\nobject->lookups = strdup(FUZZ_PARAM_STR(10));\nobject->sock_state_cb = NULL;\nobject->sock_state_cb_data = NULL;\nobject->nsort = 0;\nobject->sortlist = NULL;\nobject->ednspsz = FUZZ_PARAM(int);\nobject->resolvconf_path = strdup(FUZZ_PARAM_STR(10));\nobject->hosts_path = strdup(FUZZ_PARAM_STR(10));\nobject->udp_max_queries = FUZZ_PARAM(int);\nobject->maxtimeout = FUZZ_PARAM(int);\nobject->qcache_max_ttl = FUZZ_PARAM(unsigned int);\n\n// Normally you would use ares_init_options to initialize options\nint status = ares_init_options(NULL, object, 0);\nif (status != 0) {\n    gf_free(object->lookups);\n    gf_free(object->resolvconf_path);\n    gf_free(object->hosts_path);\n    gf_free(object);\n    FUZZ_BAIL();\n}"
@@ -788,7 +871,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "struct ares_srv_reply *"
+          "type": "struct ares_srv_reply *"
         }
       ],
       "template": "if (!object) {\n    object = static_cast<struct ares_srv_reply *>(gf_malloc(sizeof(struct ares_srv_reply)));\n    if (!object) {\n        FUZZ_BAIL();\n    }\n    object->next = NULL;\n    object->host = static_cast<char *>(gf_malloc(256));\n    if (!object->host) {\n        gf_free(object);\n        FUZZ_BAIL();\n    }\n    snprintf(object->host, 256, \"%s\", FUZZ_PARAM_STR(24));\n    object->priority = FUZZ_PARAM(unsigned short);\n    object->weight = FUZZ_PARAM(unsigned short);\n    object->port = FUZZ_PARAM(unsigned short);\n    \n    // Assume the initialization using some library API happens here\n    \n    // Clean up if needed.\n} else {\n    FUZZ_BAIL();\n}"
@@ -799,7 +882,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "ares_addrinfo_hints"
+          "type": "ares_addrinfo_hints"
         }
       ],
       "template": "object.ai_flags = FUZZ_PARAM(int);\nobject.ai_family = FUZZ_PARAM(int);\nobject.ai_socktype = FUZZ_PARAM(int);\nobject.ai_protocol = FUZZ_PARAM(int);"
@@ -810,7 +893,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "struct ares_addr_port_node"
+          "type": "struct ares_addr_port_node"
         }
       ],
       "template": "ares_channel_t *channel = NULL;\nint status = ares_init(&channel);\nif (status != ARES_SUCCESS) {\n    FUZZ_BAIL();\n}\n\nmemset(&object, 0, sizeof(object)); // Initialize to zeros\n\n// Set random values for family, udp_port, and tcp_port\nobject.family = FUZZ_PARAM(int);\nobject.udp_port = FUZZ_PARAM(int);\nobject.tcp_port = FUZZ_PARAM(int);\n\n// Initialize next node as NULL\nobject.next = NULL;\n\n// If needed: add more complex initialization based on the library documentation\n\n// If you are done and the object is used somewhere, you might want to free the channel\n\n// Optionally clean up the ares_channel_t when finished\nares_destroy(channel);\n"
@@ -821,7 +904,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "ares_socket_functions_ex"
+          "type": "ares_socket_functions_ex"
         }
       ],
       "template": "memset(&object, 0, sizeof(ares_socket_functions_ex));\nobject.version = 1; // Setting the ABI Version to 1\n\nobject.asocket = [](int domain, int type, int protocol, void *user_data) -> ares_socket_t {\n    // Example implementation of a socket creation\n    // Here we would normally call the operating system's socket functions, \n    // but for fuzzing purposes, we can simulate it.\n    return socket(domain, type, protocol);\n}; \n\nif (object.asocket == nullptr) {\n    FUZZ_BAIL(); // Bail if there was an error constructing the socket function\n}\n\n// If needed, you can assign flags or more behavior here if specified by the API."
@@ -832,7 +915,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "ares_socket_functions"
+          "type": "ares_socket_functions"
         }
       ],
       "template": "memset(&object, 0, sizeof(ares_socket_functions));\n\nobject.asocket = (ares_socket_t (*)(int, int, int, void *))FUZZ_PARAM(int);\nobject.aclose = (int (*)(ares_socket_t, void *))FUZZ_PARAM(int);\nobject.aconnect = (int (*)(ares_socket_t, const struct sockaddr *, ares_socklen_t, void *))FUZZ_PARAM(int);\nobject.arecvfrom = (ares_ssize_t (*)(ares_socket_t, void *, size_t, int, struct sockaddr *, ares_socklen_t *, void *))FUZZ_PARAM(int);\nobject.asendv = (ares_ssize_t (*)(ares_socket_t, const struct iovec *, int, void *))FUZZ_PARAM(int);"
@@ -843,7 +926,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "struct ares_addrttl *"
+          "type": "struct ares_addrttl *"
         }
       ],
       "template": "object = (struct ares_addrttl *) gf_malloc(sizeof(struct ares_addrttl));\nif (!object) {\n    FUZZ_BAIL();\n}\n\nobject->ipaddr.s_addr = FUZZ_PARAM(uint32_t);\nobject->ttl = FUZZ_PARAM(int);"
@@ -854,7 +937,7 @@
         {
           "name": "object",
           "dir": "new",
-          "typ": "ares_mx_reply"
+          "type": "ares_mx_reply"
         }
       ],
       "template": "object.next = NULL;\nobject.host = (char *)gf_malloc(256);\nif (!object.host) FUZZ_BAIL();\n\nsize_t host_length = FUZZ_PARAM(uint8_t);\nif (host_length > 255) host_length = 255;\n\nmemset(object.host, 0, 256);\nmemcpy(object.host, FUZZ_PARAM_STR(255), host_length);\nobject.priority = FUZZ_PARAM(uint16_t);\n\nif (object.priority == 0) {\n    gf_free(object.host);\n    FUZZ_BAIL();\n}"
@@ -865,7 +948,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_soa_reply"
+          "type": "ares_soa_reply"
         }
       ],
       "template": "// empty"
@@ -876,7 +959,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo_hints *"
+          "type": "struct ares_addrinfo_hints *"
         }
       ],
       "template": "// empty"
@@ -887,7 +970,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addrinfo"
+          "type": "ares_addrinfo"
         }
       ],
       "template": "// empty"
@@ -898,7 +981,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_caa_reply *"
+          "type": "struct ares_caa_reply *"
         }
       ],
       "template": "// empty"
@@ -909,7 +992,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_channel_t *"
+          "type": "ares_channel_t *"
         }
       ],
       "template": "// empty"
@@ -920,7 +1003,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_soa_reply"
+          "type": "struct ares_soa_reply"
         }
       ],
       "template": "// empty"
@@ -931,7 +1014,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_mx_reply"
+          "type": "struct ares_mx_reply"
         }
       ],
       "template": "// empty"
@@ -942,7 +1025,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct timeval *"
+          "type": "struct timeval *"
         }
       ],
       "template": "// empty"
@@ -953,7 +1036,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_mx_reply *"
+          "type": "struct ares_mx_reply *"
         }
       ],
       "template": "// empty"
@@ -964,7 +1047,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_caa_reply"
+          "type": "ares_caa_reply"
         }
       ],
       "template": "// empty"
@@ -975,7 +1058,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socket_bind_flags_t"
+          "type": "ares_socket_bind_flags_t"
         }
       ],
       "template": "// empty"
@@ -986,7 +1069,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_evsys_t"
+          "type": "ares_evsys_t"
         }
       ],
       "template": "// empty"
@@ -997,7 +1080,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_options *"
+          "type": "struct ares_options *"
         }
       ],
       "template": "// empty"
@@ -1008,7 +1091,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_server_failover_options *"
+          "type": "struct ares_server_failover_options *"
         }
       ],
       "template": "// empty"
@@ -1019,7 +1102,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_txt_ext"
+          "type": "ares_txt_ext"
         }
       ],
       "template": "// empty"
@@ -1030,7 +1113,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_in6_addr"
+          "type": "struct ares_in6_addr"
         }
       ],
       "template": "// empty"
@@ -1041,7 +1124,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_server_failover_options"
+          "type": "ares_server_failover_options"
         }
       ],
       "template": "// empty"
@@ -1052,7 +1135,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_srv_reply"
+          "type": "ares_srv_reply"
         }
       ],
       "template": "// empty"
@@ -1063,7 +1146,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addr_port_node"
+          "type": "ares_addr_port_node"
         }
       ],
       "template": "// empty"
@@ -1074,7 +1157,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_naptr_reply *"
+          "type": "struct ares_naptr_reply *"
         }
       ],
       "template": "// empty"
@@ -1085,7 +1168,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_uri_reply"
+          "type": "struct ares_uri_reply"
         }
       ],
       "template": "// empty"
@@ -1096,7 +1179,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr *"
+          "type": "struct ares_addr *"
         }
       ],
       "template": "// empty"
@@ -1107,7 +1190,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_txt_reply"
+          "type": "struct ares_txt_reply"
         }
       ],
       "template": "// empty"
@@ -1118,7 +1201,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_process_flag_t"
+          "type": "ares_process_flag_t"
         }
       ],
       "template": "// empty"
@@ -1129,7 +1212,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr6ttl"
+          "type": "struct ares_addr6ttl"
         }
       ],
       "template": "// empty"
@@ -1140,7 +1223,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addrinfo_cname"
+          "type": "ares_addrinfo_cname"
         }
       ],
       "template": "// empty"
@@ -1151,7 +1234,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_soa_reply *"
+          "type": "struct ares_soa_reply *"
         }
       ],
       "template": "// empty"
@@ -1162,7 +1245,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_txt_reply"
+          "type": "ares_txt_reply"
         }
       ],
       "template": "// empty"
@@ -1173,7 +1256,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_channeldata *"
+          "type": "struct ares_channeldata *"
         }
       ],
       "template": "// empty"
@@ -1184,7 +1267,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socket_connect_flags_t"
+          "type": "ares_socket_connect_flags_t"
         }
       ],
       "template": "// empty"
@@ -1195,7 +1278,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_fd_events_t"
+          "type": "ares_fd_events_t"
         }
       ],
       "template": "// empty"
@@ -1206,7 +1289,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct sockaddr"
+          "type": "struct sockaddr"
         }
       ],
       "template": "// empty"
@@ -1217,7 +1300,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_server_failover_options"
+          "type": "struct ares_server_failover_options"
         }
       ],
       "template": "// empty"
@@ -1228,7 +1311,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_srv_reply"
+          "type": "struct ares_srv_reply"
         }
       ],
       "template": "// empty"
@@ -1239,7 +1322,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addr_node"
+          "type": "ares_addr_node"
         }
       ],
       "template": "// empty"
@@ -1250,7 +1333,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_uri_reply *"
+          "type": "struct ares_uri_reply *"
         }
       ],
       "template": "// empty"
@@ -1261,7 +1344,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socket_opt_t"
+          "type": "ares_socket_opt_t"
         }
       ],
       "template": "// empty"
@@ -1272,7 +1355,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr"
+          "type": "struct ares_addr"
         }
       ],
       "template": "// empty"
@@ -1283,7 +1366,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addr6ttl"
+          "type": "ares_addr6ttl"
         }
       ],
       "template": "// empty"
@@ -1294,7 +1377,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_status_t"
+          "type": "ares_status_t"
         }
       ],
       "template": "// empty"
@@ -1305,7 +1388,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrttl"
+          "type": "struct ares_addrttl"
         }
       ],
       "template": "// empty"
@@ -1316,7 +1399,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo *"
+          "type": "struct ares_addrinfo *"
         }
       ],
       "template": "// empty"
@@ -1327,7 +1410,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo_hints"
+          "type": "struct ares_addrinfo_hints"
         }
       ],
       "template": "// empty"
@@ -1338,7 +1421,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_naptr_reply"
+          "type": "ares_naptr_reply"
         }
       ],
       "template": "// empty"
@@ -1349,7 +1432,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_srv_reply *"
+          "type": "struct ares_srv_reply *"
         }
       ],
       "template": "// empty"
@@ -1360,7 +1443,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_options"
+          "type": "struct ares_options"
         }
       ],
       "template": "// empty"
@@ -1371,7 +1454,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_ssize_t"
+          "type": "ares_ssize_t"
         }
       ],
       "template": "// empty"
@@ -1382,7 +1465,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo_node"
+          "type": "struct ares_addrinfo_node"
         }
       ],
       "template": "// empty"
@@ -1393,7 +1476,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct timeval"
+          "type": "struct timeval"
         }
       ],
       "template": "// empty"
@@ -1404,7 +1487,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socklen_t"
+          "type": "ares_socklen_t"
         }
       ],
       "template": "// empty"
@@ -1415,7 +1498,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addrinfo_hints"
+          "type": "ares_addrinfo_hints"
         }
       ],
       "template": "// empty"
@@ -1426,7 +1509,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_socket_functions_ex *"
+          "type": "struct ares_socket_functions_ex *"
         }
       ],
       "template": "// empty"
@@ -1437,7 +1520,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_process_flag_t *"
+          "type": "ares_process_flag_t *"
         }
       ],
       "template": "// empty"
@@ -1448,7 +1531,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr_port_node"
+          "type": "struct ares_addr_port_node"
         }
       ],
       "template": "// empty"
@@ -1459,7 +1542,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_in6_addr *"
+          "type": "struct ares_in6_addr *"
         }
       ],
       "template": "// empty"
@@ -1470,7 +1553,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_fd_events_t *"
+          "type": "ares_fd_events_t *"
         }
       ],
       "template": "// empty"
@@ -1481,7 +1564,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct hostent *"
+          "type": "struct hostent *"
         }
       ],
       "template": "// empty"
@@ -1492,7 +1575,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_txt_reply *"
+          "type": "struct ares_txt_reply *"
         }
       ],
       "template": "// empty"
@@ -1503,7 +1586,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socket_functions_ex"
+          "type": "ares_socket_functions_ex"
         }
       ],
       "template": "// empty"
@@ -1514,7 +1597,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socket_functions"
+          "type": "ares_socket_functions"
         }
       ],
       "template": "// empty"
@@ -1525,7 +1608,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr_node *"
+          "type": "struct ares_addr_node *"
         }
       ],
       "template": "// empty"
@@ -1536,7 +1619,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_bool_t"
+          "type": "ares_bool_t"
         }
       ],
       "template": "// empty"
@@ -1547,7 +1630,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrttl *"
+          "type": "struct ares_addrttl *"
         }
       ],
       "template": "// empty"
@@ -1558,7 +1641,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr_node"
+          "type": "struct ares_addr_node"
         }
       ],
       "template": "// empty"
@@ -1569,7 +1652,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr6ttl *"
+          "type": "struct ares_addr6ttl *"
         }
       ],
       "template": "// empty"
@@ -1580,7 +1663,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_uri_reply"
+          "type": "ares_uri_reply"
         }
       ],
       "template": "// empty"
@@ -1591,7 +1674,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo_cname"
+          "type": "struct ares_addrinfo_cname"
         }
       ],
       "template": "// empty"
@@ -1602,7 +1685,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addr_port_node *"
+          "type": "struct ares_addr_port_node *"
         }
       ],
       "template": "// empty"
@@ -1613,7 +1696,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo"
+          "type": "struct ares_addrinfo"
         }
       ],
       "template": "// empty"
@@ -1624,7 +1707,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_mx_reply"
+          "type": "ares_mx_reply"
         }
       ],
       "template": "// empty"
@@ -1635,7 +1718,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_socket_functions *"
+          "type": "struct ares_socket_functions *"
         }
       ],
       "template": "// empty"
@@ -1646,7 +1729,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_naptr_reply"
+          "type": "struct ares_naptr_reply"
         }
       ],
       "template": "// empty"
@@ -1657,7 +1740,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_socket_t"
+          "type": "ares_socket_t"
         }
       ],
       "template": "// empty"
@@ -1668,7 +1751,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_caa_reply"
+          "type": "struct ares_caa_reply"
         }
       ],
       "template": "// empty"
@@ -1679,7 +1762,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo_cname *"
+          "type": "struct ares_addrinfo_cname *"
         }
       ],
       "template": "// empty"
@@ -1690,7 +1773,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addrinfo_node"
+          "type": "ares_addrinfo_node"
         }
       ],
       "template": "// empty"
@@ -1701,7 +1784,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_addrinfo_node *"
+          "type": "struct ares_addrinfo_node *"
         }
       ],
       "template": "// empty"
@@ -1712,7 +1795,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_addrttl"
+          "type": "ares_addrttl"
         }
       ],
       "template": "// empty"
@@ -1723,7 +1806,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct ares_txt_ext *"
+          "type": "struct ares_txt_ext *"
         }
       ],
       "template": "// empty"
@@ -1734,7 +1817,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "ares_options"
+          "type": "ares_options"
         }
       ],
       "template": "// empty"
@@ -1745,7 +1828,7 @@
         {
           "name": "object",
           "dir": "del",
-          "typ": "struct sockaddr *"
+          "type": "struct sockaddr *"
         }
       ],
       "template": "// empty"
