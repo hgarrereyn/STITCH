@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-use crate::{graph::{Graph, Node, NodeRef, NodeRefType}, pspec::{self, PSpec}};
+use crate::{graph::{Graph, Node, NodeRef, NodeRefType}, pspec::PSpec};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

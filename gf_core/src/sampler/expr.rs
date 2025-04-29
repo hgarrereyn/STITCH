@@ -1,9 +1,8 @@
-use rustsat::{instances::SatInstance, types::{constraints::CardConstraint, Assignment, Lit, TernaryVal, Var}};
+use rustsat::{instances::SatInstance, types::{constraints::CardConstraint, Assignment, TernaryVal, Var}};
 
 use crate::pspec::{PAttr, PAttrType};
 
 use super::util::{and_clause, eq_clause, get_idx, ite_clause, not_clause, or_clause, xor_clause};
-
 
 
 #[derive(Clone, Debug)]
@@ -30,7 +29,7 @@ impl FieldAttr {
         match &pattr.typ {
             PAttrType::Int => {
                 let mut bits = vec![];
-                for i in 0..INT_BITS {
+                for _ in 0..INT_BITS {
                     bits.push(instance.new_var());
                 }
                 Self::Int(IntAttr {

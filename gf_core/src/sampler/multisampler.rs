@@ -1,7 +1,6 @@
-use rustsat::{instances::{BasicVarManager, Cnf, SatInstance}, solvers::SolverResult, types::Var};
+use rustsat::{instances::{BasicVarManager, Cnf, SatInstance}, solvers::SolverResult};
 use rustsat_cadical::CaDiCaL;
 use rustsat::solvers::Solve;
-use smtlib::{backend::cvc5_binary::Cvc5Binary, Backend, Solver, Storage};
 
 use crate::pspec::PSpec;
 use crate::sampler::sgraph::SGraph;
@@ -124,8 +123,6 @@ impl MultiSampler {
 
 #[cfg(test)]
 mod tests {
-    use std::f32::consts::E;
-
     use crate::spec::Spec;
 
     use super::*;

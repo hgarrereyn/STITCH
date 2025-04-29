@@ -2,13 +2,12 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use rustsat::types::constraints::{CardConstraint, CardUbConstr};
-use rustsat::types::{Assignment, Clause, Lit, TernaryVal, Var};
+use rustsat::types::constraints::CardConstraint;
+use rustsat::types::{Assignment, Clause, TernaryVal, Var};
 use rustsat::instances::{BasicVarManager, Cnf, SatInstance};
-use rustsat::solvers::{Solve, SolverResult};
 use colored::Colorize;
 use crate::grammar::{EnumDef, EvalCtx, Leaf};
-use crate::pspec::{PAttr, PAttrType, PEndpointRole, PSpec};
+use crate::pspec::{PAttrType, PEndpointRole, PSpec};
 use crate::sampler::util::{and_clause, get_idx, not_clause, or_clause};
 
 use super::expr::FieldAttr;
