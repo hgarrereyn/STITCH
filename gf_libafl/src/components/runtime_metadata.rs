@@ -7,132 +7,74 @@ use std::time::{Duration, Instant};
 use std::path::Path;
 use std::fs::File;
 use std::io::Write;
+use gf_core::mutation::MutationContext;
+use gf_core::pspec::PSpec;
+use gf_core::runtime_metadata::{RuntimeMetadata, RuntimeMetadataView};
 use libafl::HasMetadata;
 use libafl::{
     stages::Stage,
     state::{UsesState, State},
     Error,
 };
-use libafl_bolts::{impl_serdeany, Named};
+use libafl_bolts::{impl_serdeany, Named, shmem::MmapShMem, AsSlice, AsSliceMut};
 use serde::{Deserialize, Serialize};
 use gf_core::{graph::Graph, harness::BailPoint};
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
-pub struct RuntimeMetadata {
-    // Maps node_type to number of failures
-    failure_counts: HashMap<usize, usize>,
-    // Maps node_type to a representative failing graph
-    failure_examples: HashMap<usize, Graph>,
 
-    success_counts: HashMap<usize, usize>,
-    success_examples: HashMap<usize, Graph>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EndpointMetadata {
+    pub name: String,
+    pub success_count: usize,
+    pub failure_count: usize,
+    pub executions: usize,
+    pub average_millis: f64,
 }
 
-impl_serdeany!(RuntimeMetadata);
-
-// Serializable version of the metadata for writing to file
-#[derive(Serialize)]
-struct MetadataSnapshot {
-    failure_counts: HashMap<usize, usize>,
-    total_failures: usize,
-
-    success_counts: HashMap<usize, usize>,
-    total_successes: usize,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FuzzerRuntimeMetadata {
+    pub endpoints: Vec<EndpointMetadata>,
 }
 
-impl RuntimeMetadata {
-    pub fn new() -> Self {
-        Self {
-            failure_counts: HashMap::new(),
-            failure_examples: HashMap::new(),
-
-            success_counts: HashMap::new(),
-            success_examples: HashMap::new(),
+impl FuzzerRuntimeMetadata {
+    pub fn read_from_view(pspec: &PSpec, view: &mut RuntimeMetadataView) -> Self {
+        let mut endpoints = Vec::new();
+        for i in 0..pspec.endpoints.len() {
+            let stats = view.endpoint_stats(i);
+            endpoints.push(EndpointMetadata {
+                name: pspec.endpoints[i].name.clone(),
+                success_count: stats.success_count,
+                failure_count: stats.failure_count,
+                executions: stats.executions,
+                average_millis: stats.average_millis,
+            });
         }
+        Self { endpoints }
     }
 
-    /// Mark a failure for a specific endpoint and store the failing graph as an example.
-    /// This method is thread-safe and performs atomic updates.
-    pub fn mark_failure(&mut self, bail_point: BailPoint, failing_graph: &Graph) {
-        // Update failure count
-        let count = self.failure_counts.entry(bail_point.node_type).or_insert(0);
-        *count += 1;
-        
-        // Store or update the representative failing graph
-        self.failure_examples.insert(bail_point.node_type, failing_graph.clone());
-    }
-
-    pub fn mark_success(&mut self, success_graph: &Graph) {
-        // Update success count
-        for node in success_graph.nodes.iter() {
-            let count = self.success_counts.entry(node.typ).or_insert(0);
-            *count += 1;
-        }
-        
-        // Store or update the representative successful graph
-        for node in success_graph.nodes.iter() {
-            self.success_examples.insert(node.typ, success_graph.clone());
-        }
-    }
-
-    /// Get the number of failures for a specific endpoint type
-    pub fn get_failure_count(&self, node_type: usize) -> usize {
-        *self.failure_counts.get(&node_type).unwrap_or(&0)
-    }
-
-    /// Get a reference to the representative failing graph for a specific endpoint type, if one exists
-    pub fn get_failure_example(&self, node_type: usize) -> Option<Graph> {
-        self.failure_examples.get(&node_type).cloned()
-    }
-
-    /// Get the total number of failures across all endpoints
-    pub fn total_failures(&self) -> usize {
-        self.failure_counts.values().sum()
-    }
-
-    pub fn total_successes(&self) -> usize {
-        self.success_counts.values().sum()
-    }
-
-    /// Get all endpoint types that have had failures
-    pub fn failing_endpoints(&self) -> Vec<usize> {
-        self.failure_counts.keys().copied().collect()
-    }
-
-    /// Write current metadata to a file in JSON format
-    fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
-        let failure_counts = self.failure_counts.clone();
-        let success_counts = self.success_counts.clone();
-        
-        let snapshot = MetadataSnapshot {
-            failure_counts: failure_counts.clone(),
-            total_failures: failure_counts.values().sum(),
-
-            success_counts: success_counts.clone(),
-            total_successes: success_counts.values().sum(),
-        };
-
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         let mut file = File::create(path).map_err(|e| Error::unknown(e.to_string()))?;
-        serde_json::to_writer_pretty(&mut file, &snapshot)
+        serde_json::to_writer_pretty(&mut file, &self)
             .map_err(|e| Error::unknown(e.to_string()))?;
         file.write_all(b"\n").map_err(|e| Error::unknown(e.to_string()))?;
         Ok(())
     }
 }
 
-/// A LibAFL stage that periodically writes metadata to a file
-pub struct MetadataLoggerStage<S> {
-    local_metadata: Rc<RefCell<RuntimeMetadata>>,
+// A LibAFL stage that periodically writes metadata to a file
+pub struct MetadataLoggerStage<'a, S> {
+    metadata: Rc<RefCell<RuntimeMetadataView<'a>>>,
+    ctx: Rc<MutationContext>,
     output_file: String,
     update_interval: Duration,
     last_update: Instant,
     phantom: std::marker::PhantomData<S>,
 }
 
-impl<S> MetadataLoggerStage<S> {
-    pub fn new(local_metadata: Rc<RefCell<RuntimeMetadata>>, output_file: String, update_interval: Duration) -> Self {
+impl<'a, S> MetadataLoggerStage<'a, S> {
+    pub fn new(metadata: Rc<RefCell<RuntimeMetadataView<'a>>>, ctx: Rc<MutationContext>, output_file: String, update_interval: Duration) -> Self {
         Self {
-            local_metadata,
+            metadata,
+            ctx,
             output_file,
             update_interval,
             last_update: Instant::now(),
@@ -141,20 +83,20 @@ impl<S> MetadataLoggerStage<S> {
     }
 }
 
-impl<S> Named for MetadataLoggerStage<S> {
+impl<'a, S> Named for MetadataLoggerStage<'a, S> {
     fn name(&self) -> &Cow<'static, str> {
         &Cow::Borrowed("metadata_logger")
     }
 }
 
-impl<S> UsesState for MetadataLoggerStage<S>
+impl<'a, S> UsesState for MetadataLoggerStage<'a, S>
 where
     S: State,
 {
     type State = S;
 }
 
-impl<E, EM, Z, S> Stage<E, EM, Z> for MetadataLoggerStage<S>
+impl<'a, E, EM, Z, S> Stage<E, EM, Z> for MetadataLoggerStage<'a, S>
 where
     S: State + HasMetadata,
     E: UsesState<State = S>,
@@ -178,16 +120,10 @@ where
     ) -> Result<(), Error> {
         let now = Instant::now();
         if now.duration_since(self.last_update) >= self.update_interval {
-            let metadata = self.local_metadata.borrow().clone();
-
+            // Read from shared memory
+            let metadata = FuzzerRuntimeMetadata::read_from_view(&self.ctx.pspec, &mut self.metadata.borrow_mut());
             metadata.write_to_file(&self.output_file)?;
-
             self.last_update = now;
-            let failures = metadata.total_failures();
-            let successes = metadata.total_successes();
-            println!("[RUNTIME] FAILED {} SUCCESS {} :: Unique Successes {}", failures, successes, metadata.success_examples.len());
-
-            state.add_metadata(metadata);
         }
         Ok(())
     }

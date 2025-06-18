@@ -5,9 +5,9 @@ import json
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
-from agf.data.project_info import ProjectInfo
-from agf.tools.ctags import search_ctags as search_ctags_tool
-from agf.utils.colors import Colors
+from ..data.project_info import ProjectInfo
+from .ctags import search_ctags as search_ctags_tool
+from ..utils.colors import Colors
 
 
 def tool_log(msg: str):

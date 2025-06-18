@@ -1,6 +1,6 @@
 import subprocess
 import tempfile
-from agf.data.project_info import ProjectInfo
+from ..data.project_info import ProjectInfo
 
 
 def build_full(path: str, info: ProjectInfo):

@@ -39,6 +39,7 @@ impl<'a> HarnessWriter<'a> {
 
         for (idx, endpoint) in self.pspec.endpoints.iter().enumerate() {
             self.emit_context_size_info(&mut code, idx, endpoint);
+            self.emit_shim_arg_offsets(&mut code, idx, endpoint);
         }
 
         self.emit_linkage_info(&mut code);
@@ -177,6 +178,24 @@ impl<'a> HarnessWriter<'a> {
         code.push_str(&format!("const unsigned int shim_size_{} = {};\n", idx, context_size));
     }
 
+    fn emit_shim_arg_offsets(&self, code: &mut String, idx: usize, endpoint: &PEndpoint) {
+        code.push_str(&format!("const unsigned int shim_arg_offsets_{}[] = {{\n", idx));
+        for i in 0..endpoint.args.len() {
+            // Sum up sizes of all previous arguments
+            let context_size = if i > 0 {
+                endpoint.args.iter().take(i).map(|x| {
+                    format!("sizeof({})", x)
+                }).collect::<Vec<_>>().join(" + ")
+            } else {
+                "0".to_string()
+            };
+            code.push_str(&format!("    {},\n", context_size));
+        }
+        // emit -1 to indicate end of array
+        code.push_str("    0xffffffff,\n");
+        code.push_str("};\n\n");
+    }
+
     fn emit_write_init_shim(&self, code: &mut String) {
         code.push_str("extern \"C\" void write_init_shim(void) {\n");
         code.push_str("    // Print builtin headers\n");
@@ -238,13 +257,20 @@ impl<'a> HarnessWriter<'a> {
         }
         code.push_str("    };\n\n");
 
+        code.push_str("    unsigned int* GRAPHFUZZ_SHIM_ARG_OFFSETS[] = {\n");
+        for (idx, _endpoint) in self.pspec.endpoints.iter().enumerate() {
+            code.push_str(&format!("        (unsigned int*)shim_arg_offsets_{},\n", idx));
+        }
+        code.push_str("    };\n\n");
+
         code.push_str("    const unsigned int GRAPHFUZZ_SHIMS_COUNT = ");
         code.push_str(&format!("{};\n\n", self.pspec.endpoints.len()));
 
-        code.push_str("    void GRAPHFUZZ_TARGET_INFO(void **exec_shim_ptr, void **write_shim_ptr, unsigned int **shim_size_ptr, unsigned int *shim_count, void **write_init_shim_ptr) {\n");
+        code.push_str("    void GRAPHFUZZ_TARGET_INFO(void **exec_shim_ptr, void **write_shim_ptr, unsigned int **shim_size_ptr, unsigned int ***shim_arg_offsets_ptr, unsigned int *shim_count, void **write_init_shim_ptr) {\n");
         code.push_str("        *exec_shim_ptr = GRAPHFUZZ_EXEC_SHIMS;\n");
         code.push_str("        *write_shim_ptr = GRAPHFUZZ_WRITE_SHIMS;\n");
         code.push_str("        *shim_size_ptr = GRAPHFUZZ_SHIM_SIZES;\n");
+        code.push_str("        *shim_arg_offsets_ptr = GRAPHFUZZ_SHIM_ARG_OFFSETS;\n");
         code.push_str("        *shim_count = GRAPHFUZZ_SHIMS_COUNT;\n");
         code.push_str("        *write_init_shim_ptr = (void*)&write_init_shim;\n");
         code.push_str("    }\n");

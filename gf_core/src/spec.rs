@@ -51,6 +51,9 @@ pub struct Endpoint {
     pub template: String,
 
     #[serde(default)]
+    pub hints: Vec<String>,
+
+    #[serde(default)]
     pub preconditions: Vec<String>,
 
     #[serde(default)]
@@ -206,6 +209,9 @@ impl Endpoint {
         let mut pre_template = String::new();
         let mut post_template = String::new();
 
+        let mut hint_args = vec![];
+        let mut hint_args_sizes = vec![];
+
         for v in self.variables.iter() {
             match v.dir {
                 VariableDir::InOut => {
@@ -264,70 +270,48 @@ impl Endpoint {
         }
 
         {
-            // Find all instances of FUZZ_PARAM(<T>), and replace them with $a{i}
-            let fuzz_param_re = Regex::new(r"FUZZ_PARAM\(([^)]+)\)").unwrap();
             let mut template_with_fuzz = template.clone();
 
-            // Find all instances of FUZZ_PARAM
-            let matches: Vec<_> = fuzz_param_re.find_iter(&template).collect();
-            for m in matches {
-                let cap = fuzz_param_re.captures(&template[m.start()..m.end()]).unwrap();
-                let param_type = cap.get(1).unwrap().as_str().trim().to_string();
-                
-                // Add to args
-                args.push(param_type);
-                
-                // Replace with the appropriate $a{i} reference
-                let replacement = format!("$a{}", args.len() - 1);
-                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+            // Find all instances of FUZZ_PARAM(<T>) and replace them with (&$a{i})
+            let matches = find_macro_invocations(&template, "FUZZ_PARAM");
+            for (start, end, arg) in matches {
+                args.push(arg);
+                template_with_fuzz = template.replacen(&template[start..end], &format!("(&$a{})", args.len() - 1), 1);
             }
 
-            // Use the updated template with FUZZ_PARAM replaced
             template = template_with_fuzz;
         }
         {
+            let mut template_with_fuzz = template.clone();
+
             // Find all instances of FUZZ_PARAM_STR(<N>) and replace them with (char *)$aN
-            let fuzz_param_str_re = Regex::new(r"FUZZ_PARAM_STR\((\d+)\)").unwrap();
-            let mut template_with_fuzz = template.clone();
-
-            let matches: Vec<_> = fuzz_param_str_re.find_iter(&template).collect();
-            for m in matches {
-                let cap = fuzz_param_str_re.captures(&template[m.start()..m.end()]).unwrap();
-                let len = cap.get(1).unwrap().as_str().trim().parse::<usize>().unwrap();
-
-                // Add to args
+            let matches = find_macro_invocations(&template, "FUZZ_PARAM_STR");
+            for (start, end, arg) in matches {
+                let len = arg.split_whitespace().next().unwrap().parse::<usize>().unwrap();
                 args.push(format!("char[{}]", len + 1));
-
-                // Null terminate the string
                 pre_template.push_str(&format!("$a{}[{}] = 0;\n", args.len() - 1, len));
+                template_with_fuzz = template.replacen(&template[start..end], &format!("((const char *)$a{})", args.len() - 1), 1);
 
-                // Replace with the appropriate $a{i} reference
-                let replacement = format!("((const char *)$a{})", args.len() - 1);
-                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+                hint_args.push(args.len() - 1);
+                hint_args_sizes.push(len);
             }
 
-            // Use the updated template with FUZZ_PARAM_STR replaced
             template = template_with_fuzz;
         }
         {
-            // Find all instances of FUZZ_PARAM_FILE(<N>) and replace them with gf_fuzz_param::write_to_temp_file($aN, N)
-            let fuzz_param_file_re = Regex::new(r"FUZZ_PARAM_FILE\((\d+)\)").unwrap();
             let mut template_with_fuzz = template.clone();
 
-            let matches: Vec<_> = fuzz_param_file_re.find_iter(&template).collect();
-            for m in matches {
-                let cap = fuzz_param_file_re.captures(&template[m.start()..m.end()]).unwrap();
-                let len = cap.get(1).unwrap().as_str().trim().parse::<usize>().unwrap();
-
-                // Add to args
+            // Find all instances of FUZZ_PARAM_FILE(<N>) and replace them with gf_fuzz_param::write_to_temp_file($aN, N)
+            let matches = find_macro_invocations(&template, "FUZZ_PARAM_FILE");
+            for (start, end, arg) in matches {
+                let len = arg.split_whitespace().next().unwrap().parse::<usize>().unwrap();
                 args.push(format!("char[{}]", len));
+                template_with_fuzz = template.replacen(&template[start..end], &format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len), 1);
 
-                // Replace with the appropriate $a{i} reference
-                let replacement = format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len);
-                template_with_fuzz = template_with_fuzz.replacen(&template[m.start()..m.end()], &replacement, 1);
+                hint_args.push(args.len() - 1);
+                hint_args_sizes.push(len);
             }
 
-            // Use the updated template with FUZZ_PARAM_FILE replaced
             template = template_with_fuzz;
         }
 
@@ -399,6 +383,10 @@ impl Endpoint {
             args,
             template: full_template,
 
+            hints: self.hints.clone(),
+            hint_args,
+            hint_args_sizes,
+
             input_vars,
             output_vars,
             mappings,
@@ -410,6 +398,7 @@ impl Endpoint {
 
             // Autogenerated
             context_size: None,
+            hint_arg_offsets: vec![],
         })
     }
 
@@ -458,6 +447,42 @@ impl Endpoint {
     }
 }
 
+pub fn find_macro_invocations<'a>(input: &'a str, keyword: &str) -> Vec<(usize, usize, String)> {
+    let mut result = Vec::new();
+    let search = format!("{keyword}(");
+    let input_bytes = input.as_bytes();
+    let mut pos = 0;
+
+    while let Some(start) = input[pos..].find(&search) {
+        let start = pos + start;
+        let mut depth = 1;
+        let mut i = start + search.len();
+        let mut last = i;
+        while i < input.len() && depth > 0 {
+            match input_bytes[i] as char {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        // Found matching close
+                        result.push((
+                            start,
+                            i + 1,
+                            input[(start + search.len())..i].to_string(),
+                        ));
+                        last = i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            i += 1;
+        }
+        pos = last; // Continue searching after this invocation
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use crate::grammar::{BoolAtom, BoolExpr, CmpOp, Constraint, EnumExpr, Expr, IntAtom, IntExpr, Leaf};
@@ -473,7 +498,7 @@ mod tests {
                 {
                     "name": "test_func",
                     "variables": [],
-                    "template": "int z = FUZZ_PARAM(int);"
+                    "template": "int z = *FUZZ_PARAM(int);"
                 }
             ]
         }
@@ -487,7 +512,7 @@ mod tests {
             inputs: vec![],
             outputs: vec![],
             args: vec!["int".to_string()],
-            template: "int z = $a0;".to_string(),
+            template: "int z = *(&$a0);".to_string(),
             mappings: vec![],
             ..Default::default()
         });

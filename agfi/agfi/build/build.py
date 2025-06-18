@@ -1,9 +1,9 @@
 import tempfile
 import json
 
-from agf.build.buildcmd import build_command, synth_command, build_full
-from agf.data.project_info import ProjectInfo
-from agf.build.validator import validate_function, validate_object
+from .buildcmd import build_command, synth_command, build_full
+from ..data.project_info import ProjectInfo
+from .validator import validate_function, validate_object
 
 
 def fn_build_full(args):
@@ -42,12 +42,14 @@ def fn_dryrun(args):
 
 def fn_test_func(args):
     info = ProjectInfo.model_validate_json(open(args.info).read())
-    validate_function(args.function, info, verbose=True)
+    if validate_function(args.function, info, verbose=True) is not None:
+        exit(1)
 
 
 def fn_test_obj(args):
     info = ProjectInfo.model_validate_json(open(args.info).read())
-    validate_object(args.object, info, verbose=True)
+    if validate_object(args.object, info, verbose=True) is not None:
+        exit(1)
 
 
 def register(subparsers):

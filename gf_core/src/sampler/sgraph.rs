@@ -1,3 +1,6 @@
+use std::num::ParseIntError;
+
+use rand::{Rng, SeedableRng};
 use serde::{Serialize, Deserialize};
 
 use crate::{graph::{Graph, Node, NodeRef, NodeRefType}, pspec::PSpec};
@@ -101,7 +104,9 @@ impl SGraph {
         dot
     }
 
-    pub fn to_graph(&self, pspec: &PSpec) -> Graph {
+    pub fn to_graph(&self, pspec: &PSpec, seed: u64) -> Graph {
+        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+
         let mut nodes = Vec::new();
 
         for (node_idx, node) in self.nodes.iter().enumerate() {
@@ -117,16 +122,44 @@ impl SGraph {
 
             let context_size = pspec.endpoints[node.func_idx].context_size.unwrap_or(0);
 
+            // Initialize buffer arguments with hints if possible
+            let mut context = vec![0; context_size];
+            
+            if pspec.endpoints[node.func_idx].hints.len() > 0 {
+                for (hint_arg, hint_size) in pspec.endpoints[node.func_idx].hint_args.iter().zip(pspec.endpoints[node.func_idx].hint_args_sizes.iter()) {
+                    // Lookup the hint arg offset
+                    let hint_arg_offset = pspec.endpoints[node.func_idx].hint_arg_offsets[*hint_arg];
+
+                    // Pick a random hint
+                    let hint_idx = rng.gen_range(0..pspec.endpoints[node.func_idx].hints.len());
+                    let hint = pspec.endpoints[node.func_idx].hints[hint_idx].clone();
+                    let mut hint_bytes = decode_hex(&hint).unwrap();
+
+                    // Truncate the hint to the max buffer arg size
+                    hint_bytes.truncate(*hint_size);
+
+                    // Copy the hint to the context
+                    context[hint_arg_offset as usize..hint_arg_offset as usize + hint_bytes.len()].copy_from_slice(&hint_bytes);
+                }
+            }
+
             nodes.push(Node {
                 index: node_idx,
                 typ: node.func_idx,
                 layer: node_idx as isize,
                 in_ref,
                 out_ref,
-                context: vec![0; context_size],
+                context,
             });
         }
 
         Graph { nodes }
     }
+}
+
+pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect()
 }

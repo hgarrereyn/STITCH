@@ -1,14 +1,14 @@
 use core::panic;
-use std::{ffi::c_void, io::Write};
+use std::{ffi::c_void, io::Write, time::Instant};
 
-use crate::graph::Graph;
+use crate::{graph::Graph, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}};
 
 use super::graph::NodeRefType;
 
 
 extern "C" {
     // Defined in the fuzz target generated code.
-    fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, shim_size_ptr: &mut *const c_void, num_shims: &mut usize, write_init_shim_ptr: &mut *const c_void);
+    fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, shim_size_ptr: &mut *const c_void, shim_arg_offsets_ptr: &mut *const c_void, num_shims: &mut usize, write_init_shim_ptr: &mut *const c_void);
     fn GRAPHFUZZ_INVOKE_SHIM(shim: *const c_void, in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8, bailed: &mut usize);
     fn GRAPHFUZZ_PRE_INIT();
     fn GRAPHFUZZ_POST_INIT();
@@ -21,6 +21,7 @@ pub struct Harness {
     exec_shims: Vec<Shim>,
     write_shims: Vec<Shim>,
     pub shim_sizes: Vec<u32>,
+    pub shim_arg_offsets: Vec<Vec<u32>>,
     write_init_shim: WriteInitShim,
 }
 
@@ -43,34 +44,46 @@ impl Harness {
         let mut exec_shim_ptr: *const c_void = std::ptr::null();
         let mut write_shim_ptr: *const c_void = std::ptr::null();
         let mut shim_size_ptr: *const c_void = std::ptr::null();
+        let mut shim_arg_offsets_ptr: *const c_void = std::ptr::null();
         let mut write_init_shim_ptr: *const c_void = std::ptr::null();
         let mut num_shims: usize = 0;
         unsafe {
-            GRAPHFUZZ_TARGET_INFO(&mut exec_shim_ptr, &mut write_shim_ptr, &mut shim_size_ptr, &mut num_shims, &mut write_init_shim_ptr);
+            GRAPHFUZZ_TARGET_INFO(&mut exec_shim_ptr, &mut write_shim_ptr, &mut shim_size_ptr, &mut shim_arg_offsets_ptr, &mut num_shims, &mut write_init_shim_ptr);
         }
 
         let exec_shims = unsafe { std::slice::from_raw_parts(exec_shim_ptr as *const Shim, num_shims).to_vec() };
         let write_shims = unsafe { std::slice::from_raw_parts(write_shim_ptr as *const Shim, num_shims).to_vec() };
         let shim_sizes = unsafe { std::slice::from_raw_parts(shim_size_ptr as *const u32, num_shims).to_vec() };
+        let shim_arg_offsets_ptrs = unsafe { std::slice::from_raw_parts(shim_arg_offsets_ptr as *const *const u32, num_shims).to_vec() };
         let write_init_shim = unsafe { std::mem::transmute(write_init_shim_ptr) };
+
+        let mut shim_arg_offsets = Vec::new();
+        for i in 0..num_shims {
+            let mut offsets = Vec::new();
+            let mut offset_ptr = shim_arg_offsets_ptrs[i];
+            while unsafe { *offset_ptr != u32::MAX } {
+                offsets.push(unsafe { *offset_ptr });
+                offset_ptr = unsafe { offset_ptr.add(1) };
+            }
+            shim_arg_offsets.push(offsets);
+        }
 
         Self {
             exec_shims,
             write_shims,
             shim_sizes,
+            shim_arg_offsets,
             write_init_shim
         }
     }
 
-    pub fn invoke(&self, graph: &Graph) -> InvokeResult {
+    pub fn invoke(&self, graph: &Graph, mut metadata: Option<&mut RuntimeMetadataView>) -> InvokeResult {
         let slots = vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
         
         let order = graph.topological_sort();
 
         unsafe {
-            // println!("Invoking pre init");
             GRAPHFUZZ_PRE_INIT();
-            // println!("Invoked pre init");
         }
 
         for idx in order.iter() {
@@ -82,15 +95,23 @@ impl Harness {
                 }).collect::<Vec<_>>();
             let out_ref = slots[node.index].as_ptr();
 
-            // (self.exec_shims[node.typ])(in_ref.as_ptr(), out_ref, node.context.as_ptr());
-
             let mut m = 0;
+
+            let start = Instant::now();
             unsafe {
-                // println!("Invoking shim");
                 GRAPHFUZZ_INVOKE_SHIM(self.exec_shims[node.typ] as *const c_void, in_ref.as_ptr(), out_ref, node.context.as_ptr(), &mut m);
-                // println!("Invoked shim");
             }
-            if m != 0 {
+            let end = Instant::now();
+            let millis = end.duration_since(start).as_millis() as f64;
+
+            if m == 0 {
+                if let Some(metadata) = &mut metadata {
+                    metadata.endpoint_stats_mut(node.typ).mark_success(millis);
+                }
+            } else {
+                if let Some(metadata) = &mut metadata {
+                    metadata.endpoint_stats_mut(node.typ).mark_failure();
+                }
                 return InvokeResult::Bailed(BailPoint {
                     node_idx: node.index,
                     node_type: node.typ,
@@ -99,9 +120,7 @@ impl Harness {
         }
 
         unsafe {
-            // println!("Invoking post init");
             GRAPHFUZZ_POST_INIT();
-            // println!("Invoked post init");
         }
 
         InvokeResult::Success

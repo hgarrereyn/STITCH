@@ -376,6 +376,8 @@ impl MutationContext {
         };
 
         let node = graph.add_node(
+            &self.pspec,
+            &mut *self.rng.borrow_mut(),
             endpoint.idx, 
             edge.node_level + if edge.forward { 1 } else { -1 }, 
             self.pspec.endpoints[endpoint.idx].inputs.len(), 
@@ -422,7 +424,13 @@ impl MutationContext {
         let cache = self.cache.borrow();
         let endpoint_idx = cache.enabled_endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
         let endpoint = &self.pspec.endpoints[*endpoint_idx];
-        let _ = graph.add_node(endpoint.idx, 0, endpoint.inputs.len(), endpoint.outputs.len(), endpoint.context_size.unwrap());
+        let _ = graph.add_node(
+            &self.pspec,
+            &mut *self.rng.borrow_mut(),
+            endpoint.idx, 
+            0, 
+            endpoint.inputs.len(), 
+            endpoint.outputs.len(), endpoint.context_size.unwrap());
 
         self.complete(&mut graph);
         graph.sanitize();
@@ -555,6 +563,8 @@ impl MutationContext {
 
         // Add the new node
         let new_node = graph.add_node(
+            &self.pspec,
+            &mut *self.rng.borrow_mut(),
             endpoint.idx, 
             graph.nodes[node_idx].layer + if is_input { -1 } else { 1 }, 
             endpoint.inputs.len(), 
@@ -572,6 +582,34 @@ impl MutationContext {
         }
 
         // Complete any remaining edges
+        self.complete(graph);
+        graph.sanitize();
+    }
+
+    pub fn mutate_crossover(&self, graph: &mut Graph, other: &Graph) {
+        let mut other = other.clone();
+
+        let shift_size = graph.nodes.len();
+        other.apply_offset(shift_size);
+        graph.nodes.extend(other.nodes);
+
+        // Randomly keep 90% of the nodes
+        let mut rng = rand::thread_rng();
+        let mut keep = HashSet::new();
+        for node in graph.nodes.iter() {
+            if rng.gen_bool(0.9) {
+                keep.insert(node.index);
+            }
+        }
+
+        for node_idx in 0..graph.nodes.len() {
+            if !keep.contains(&node_idx) {
+                graph.unlink_all(node_idx);
+            }
+        }
+
+        graph.collapse(&keep);
+
         self.complete(graph);
         graph.sanitize();
     }

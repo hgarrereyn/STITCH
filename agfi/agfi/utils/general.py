@@ -37,3 +37,14 @@ def split_into_chunks(files: List[str], chunk_size: int) -> List[str]:
         chunks.extend(_split_file_into_chunks(content, chunk_size))
 
     return chunks
+
+
+def merge_headers(headers: List[str]) -> str:
+    """Merge a list of header files into a single string."""
+    out = ''
+    for header in headers:
+        out += f'<CODE FILE="{header}">\n'
+        with open(header, 'r') as f:
+            out += f.read()
+        out += '</CODE>\n'
+    return out

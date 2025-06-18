@@ -12,6 +12,8 @@ use libafl::inputs::Input;
 #[allow(unused_imports)]
 use libafl_targets::{libfuzzer_initialize, libfuzzer_test_one_input, std_edges_map_observer};
 
+// use crate::components::runtime_metadata::FuzzerRuntimeMetadata;
+
 pub mod components;
 pub mod fuzzer;
 pub mod minimizer;
@@ -94,6 +96,10 @@ pub extern "C" fn libafl_main() {
         pspec.endpoints[i].context_size = Some(*s as usize);
     }
 
+    for (i, s) in gf_harness.shim_arg_offsets.iter().enumerate() {
+        pspec.endpoints[i].hint_arg_offsets = s.clone();
+    }
+
     // Perform schema computation and caching/loading
     let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
     let mctx = MutationContext::new(pspec);
@@ -111,7 +117,7 @@ pub extern "C" fn libafl_main() {
     if res.input.is_some() && res.out.is_some() {
         run_fuzzer(res, gf_harness, ctx);
     } else if res.execute.is_some() {
-        execute_one(res, gf_harness);
+        execute_one(res, gf_harness, ctx);
     } else if res.write.is_some() {
         write_one(res, gf_harness);
     } else if res.minimize.is_some() {
@@ -129,7 +135,7 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
     );
 
     // For fuzzbench, crashes and finds are inside the same `corpus` directory, in the "queue" and "crashes" subdir.
-    let mut out_dir = PathBuf::from(res.out.unwrap());
+    let out_dir = PathBuf::from(res.out.unwrap());
     if fs::create_dir(&out_dir).is_err() {
         println!("Out dir at {:?} already exists.", &out_dir);
         if !out_dir.is_dir() {
@@ -137,9 +143,6 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
             return;
         }
     }
-    let mut crashes = out_dir.clone();
-    crashes.push("crashes");
-    out_dir.push("queue");
 
     let in_dir = PathBuf::from(res.input.unwrap());
     if !in_dir.is_dir() {
@@ -157,15 +160,13 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
             .expect("Could not parse timeout in milliseconds"),
     );
 
-    let filter_dir = res.filter_dir.map(PathBuf::from);
-
     fuzzer::fuzz(
-        gf_harness, ctx, out_dir, crashes, &in_dir, tokens,
-        &logfile, timeout, filter_dir
+        gf_harness, ctx, &out_dir, &in_dir, tokens,
+        &logfile, timeout
     ).unwrap();
 }
 
-fn execute_one(res: Options, gf_harness: Harness) {
+fn execute_one(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
     let path = PathBuf::from(res.execute.unwrap());
     let inp = GraphInput::from_file(path).expect("Could not read input file");
 
@@ -174,7 +175,7 @@ fn execute_one(res: Options, gf_harness: Harness) {
     println!("Executing graph:");
     graph.pprint();
 
-    gf_harness.invoke(&graph);
+    gf_harness.invoke(&graph, None);
 }
 
 fn write_one(res: Options, gf_harness: Harness) {

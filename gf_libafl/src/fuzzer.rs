@@ -9,7 +9,7 @@ use tempfile;
 use libafl::{
     corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{inprocess::InProcessExecutor, ExitKind, ForkserverExecutor, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
         havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
-    }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::QueueScheduler, stages::{
+    }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::{powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, QueueScheduler, StdWeightedScheduler}, stages::{
         StdMutationalStage,
         TracingStage,
     }, state::{HasCorpus, StdState}, Error, Evaluator, HasMetadata
@@ -25,22 +25,24 @@ use libafl_targets::{
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::GraphMutateSolver, runtime_metadata::{MetadataLoggerStage, RuntimeMetadata}};
-use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, sampler::{encoder::EncoderConfig, multisampler::MultiSampler}};
+use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, mutate_graph_sat::GraphMutateSolver, runtime_metadata::MetadataLoggerStage};
+use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}, sampler::{encoder::EncoderConfig, multisampler::{MultiSampler, SamplerConstraint}}};
 
 /// The actual fuzzer
 pub fn fuzz(
     gf_harness: Harness,
     ctx: Rc<MutationContext>,
-    corpus_dir: PathBuf,
-    objective_dir: PathBuf,
+    out_dir: &PathBuf,
     seed_dir: &PathBuf,
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
-    timeout: Duration,
-    filter_dir: Option<PathBuf>,
+    timeout: Duration
 ) -> Result<(), Error>
 {
+    let corpus_dir = out_dir.join("queue");
+    let objective_dir = out_dir.join("crashes");
+    let runtime_metadata_path = out_dir.join("runtime_metadata.json");
+
     let log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     #[cfg(unix)]
@@ -72,25 +74,34 @@ pub fn fuzz(
     unsafe{
         EDGES_MAP_PTR = shmem_buf.as_mut_ptr();
     }
+
+    // Setup shared memory for runtime metadata
+    let mut metadata_shmem = shmem_provider.new_shmem(
+        RuntimeMetadata::compute_size(ctx.pspec.endpoints.len())
+    ).unwrap();
+    let mut metadata_shmem_buf = metadata_shmem.as_slice_mut();
+    let RUNTIME_METADATA_PTR = unsafe {
+        metadata_shmem_buf.as_slice_mut()
+    };
     
     let obs = unsafe { std_edges_map_observer("edges") };
 
-    // let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
-    // {
-    //     // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
-    //     Ok(res) => res,
-    //     Err(err) => match err {
-    //         Error::ShuttingDown => {
-    //             return Ok(());
-    //         }
-    //         _ => {
-    //             panic!("Failed to setup the restarter: {err}");
-    //         }
-    //     },
-    // };
+    let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
+    {
+        // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
+        Ok(res) => res,
+        Err(err) => match err {
+            Error::ShuttingDown => {
+                return Ok(());
+            }
+            _ => {
+                panic!("Failed to setup the restarter: {err}");
+            }
+        },
+    };
 
-    let mut state = None;
-    let mut mgr = SimpleEventManager::new(monitor);
+    // let mut state = None;
+    // let mut mgr = SimpleEventManager::new(monitor);
 
     // Create an observation channel using the coverage map
     // We don't use the hitcounts (see the Cargo.toml, we use pcguard_edges)
@@ -173,33 +184,39 @@ pub fn fuzz(
     //     ),
     // );
 
-    // let graph_mutator = StdMutationalStage::new(
-    //     GraphMutatorSelector::new(
-    //         0.02,
-    //         3,
-    //         tuple_list!(
-    //             GraphMutateDeleteOne::new(ctx.clone()),
-    //             GraphMutateIsolateComponent::new(ctx.clone()),
-    //             GraphMutateRegenerate::new(ctx.clone()),
-    //             GraphMutateAddOne::new(ctx.clone()),
-    //         )
-    //     )
-    // );
+    let graph_mutator = StdMutationalStage::new(
+        GraphMutatorSelector::new(
+            0.01,
+            3,
+            tuple_list!(
+                GraphMutateDeleteOne::new(ctx.clone()),
+                GraphMutateIsolateComponent::new(ctx.clone()),
+                GraphMutateRegenerate::new(ctx.clone()),
+                GraphMutateAddOne::new(ctx.clone()),
+                GraphMutateCrossover::new(ctx.clone()),
+            )
+        )
+    );
 
     let mut ms = MultiSampler::new(&ctx.pspec, EncoderConfig::default());
 
-    let initial_seed = ms.sample_one();
-    let initial_seed_input = GraphInput {
-        graph: initial_seed.unwrap().to_graph(&ctx.pspec),
-    };
+    let mut initial_seeds = vec![];
+    for idx in 0..ctx.pspec.endpoints.len() {
+        let initial_seed = ms.sample_with_constraints(&[SamplerConstraint::IncludeFunction(idx)]);
+        if let Some(initial_seed) = initial_seed {
+            initial_seeds.push(initial_seed.to_graph(&ctx.pspec, 0));
+        }
+    }
 
-    let graph_mutator = StdMutationalStage::new(
-        GraphMutateSolver::new(
-            ctx.pspec.clone(),
-            ms,
-            0.02
-        )
-    );
+    println!("Initial seeds: {:?}", initial_seeds.len());
+
+    // let graph_mutator = StdMutationalStage::new(
+    //     GraphMutateSolver::new(
+    //         ctx.pspec.clone(),
+    //         ms,
+    //         0.02
+    //     )
+    // );
 
     let context_stage = StdMutationalStage::new(
         GraphMutateBytes::new(ctx.clone(), mutator),
@@ -210,55 +227,35 @@ pub fn fuzz(
     // );
 
     // A minimization+queue policy to get testcasess from the corpus
-    // let scheduler = IndexesLenTimeMinimizerScheduler::new(
-    //     &edges_observer,
-    //     StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
-    // );
+    let scheduler = IndexesLenTimeMinimizerScheduler::new(
+        &edges_observer,
+        StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
+    );
 
-    let scheduler = QueueScheduler::new();
+    // let scheduler = QueueScheduler::new();
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-    let metadata = if let Ok(metadata) = state.metadata::<RuntimeMetadata>() {
-        println!("Loaded metadata from state");
-        metadata.clone()
-    } else {
-        println!("Creating new metadata");
-        RuntimeMetadata::new()
-    };
-
-    let local_metadata = Rc::new(RefCell::new(metadata));
-    let metadata_logger = MetadataLoggerStage::new(local_metadata.clone(), "metadata.json".to_string(), Duration::from_secs(10));
+    let runtime_metadata = Rc::new(RefCell::new(RuntimeMetadataView::new(RUNTIME_METADATA_PTR)));
+    
+    let metadata_logger = MetadataLoggerStage::new(
+        runtime_metadata.clone(), ctx.clone(), runtime_metadata_path.to_string_lossy().to_string(), Duration::from_secs(600)
+    );
 
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &GraphInput| {
-        // println!("Invoking harness");
-        // input.graph.pprint();
-
         // Create a temporary directory for sandboxing
         let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
-        let original_dir = std::env::current_dir().expect("Failed to get current directory");
+        // let original_dir = std::env::current_dir().expect("Failed to get current directory");
         
         // Change to the temporary directory
         std::env::set_current_dir(&temp_dir.path()).expect("Failed to change to temporary directory");
         
+        let mut local_view = (*runtime_metadata).borrow_mut();
+
         // Invoke the harness in the sandboxed environment
-        let res = gf_harness.invoke(&input.graph);
-        // println!("Harness returned {:?}", res);
-
-        // Change back to the original directory
-        std::env::set_current_dir(&original_dir).expect("Failed to change back to original directory");
-
-        match res {
-            InvokeResult::Bailed(bail_point) => {
-                // Update fuzzer metadata
-                (*local_metadata).borrow_mut().mark_failure(bail_point, &input.graph);
-            }
-            InvokeResult::Success => {
-                (*local_metadata).borrow_mut().mark_success(&input.graph);
-            }
-        };
+        let _res = gf_harness.invoke(&input.graph, Some(&mut local_view));
 
         ExitKind::Ok
     };
@@ -348,7 +345,12 @@ pub fn fuzz(
 
     // If corpus is empty, add a seed
     if state.corpus().count() == 0 {
-        fuzzer.add_input(&mut state, &mut executor, &mut mgr, initial_seed_input)?;
+        for seed in initial_seeds {
+            let seed_input = GraphInput {
+                graph: seed,
+            };
+            fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed_input)?;
+        }
     }
 
     // Remove target output (logs still survive)

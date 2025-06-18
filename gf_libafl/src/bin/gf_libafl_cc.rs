@@ -19,9 +19,9 @@ pub fn main() {
         // Must be always present, even without --libafl
         args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
         args.push("-fsanitize=address".into());
-        args.push("-g".into());
-        args.push("-O0".into());
-        args.push("-fno-omit-frame-pointer".into());
+        // args.push("-g".into());
+        // args.push("-O0".into());
+        // args.push("-fno-omit-frame-pointer".into());
         
         let mut cc = ClangWrapper::new();
         if let Some(code) = cc

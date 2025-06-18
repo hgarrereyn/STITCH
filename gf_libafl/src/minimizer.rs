@@ -14,7 +14,7 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness:
     let mut objective = CrashFeedback::new();
 
     let mut harness = |input: &GraphInput| {
-        gf_harness.invoke(&input.graph);
+        gf_harness.invoke(&input.graph, None);
         ExitKind::Ok
     };
 

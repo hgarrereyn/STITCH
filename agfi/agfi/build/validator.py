@@ -1,11 +1,11 @@
 from typing import Optional
 import tempfile
 
-from agf.data.project_info import ProjectInfo
-from agf.build.buildcmd import build_command
+from ..data.project_info import ProjectInfo
+from .buildcmd import build_command
 
 
-def _format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False) -> Optional[str]:
+def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, external: bool = False) -> Optional[str]:
     code = ''
     code += '#include <cstdio>\n'
     code += '#include <cstdlib>\n'
@@ -23,6 +23,9 @@ def _format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False) 
             code += '}\n'
         elif header.language == 'cpp':
             code += '#include "%s"\n' % header.name
+
+    if external:
+        code += '#include "gf_util.h"\n'
 
     code += main_code
 
@@ -49,7 +52,7 @@ int main() {{
 }}
 '''
 
-    return _format_and_check(code, info, verbose)
+    return format_and_check(code, info, verbose)
 
 
 def validate_function(function: str, info: ProjectInfo, verbose: bool = False) -> Optional[str]:
@@ -61,4 +64,4 @@ int main() {{
 }}
 '''
 
-    return _format_and_check(code, info, verbose)
+    return format_and_check(code, info, verbose)

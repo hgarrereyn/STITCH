@@ -36,11 +36,6 @@ class CodegenConfig(BaseModel):
     defines: Optional[List[CodegenDefine]] = None
 
 
-class TuningConfig(BaseModel):
-    # Number of times to perform initial scanning for objects and functions
-    scan_replicas: int = Field(default=3)
-
-
 class ProjectInfo(BaseModel):
     # Name of the project
     name: str
@@ -53,6 +48,3 @@ class ProjectInfo(BaseModel):
 
     # Codegen configuration
     codegen: CodegenConfig
-
-    # Tuning parameters
-    tuning: TuningConfig = Field(default_factory=TuningConfig)

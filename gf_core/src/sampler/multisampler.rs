@@ -329,7 +329,7 @@ mod tests {
         println!("{}", pspec.pprint());
 
         let sgraph = sample_spec(&pspec, EncoderConfig::default(), 0);
-        sgraph.to_graph(&pspec).pprint();
+        sgraph.to_graph(&pspec, 0).pprint();
     }
 
     #[test]
@@ -409,7 +409,7 @@ mod tests {
             max_args: 2,
             instances_per_object: 5,
         }, 0);
-        sgraph.to_graph(&pspec).pprint();
+        sgraph.to_graph(&pspec, 0).pprint();
     }
 
     #[test]
@@ -509,8 +509,8 @@ mod tests {
         let spec1 = sample_spec(&pspec1, config.clone(), 2);
         let spec2 = sample_spec(&pspec2, config.clone(), 2);
 
-        let graph1 = spec1.to_graph(&pspec1);
-        let graph2 = spec2.to_graph(&pspec2);
+        let graph1 = spec1.to_graph(&pspec1, 0);
+        let graph2 = spec2.to_graph(&pspec2, 0);
 
         let typ1 = graph1.nodes.iter().map(|n| n.typ).collect::<Vec<_>>();
         let typ2 = graph2.nodes.iter().map(|n| n.typ).collect::<Vec<_>>();
@@ -556,7 +556,7 @@ mod tests {
         };
 
         let spec1 = sample_spec(&pspec1, config.clone(), 2);
-        let graph1 = spec1.to_graph(&pspec1);
+        let graph1 = spec1.to_graph(&pspec1, 0);
 
         // Ensure that it starts with init
         assert_eq!(graph1.nodes[0].typ, 0);

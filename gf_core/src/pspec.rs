@@ -41,6 +41,10 @@ pub struct PEndpoint {
     pub args: Vec<String>,
     pub template: String,
 
+    pub hints: Vec<String>, // Hint strings copied from public spec
+    pub hint_args: Vec<usize>, // Indices of arguments derived from FUZZ_PARAM_STR/FUZZ_PARAM_FILE
+    pub hint_args_sizes: Vec<usize>, // Sizes of arguments derived from FUZZ_PARAM_STR/FUZZ_PARAM_FILE
+
     // Metadata
     pub input_vars: Vec<String>, // Original variable names
     pub output_vars: Vec<String>, // Original variable names
@@ -53,6 +57,7 @@ pub struct PEndpoint {
 
     // Filled in at runtime
     pub context_size: Option<usize>,
+    pub hint_arg_offsets: Vec<u32>,
 }
 
 impl Default for PEndpoint {
@@ -64,12 +69,16 @@ impl Default for PEndpoint {
             outputs: vec![],
             args: vec![],
             template: "".to_string(),
+            hints: vec![],
+            hint_args: vec![],
+            hint_args_sizes: vec![],
             input_vars: vec![],
             output_vars: vec![],
             mappings: vec![],
             preconditions: vec![],
             effects: vec![],
             context_size: None,
+            hint_arg_offsets: vec![],
             role: PEndpointRole::None,
             outlives: vec![],
         }

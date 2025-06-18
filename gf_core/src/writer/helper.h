@@ -183,7 +183,7 @@ void gf_bail() {
 
 namespace gf_fuzz_param {
     template <typename T>
-    T fuzz_param() {
+    T *fuzz_param() {
         static_assert(std::is_standard_layout_v<T>, "Type must be standard layout");
         static_assert(!std::is_pointer_v<T>, "Pointer types are not supported in FUZZ_PARAM");
         static_assert(!std::is_class_v<T>, "Struct/class types are not supported in FUZZ_PARAM");

@@ -1,14 +1,19 @@
 import argparse
 
-from .build.build import register as register_build
-from .flows import register as register_flows
+from . import init, infer, info, gen, dev, fuzz, triage, test
 
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-    register_build(subparsers)
-    register_flows(subparsers)
+    init.register(subparsers)
+    infer.register(subparsers)
+    info.register(subparsers)
+    gen.register(subparsers)
+    dev.register(subparsers)
+    fuzz.register(subparsers)
+    triage.register(subparsers)
+    test.register(subparsers)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
+use rand::{rngs::ThreadRng, Rng};
 use serde::{Serialize, Deserialize};
 use colored::Colorize;
 
-use crate::pspec::PSpec;
+use crate::{pspec::PSpec, sampler::sgraph::decode_hex};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeRef {
@@ -134,15 +135,37 @@ impl Graph {
         }
     }
 
-    pub fn add_node(&mut self, typ: usize, layer: isize, in_size: usize, out_size: usize, context_size: usize) -> usize {
+    pub fn add_node(&mut self, pspec: &PSpec, rng: &mut ThreadRng, typ: usize, layer: isize, in_size: usize, out_size: usize, context_size: usize) -> usize {
         let idx = self.nodes.len();
+
+        // Initialize buffer arguments with hints if possible
+        let mut context = vec![0; context_size];
+
+        if pspec.endpoints[typ].hints.len() > 0 {
+            for (hint_arg, hint_size) in pspec.endpoints[typ].hint_args.iter().zip(pspec.endpoints[typ].hint_args_sizes.iter()) {
+                // Lookup the hint arg offset
+                let hint_arg_offset = pspec.endpoints[typ].hint_arg_offsets[*hint_arg];
+
+                // Pick a random hint
+                let hint_idx = rng.gen_range(0..pspec.endpoints[typ].hints.len());
+                let hint = pspec.endpoints[typ].hints[hint_idx].clone();
+                let mut hint_bytes = decode_hex(&hint).unwrap();
+
+                // Truncate the hint to the max buffer arg size
+                hint_bytes.truncate(*hint_size);
+
+                // Copy the hint to the context
+                context[hint_arg_offset as usize..hint_arg_offset as usize + hint_bytes.len()].copy_from_slice(&hint_bytes);
+            }
+        }
+
         self.nodes.push(Node {
             index: idx,
             typ,
             layer,
             in_ref: vec![NodeRefType::Disconnected; in_size],
             out_ref: vec![NodeRefType::Disconnected; out_size],
-            context: vec![0; context_size],
+            context,
         });
 
         idx
@@ -237,6 +260,30 @@ impl Graph {
         }
     }
 
+    pub fn apply_offset(&mut self, offset: usize) {
+        for node in self.nodes.iter_mut() {
+            node.index += offset;
+
+            for out_ref in node.out_ref.iter_mut() {
+                match out_ref {
+                    NodeRefType::Connected(ref mut node_ref) => {
+                        node_ref.node_idx += offset;
+                    }
+                    NodeRefType::Disconnected => {},
+                }
+            }
+
+            for in_ref in node.in_ref.iter_mut() {
+                match in_ref {
+                    NodeRefType::Connected(ref mut node_ref) => {
+                        node_ref.node_idx += offset;
+                    }
+                    NodeRefType::Disconnected => {},
+                }
+            }
+        }
+    }
+
     pub fn visit(&self, node: usize, visited: &mut HashSet<usize>) {
         visited.insert(node);
 
@@ -292,6 +339,24 @@ impl Graph {
 
         for node in self.nodes.iter_mut() {
             node.layer -= min_level;
+        }
+    }
+
+    pub fn trim_to(&mut self, max_nodes: usize) {
+        self.nodes.truncate(max_nodes);
+
+        // Disconnect outputs
+        for node in self.nodes.iter_mut() {
+            for out_ref in node.out_ref.iter_mut() {
+                match out_ref {
+                    NodeRefType::Connected(ref node_ref) => {
+                        if node_ref.node_idx >= max_nodes {
+                            *out_ref = NodeRefType::Disconnected;
+                        }
+                    }
+                    NodeRefType::Disconnected => {},
+                }
+            }
         }
     }
 }

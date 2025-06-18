@@ -8,13 +8,7 @@ RUN apt-get update && \
     python3.11 python3-pip \
     pkg-config libssl-dev \
     protobuf-compiler libprotobuf-dev ninja-build \
-    universal-ctags z3 unzip
-
-RUN cd /tmp && \
-    wget https://github.com/cvc5/cvc5/releases/download/latest/cvc5-Linux-arm64-static-2025-04-25-0b754ef.zip && \
-    unzip cvc5-Linux-arm64-static-2025-04-25-0b754ef.zip && \
-    mv ./cvc5-Linux-arm64-static/bin/cvc5 /usr/local/bin/cvc5 && \
-    rm -rf cvc5-Linux-arm64-static cvc5-Linux-arm64-static-2025-04-25-0b754ef.zip
+    universal-ctags
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
@@ -49,7 +43,7 @@ RUN cd /src/gf_libafl && \
     mkdir -p target/release/build && \
     cp -r /src/tmp/libafl_cc-* target/release/build/
 
-COPY /agf /src/agf
+COPY /agfi /src/agfi
 
-RUN cd /src/agf && \
+RUN cd /src/agfi && \
     pip install -e .
