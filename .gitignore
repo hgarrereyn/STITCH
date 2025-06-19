@@ -11,3 +11,5 @@
 .vscode
 .ipynb_checkpoints
 /build/
+**/queue
+**/crashes

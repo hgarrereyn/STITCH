@@ -2,11 +2,12 @@
 from typing import List
 from enum import Enum
 
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from ..data.project_info import ProjectInfo
-from ..data.metadata import FunctionStubTemplate, SchemaMetadata, FunctionStubMapping, FunctionStub, FunctionArgumentUsage, ObjectStub, FunctionStubHints
+from ..data.metadata import FunctionStubTemplate, SchemaMetadata, FunctionStubMapping, FunctionStub, FunctionArgumentUsage, ObjectStub, FunctionStubHints, UsageTracker, UsageMetrics
 from ..utils.colors import Colors
 from ..utils.general import split_into_chunks
 from ..build.validator import validate_function, format_and_check
@@ -128,7 +129,7 @@ def _create_function_info(func: FunctionStub, template: FunctionStubTemplate) ->
     return info
 
 
-def _gen_hints(info: ProjectInfo, meta: SchemaMetadata, model: str) -> List[FunctionStubHints]:
+def _gen_hints(info: ProjectInfo, meta: SchemaMetadata, model: str, usage: UsageTracker) -> List[FunctionStubHints]:
     def log(msg: str):
         print(f'[{Colors.GREEN}HINT{Colors.END}] {msg}')
     
@@ -153,8 +154,10 @@ def _gen_hints(info: ProjectInfo, meta: SchemaMetadata, model: str) -> List[Func
         batch = infos[idx:idx+BATCH_SIZE]
         log(f'Generating batch {idx // BATCH_SIZE + 1} of {((len(infos) - 1) // BATCH_SIZE) + 1}...')
 
-        llm = ChatOpenAI(model=model).with_structured_output(HintsResponse, strict=True)
-        res: HintsResponse = llm.invoke(PROMPT_TEMPLATE.format(objects=meta.objects, functions=batch))
+        with get_usage_metadata_callback() as cb:
+            llm = ChatOpenAI(model=model).with_structured_output(HintsResponse, strict=True)
+            res: HintsResponse = llm.invoke(PROMPT_TEMPLATE.format(objects=meta.objects, functions=batch))
+            usage.record('gen-hints', UsageMetrics.from_usage(cb.usage_metadata))
 
         for hints in res.functions:
             if hints.name not in remaining_functions:
@@ -179,10 +182,9 @@ def main(args):
     info = ProjectInfo.model_validate_json(open(args.info).read())
     meta = SchemaMetadata.model_validate_json(open(args.meta).read())
 
-    hints = _gen_hints(info, meta, args.model)
-    print(hints)
-
+    hints = _gen_hints(info, meta, args.model, meta.usage)
     meta.hints_functions = hints
+
     if args.output:
         with open(args.output, 'w') as f:
             f.write(meta.model_dump_json(indent=2))

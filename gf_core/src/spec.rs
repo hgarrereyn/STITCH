@@ -276,7 +276,7 @@ impl Endpoint {
             let matches = find_macro_invocations(&template, "FUZZ_PARAM");
             for (start, end, arg) in matches {
                 args.push(arg);
-                template_with_fuzz = template.replacen(&template[start..end], &format!("(&$a{})", args.len() - 1), 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("(&$a{})", args.len() - 1), 1);
             }
 
             template = template_with_fuzz;
@@ -290,7 +290,7 @@ impl Endpoint {
                 let len = arg.split_whitespace().next().unwrap().parse::<usize>().unwrap();
                 args.push(format!("char[{}]", len + 1));
                 pre_template.push_str(&format!("$a{}[{}] = 0;\n", args.len() - 1, len));
-                template_with_fuzz = template.replacen(&template[start..end], &format!("((const char *)$a{})", args.len() - 1), 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("((const char *)$a{})", args.len() - 1), 1);
 
                 hint_args.push(args.len() - 1);
                 hint_args_sizes.push(len);
@@ -306,7 +306,7 @@ impl Endpoint {
             for (start, end, arg) in matches {
                 let len = arg.split_whitespace().next().unwrap().parse::<usize>().unwrap();
                 args.push(format!("char[{}]", len));
-                template_with_fuzz = template.replacen(&template[start..end], &format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len), 1);
+                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len), 1);
 
                 hint_args.push(args.len() - 1);
                 hint_args_sizes.push(len);

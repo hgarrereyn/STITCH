@@ -1,11 +1,12 @@
-
+import concurrent.futures
 from typing import List
 
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from ..data.project_info import ProjectInfo
-from ..data.metadata import FunctionStubTemplate, SchemaMetadata, FunctionStubMapping, FunctionStub, FunctionArgumentUsage, ObjectStub
+from ..data.metadata import FunctionStubTemplate, SchemaMetadata, FunctionStubMapping, FunctionStub, FunctionArgumentUsage, ObjectStub, UsageMetrics, UsageTracker
 from ..utils.colors import Colors
 from ..utils.general import split_into_chunks
 from ..build.validator import validate_function, format_and_check
@@ -105,7 +106,7 @@ memcpy(array, FUZZ_PARAM(int[length]), length * sizeof(int));
 # Selecting an option
 If you need to select a random value from a list of options, you can use the following pattern (ensure use of `unsigned int`):
 ```
-const char *options[] = {"foo", "bar", "baz"};
+const char *options[] = {{"foo", "bar", "baz"}};
 const char *option = options[*FUZZ_PARAM(unsigned int) % 3];
 ```
 
@@ -266,7 +267,7 @@ def _validate_template(info: ProjectInfo, func: FunctionInfo, template: Function
         return True
 
 
-def _gen_templates(info: ProjectInfo, meta: SchemaMetadata, model: str) -> List[FunctionStubTemplate]:
+def _gen_templates(info: ProjectInfo, meta: SchemaMetadata, model: str, threads: int, usage: UsageTracker) -> List[FunctionStubTemplate]:
     def log(msg: str):
         print(f'[{Colors.GREEN}TMPL{Colors.END}] {msg}')
     
@@ -289,23 +290,49 @@ def _gen_templates(info: ProjectInfo, meta: SchemaMetadata, model: str) -> List[
 
     log(f'Generating {Colors.YELLOW}{len(infos)}{Colors.END} templates...')
 
+    batches = []
     for idx in range(0, len(infos), BATCH_SIZE):
         batch = infos[idx:idx+BATCH_SIZE]
+        batches.append((idx, batch))
+
+    def process_batch(args):
+        idx, batch = args
         log(f'Generating batch {idx // BATCH_SIZE + 1} of {((len(infos) - 1) // BATCH_SIZE) + 1}...')
 
-        llm = ChatOpenAI(model=model).with_structured_output(TemplatesResponse, strict=True)
-        res: TemplatesResponse = llm.invoke(PROMPT_TEMPLATE.format(objects=meta.objects, functions=batch))
+        with get_usage_metadata_callback() as cb:
+            llm = ChatOpenAI(model=model).with_structured_output(TemplatesResponse, strict=True)
+            res: TemplatesResponse = llm.invoke(PROMPT_TEMPLATE.format(objects=meta.objects, functions=batch))
+            metrics = UsageMetrics.from_usage(cb.usage_metadata)
 
-        for template in res.functions:
-            if template.name not in remaining_functions:
-                log(f'{Colors.RED}Function {Colors.YELLOW}{template.name}{Colors.END} not found in metadata, skipping...')
-                continue
+        return (idx, res.functions, metrics)
 
-            if not _validate_template(info, infos_by_name[template.name], template):
-                continue
+    functions = []
 
-            templates.append(template)
-            remaining_functions.pop(template.name)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        future_to_idx = {executor.submit(process_batch, args): args[0] for args in batches}
+        results = []
+        for future in concurrent.futures.as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            try:
+                batch_idx, batch_templates, batch_metrics = future.result()
+                functions.extend(batch_templates)
+                usage.record('gen-templates', batch_metrics)
+                log(f'Found {len(templates)} templates')
+            except Exception as exc:
+                log(f'Batch {idx // BATCH_SIZE + 1} generated an exception: {exc}')
+
+    templates = []
+
+    for template in functions:
+        if template.name not in remaining_functions:
+            log(f'{Colors.RED}Function {Colors.YELLOW}{template.name}{Colors.END} not found in metadata, skipping...')
+            continue
+
+        if not _validate_template(info, infos_by_name[template.name], template):
+            continue
+
+        templates.append(template)
+        remaining_functions.pop(template.name)
 
     log(f'{Colors.GREEN}Generated {Colors.YELLOW}{len(templates)}{Colors.END} templates...')
     log(f'{Colors.RED}Failed to generate {Colors.YELLOW}{len(remaining_functions)}{Colors.END} templates...')
@@ -316,10 +343,9 @@ def main(args):
     info = ProjectInfo.model_validate_json(open(args.info).read())
     meta = SchemaMetadata.model_validate_json(open(args.meta).read())
 
-    templates = _gen_templates(info, meta, args.model)
-    print(templates)
-
+    templates = _gen_templates(info, meta, args.model, args.threads, meta.usage)
     meta.template_functions = templates
+
     if args.output:
         with open(args.output, 'w') as f:
             f.write(meta.model_dump_json(indent=2))
@@ -333,4 +359,5 @@ def register(subparsers):
     parser.add_argument('--meta', type=str, required=True, help='Path to the schema metadata file')
     parser.add_argument('--model', type=str, default='gpt-4.1-mini', help='Model to use for scanning')
     parser.add_argument('--output', type=str, default=None, help='Path to the output file')
+    parser.add_argument('--threads', type=int, default=10, help='Number of threads to use for scanning')
     parser.set_defaults(func=main)

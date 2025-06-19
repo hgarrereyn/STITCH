@@ -149,6 +149,11 @@ void gf_free(void *ptr) {
 // Thread-local jump buffer for bail mechanism
 static thread_local jmp_buf gf_jump_buf;
 
+// Invoked from user code inside shims
+void gf_bail() {
+    longjmp(gf_jump_buf, 1);
+}
+
 extern "C" {
     void GRAPHFUZZ_INVOKE_SHIM(void *shim, void *in, void *out, void *context, int *bailed) {
         if (setjmp(gf_jump_buf) != 0) {
@@ -156,7 +161,12 @@ extern "C" {
             return;
         }
         *bailed = 0;
-        ((void (*)(void *, void *, void *))shim)(in, out, context);
+        try {
+            ((void (*)(void *, void *, void *))shim)(in, out, context);
+        } catch (std::exception& e) {
+            // fprintf(stderr, "Terminating due to std::exception: %s\n", e.what());
+            *bailed = 1;
+        }
     }
 
     void GRAPHFUZZ_PRE_INIT() {
@@ -173,11 +183,6 @@ extern "C" {
             remove(filename.c_str());
         }
     }
-}
-
-// Invoked from user code inside shims
-void gf_bail() {
-    longjmp(gf_jump_buf, 1);
 }
 
 

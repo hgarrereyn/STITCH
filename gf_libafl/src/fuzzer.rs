@@ -20,12 +20,12 @@ use libafl_bolts::{
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 use libafl_targets::autotokens;
 use libafl_targets::{
-    libfuzzer_initialize, std_edges_map_observer, CmpLogObserver, EDGES_MAP_PTR, EDGES_MAP_DEFAULT_SIZE
+    libfuzzer_initialize, std_edges_map_observer, CmpLogObserver, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP_DEFAULT_SIZE, EDGES_MAP_PTR
 };
 #[cfg(unix)]
 use nix::unistd::dup;
 
-use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, mutate_graph_sat::GraphMutateSolver, runtime_metadata::MetadataLoggerStage};
+use crate::components::{graph_input::GraphInput, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, mutate_graph_sat::GraphMutateSolver, runtime_metadata::MetadataLoggerStage};
 use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}, sampler::{encoder::EncoderConfig, multisampler::{MultiSampler, SamplerConstraint}}};
 
 /// The actual fuzzer
@@ -68,7 +68,7 @@ pub fn fuzz(
 
     let mut shmem;
     unsafe{
-        shmem = shmem_provider.new_shmem(EDGES_MAP_DEFAULT_SIZE).unwrap();
+        shmem = shmem_provider.new_shmem(EDGES_MAP_ALLOCATED_SIZE).unwrap();
     }
     let shmem_buf = shmem.as_slice_mut();
     unsafe{
@@ -83,6 +83,9 @@ pub fn fuzz(
     let RUNTIME_METADATA_PTR = unsafe {
         metadata_shmem_buf.as_slice_mut()
     };
+
+    let mut invoke_result_shmem = shmem_provider.new_shmem(1).unwrap();
+    let invoke_result_shmem_buf = invoke_result_shmem.as_slice_mut();
     
     let obs = unsafe { std_edges_map_observer("edges") };
 
@@ -198,14 +201,18 @@ pub fn fuzz(
         )
     );
 
-    let mut ms = MultiSampler::new(&ctx.pspec, EncoderConfig::default());
+    // let mut ms = MultiSampler::new(&ctx.pspec, EncoderConfig::default());
 
     let mut initial_seeds = vec![];
+    // for idx in 0..ctx.pspec.endpoints.len() {
+    //     println!("Sampling for function {}/{}", idx + 1, ctx.pspec.endpoints.len());
+    //     let initial_seed = ms.sample_with_constraints(&[SamplerConstraint::IncludeFunction(idx)]);
+    //     if let Some(initial_seed) = initial_seed {
+    //         initial_seeds.push(initial_seed.to_graph(&ctx.pspec, 0));
+    //     }
+    // }
     for idx in 0..ctx.pspec.endpoints.len() {
-        let initial_seed = ms.sample_with_constraints(&[SamplerConstraint::IncludeFunction(idx)]);
-        if let Some(initial_seed) = initial_seed {
-            initial_seeds.push(initial_seed.to_graph(&ctx.pspec, 0));
-        }
+        initial_seeds.push(ctx.generate_seeded(idx));
     }
 
     println!("Initial seeds: {:?}", initial_seeds.len());
@@ -227,7 +234,12 @@ pub fn fuzz(
     // );
 
     // A minimization+queue policy to get testcasess from the corpus
-    let scheduler = IndexesLenTimeMinimizerScheduler::new(
+    // let scheduler = IndexesLenTimeMinimizerScheduler::new(
+    //     &edges_observer,
+    //     StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
+    // );
+
+    let scheduler = IndexesBailedLenMinimizerScheduler::new(
         &edges_observer,
         StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
     );
@@ -240,8 +252,10 @@ pub fn fuzz(
     let runtime_metadata = Rc::new(RefCell::new(RuntimeMetadataView::new(RUNTIME_METADATA_PTR)));
     
     let metadata_logger = MetadataLoggerStage::new(
-        runtime_metadata.clone(), ctx.clone(), runtime_metadata_path.to_string_lossy().to_string(), Duration::from_secs(600)
+        runtime_metadata.clone(), ctx.clone(), runtime_metadata_path.to_string_lossy().to_string(), Duration::from_secs(60)
     );
+
+    let invoke_result = Rc::new(RefCell::new(invoke_result_shmem_buf));
 
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &GraphInput| {
@@ -255,7 +269,10 @@ pub fn fuzz(
         let mut local_view = (*runtime_metadata).borrow_mut();
 
         // Invoke the harness in the sandboxed environment
-        let _res = gf_harness.invoke(&input.graph, Some(&mut local_view));
+        let res = gf_harness.invoke(&input.graph, Some(&mut local_view));
+
+        // Store the result in the shared memory
+        (*invoke_result).borrow_mut()[0] = matches!(res, InvokeResult::Success) as u8;
 
         ExitKind::Ok
     };
@@ -305,10 +322,13 @@ pub fn fuzz(
         // Give it more time!
     );
 
+    let mark = MarkStage::new(invoke_result.clone());
+
     // The order of the stages matter!
     // let mut stages = tuple_list!(calibration, tracing, i2s, power);
 
     let mut stages = tuple_list!(
+        mark,
         metadata_logger,
         graph_mutator,
         tracing,
@@ -345,9 +365,10 @@ pub fn fuzz(
 
     // If corpus is empty, add a seed
     if state.corpus().count() == 0 {
-        for seed in initial_seeds {
+        for (idx, seed) in initial_seeds.iter().enumerate() {
+            println!("Adding seed {}/{}", idx + 1, initial_seeds.len());
             let seed_input = GraphInput {
-                graph: seed,
+                graph: seed.clone(),
             };
             fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed_input)?;
         }

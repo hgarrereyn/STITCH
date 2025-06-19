@@ -1,10 +1,12 @@
-from typing import List
+from typing import List, Tuple
+import concurrent.futures
 
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from ..data.project_info import ProjectInfo
-from ..data.metadata import FunctionStub, SchemaMetadata
+from ..data.metadata import FunctionStub, SchemaMetadata, UsageMetrics, UsageTracker
 from ..utils.colors import Colors
 from ..utils.general import merge_headers
 from ..build.validator import validate_function
@@ -71,16 +73,20 @@ class FunctionsResponse(BaseModel):
     functions: List[FunctionStub]
 
 
-def _first_scan(info: ProjectInfo, model: str, chunk: str) -> List[str]:
+def _first_scan(info: ProjectInfo, model: str, chunk: str, usage: UsageTracker) -> List[str]:
     llm = ChatOpenAI(model=model).with_structured_output(FirstScanResponse, strict=True)
-    res: FirstScanResponse = llm.invoke(PROMPT_FIRST_SCAN.format(code=chunk))
+    with get_usage_metadata_callback() as cb:
+        res: FirstScanResponse = llm.invoke(PROMPT_FIRST_SCAN.format(code=chunk))
+        usage.record('find-functions (first-scan)', UsageMetrics.from_usage(cb.usage_metadata))
     return res.functions
 
 
-def _scan_functions(info: ProjectInfo, model: str, chunk: str, functions: List[str]) -> List[FunctionStub]:
+def _scan_functions(info: ProjectInfo, model: str, chunk: str, functions: List[str]) -> Tuple[List[FunctionStub], UsageMetrics]:
     llm = ChatOpenAI(model=model).with_structured_output(FunctionsResponse, strict=True)
-    res: FunctionsResponse = llm.invoke(PROMPT_SCAN_CHUNK.format(code=chunk, functions=functions))
-    return res.functions
+    with get_usage_metadata_callback() as cb:
+        res: FunctionsResponse = llm.invoke(PROMPT_SCAN_CHUNK.format(code=chunk, functions=functions))
+        usage = UsageMetrics.from_usage(cb.usage_metadata)
+    return res.functions, usage
 
 
 def _validate_function(info: ProjectInfo, function: FunctionStub) -> bool:
@@ -88,7 +94,7 @@ def _validate_function(info: ProjectInfo, function: FunctionStub) -> bool:
     return validate_function(function.name, info) is None
 
 
-def find_functions(info: ProjectInfo, model: str, headers: List[str]) -> List[FunctionStub]:
+def find_functions(info: ProjectInfo, model: str, headers: List[str], threads: int, usage: UsageTracker) -> List[FunctionStub]:
     def log(msg: str):
         print(f'[{Colors.BOLD}{Colors.GREEN}FIND{Colors.END}] {msg}')
 
@@ -98,7 +104,7 @@ def find_functions(info: ProjectInfo, model: str, headers: List[str]) -> List[Fu
         print(f'[{Colors.BOLD}{Colors.GREEN}FIND{Colors.END}] Processing {header}')
         with open(header, 'r') as f:
             code = f.read()
-        function_names.update(_first_scan(info, model, code))
+        function_names.update(_first_scan(info, model, code, usage))
 
     function_names = list(function_names)
     log(f'Found {len(function_names)} functions')
@@ -106,8 +112,6 @@ def find_functions(info: ProjectInfo, model: str, headers: List[str]) -> List[Fu
     log('Merging headers...')
     merged_headers = merge_headers(headers)
     log(f'Merged {len(headers)} headers into {len(merged_headers)} lines')
-
-    import concurrent.futures
 
     batch_size = 40
     batches = []
@@ -123,14 +127,15 @@ def find_functions(info: ProjectInfo, model: str, headers: List[str]) -> List[Fu
         result = _scan_functions(info, model, merged_headers, batch)
         return (idx, result)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
         future_to_idx = {executor.submit(process_batch, args): args[0] for args in batches}
         results = []
         for future in concurrent.futures.as_completed(future_to_idx):
             idx = future_to_idx[future]
             try:
-                batch_idx, batch_functions = future.result()
+                batch_idx, (batch_functions, batch_usage) = future.result()
                 functions.extend(batch_functions)
+                usage.record('find-functions', batch_usage)
                 log(f'Found {len(functions)} functions')
             except Exception as exc:
                 log(f'Batch {idx // batch_size + 1} generated an exception: {exc}')

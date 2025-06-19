@@ -1,11 +1,11 @@
 from typing import List
 
-# from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel
 
 from ..data.project_info import ProjectInfo
-from ..data.metadata import ObjectStub, SchemaMetadata
+from ..data.metadata import ObjectStub, SchemaMetadata, UsageTracker, UsageMetrics
 from ..utils.colors import Colors
 from ..build.validator import validate_object
 from ..utils.general import split_into_chunks, merge_headers
@@ -154,7 +154,7 @@ def _validate_object(info: ProjectInfo, object: ObjectStub) -> bool:
     return validate_object(object.type, info, True) is None
 
 
-def find_objects(info: ProjectInfo, model: str, headers: List[str]) -> List[ObjectStub]:
+def find_objects(info: ProjectInfo, model: str, headers: List[str], usage: UsageTracker) -> List[ObjectStub]:
     def log(msg: str):
         print(f'[{Colors.BOLD}{Colors.GREEN}FIND{Colors.END}] {msg}')
 
@@ -163,7 +163,9 @@ def find_objects(info: ProjectInfo, model: str, headers: List[str]) -> List[Obje
     log(f'Merged {len(headers)} headers into {len(merged_headers)} lines')
 
     log('Scanning merged headers...')
-    objects = _scan_chunk(info, model, merged_headers)
+    with get_usage_metadata_callback() as cb:
+        objects = _scan_chunk(info, model, merged_headers)
+        usage.record('find-objects', UsageMetrics.from_usage(cb.usage_metadata))
 
     log(f'Found {len(objects)} objects')
 

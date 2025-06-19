@@ -1,7 +1,7 @@
 
 use std::io::Read;
 
-use libafl::inputs::Input;
+use libafl::{inputs::Input, HasMetadata};
 use libafl_bolts::{ErrorBacktrace, HasLen};
 use serde::{Serialize, Deserialize};
 

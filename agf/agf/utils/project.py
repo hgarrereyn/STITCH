@@ -1,9 +1,12 @@
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from pydantic import BaseModel, Field
 import os
 import tempfile
 import subprocess
+import json
+
+from ..data.metadata import UsageTracker
 
 
 class ProjectConfig(BaseModel):
@@ -54,6 +57,20 @@ class Harness:
             return 0
         return len(set([f.stem for f in bucket_dir.iterdir()]))
 
+    def cost_per_task(self) -> Dict[str, float]:
+        harness_file = self.harness_config()
+        if not harness_file.exists():
+            return {}
+        with open(harness_file, 'r') as f:
+            harness = json.load(f)
+        if 'usage' not in harness:
+            return {}
+        usage = UsageTracker.model_validate(harness['usage'])
+        return usage.cost_by_task()
+    
+    def cost(self) -> float:
+        cost_per_task = self.cost_per_task()
+        return sum(cost_per_task.values())
 
 class Project:
     def __init__(self, path: Path):
@@ -80,7 +97,7 @@ class Project:
     def has_build_config(self) -> bool:
         return (self.path / 'config').exists()
 
-    def get_harnesses(self) -> List[str]:
+    def get_harnesses(self) -> List['Harness']:
         harness_path = self.path / 'harnesses'
         if not harness_path.exists():
             return []

@@ -438,6 +438,28 @@ impl MutationContext {
         graph
     }
 
+    pub fn generate_seeded(&self, idx: usize) -> Graph {
+        let mut graph = Graph {
+            nodes: Vec::new(),
+        };
+        
+        let endpoint = &self.pspec.endpoints[idx];
+        let _ = graph.add_node(
+            &self.pspec,
+            &mut *self.rng.borrow_mut(),
+            endpoint.idx, 
+            0, 
+            endpoint.inputs.len(), 
+            endpoint.outputs.len(), 
+            endpoint.context_size.unwrap()
+        );
+
+        self.complete(&mut graph);
+        graph.sanitize();
+
+        graph
+    }
+
     pub fn mutate_regenerate(&self, graph: &mut Graph) {
         *graph = self.generate();
     }

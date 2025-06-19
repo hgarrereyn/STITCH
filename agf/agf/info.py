@@ -29,7 +29,12 @@ def do_info(args):
     else:
         print(f'[{Colors.GREEN}+{Colors.END}] Harnesses:')
         for harness in harnesses:
-            print(f'  {Colors.CYAN}*{Colors.END} {harness.path.name} ({Colors.CYAN}{harness.num_crashes()}{Colors.END} crashes, {Colors.CYAN}{harness.num_crash_types()}{Colors.END} types)')
+            line = f'  {Colors.CYAN}*{Colors.END} {harness.path.name} ({Colors.CYAN}{harness.num_crashes()}{Colors.END} crashes, {Colors.CYAN}{harness.num_crash_types()}{Colors.END} types)'
+            cost_per_task = harness.cost_per_task()
+            if len(cost_per_task) > 0:
+                total_cost = sum(cost_per_task.values())
+                line += f' | {Colors.YELLOW}${total_cost:.2f}{Colors.END}'
+            print(line)
 
 def register(subparsers):
     subparser = subparsers.add_parser('info', help='Display information about the project')

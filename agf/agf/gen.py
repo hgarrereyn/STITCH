@@ -2,6 +2,9 @@ from pathlib import Path
 import shutil
 import tempfile
 import subprocess
+import json
+
+from langchain_core.callbacks import get_usage_metadata_callback
 
 from .utils.colors import Colors
 from .utils.project import Project
@@ -46,7 +49,13 @@ def do_gen(args):
             project_src=str(src),
             model=args.model
         )
-        res = run_autogen(gen_config)
+
+        usage = None
+        res = None
+        with get_usage_metadata_callback() as cb:
+            res = run_autogen(gen_config)
+            usage = cb.usage_metadata
+
         if res is None:
             print(f'[{Colors.RED}-{Colors.END}] Autogen failed')
             return
@@ -59,7 +68,7 @@ def do_gen(args):
             (config_path / 'Dockerfile').write_text(res.dockerfile)
             (config_path / 'test.cpp').write_text(res.test_program)
             (config_path / 'info.json').write_text(res.info.model_dump_json(indent=2))
-
+            (config_path / 'usage.json').write_text(json.dumps(usage, indent=2))
 
 
 def register(subparsers):
