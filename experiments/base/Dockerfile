@@ -23,7 +23,7 @@ COPY rust-toolchain.toml /src/rust-toolchain.toml
 COPY /gf_core /src/gf_core
 COPY /gf_libafl /src/gf_libafl
 
-ENV LIBAFL_EDGES_MAP_SIZE=400000
+ENV LIBAFL_EDGES_MAP_SIZE=800000
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/src/gf_libafl/target \

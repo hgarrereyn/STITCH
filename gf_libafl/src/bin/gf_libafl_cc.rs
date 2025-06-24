@@ -19,10 +19,15 @@ pub fn main() {
         // Must be always present, even without --libafl
         args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
         args.push("-fsanitize=address".into());
-        // args.push("-g".into());
-        // args.push("-O0".into());
-        // args.push("-fno-omit-frame-pointer".into());
         
+        // Get the GRAPHFUZZ_BUILD_COVERAGE environment variable
+        let build_coverage = env::var("GRAPHFUZZ_BUILD_COVERAGE").unwrap_or("0".to_string());
+        if build_coverage == "1" {
+            args.push("-fprofile-instr-generate".into());
+            args.push("-fcoverage-mapping".into());
+            args.push("-gline-tables-only".into());
+        }
+
         let mut cc = ClangWrapper::new();
         if let Some(code) = cc
             .cpp(is_cpp)

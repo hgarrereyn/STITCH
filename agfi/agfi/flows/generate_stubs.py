@@ -125,7 +125,7 @@ class StubsResponse(BaseModel):
 def _validate_mapping(meta: SchemaMetadata, mapping: FunctionStubMapping) -> bool:
     """Ensure the mapping is valid."""
     canonical_types = {obj.type for obj in meta.objects}
-    for arg in mapping.arguments:
+    for arg in [*mapping.arguments, mapping.return_value]:
         if arg.canonical_type == 'none':
             continue
         if arg.canonical_type in canonical_types:

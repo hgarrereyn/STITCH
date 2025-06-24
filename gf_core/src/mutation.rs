@@ -87,7 +87,7 @@ impl Default for MutationOptions {
 pub struct MutationContext {
     pub pspec: PSpec,
     opts: MutationOptions,
-    cache: RefCell<SchemaCache>,
+    pub cache: RefCell<SchemaCache>,
     rng: RefCell<rand::rngs::ThreadRng>,
 }
 

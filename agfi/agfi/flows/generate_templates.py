@@ -9,7 +9,7 @@ from ..data.project_info import ProjectInfo
 from ..data.metadata import FunctionStubTemplate, SchemaMetadata, FunctionStubMapping, FunctionStub, FunctionArgumentUsage, ObjectStub, UsageMetrics, UsageTracker
 from ..utils.colors import Colors
 from ..utils.general import split_into_chunks
-from ..build.validator import validate_function, format_and_check
+from ..build.validator import validate_function, format_and_check, test_isolated_schema
 
 BATCH_SIZE = 40
 
@@ -251,12 +251,22 @@ def _create_function_info(objects: List[ObjectStub], func: FunctionStub, mapping
     return info
 
 
-def _validate_template(info: ProjectInfo, func: FunctionInfo, template: FunctionStubTemplate) -> bool:
+def _validate_template(info: ProjectInfo, func: FunctionInfo, template: FunctionStubTemplate, meta: SchemaMetadata) -> bool:
     code = ''
     code += 'int main() {}\n'
     code += func.to_function_proto(template.stub)
-    
+
+    print(f'-----[{Colors.CYAN}CODE{Colors.END}]-----')
+    print(template.stub)
+    print('-' * 80)
+
+    # Checks with macros to allow cpp template assertions (e.g. no FUZZ_PARAM(void*))
     res = format_and_check(code, info, verbose=True, external=True)
+
+    if res is None:
+        # Second check with actual schema to catch any edge cases that seem to pass, e.g. fuzz_param in lambdas
+        res = test_isolated_schema(meta, template, info)
+
     if res is not None:
         print(f'{Colors.RED}Invalid template for {Colors.YELLOW}{func.name}{Colors.END}:')
         print(res)
@@ -328,7 +338,7 @@ def _gen_templates(info: ProjectInfo, meta: SchemaMetadata, model: str, threads:
             log(f'{Colors.RED}Function {Colors.YELLOW}{template.name}{Colors.END} not found in metadata, skipping...')
             continue
 
-        if not _validate_template(info, infos_by_name[template.name], template):
+        if not _validate_template(info, infos_by_name[template.name], template, meta):
             continue
 
         templates.append(template)

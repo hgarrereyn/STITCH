@@ -2,7 +2,8 @@ from typing import Optional
 import tempfile
 
 from ..data.project_info import ProjectInfo
-from .buildcmd import build_command
+from .buildcmd import build_command, build_full
+from ..data.metadata import SchemaMetadata, FunctionStubTemplate
 
 
 def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, external: bool = False) -> Optional[str]:
@@ -40,6 +41,28 @@ def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, e
             return res.stderr
         else:
             return None
+
+
+def test_isolated_schema(meta: SchemaMetadata, template: FunctionStubTemplate, info: ProjectInfo) -> Optional[str]:
+    mclone = meta.model_copy()
+    mclone.template_functions = [template]
+    mclone.functions = [x for x in mclone.functions if x.name == template.name]
+    mclone.mapping_functions = [x for x in mclone.mapping_functions if x.name == template.name]
+    mclone.hints_functions = []
+
+    schema = mclone.to_schema()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f_meta = '%s/schema.json' % tmpdir
+        with open(f_meta, 'w') as f:
+            f.write(schema.model_dump_json())
+        
+        try:
+            build_full(f_meta[:-5], info)
+        except Exception as e:
+            return str(e)
+        
+    return None
 
 
 def validate_object(object: str, info: ProjectInfo, verbose: bool = False) -> Optional[str]:

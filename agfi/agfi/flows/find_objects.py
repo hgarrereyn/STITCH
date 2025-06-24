@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_openai import ChatOpenAI
@@ -149,9 +149,22 @@ def _scan_chunk(info: ProjectInfo, model: str, chunk: str) -> List[ObjectStub]:
     return res.objects
 
 
-def _validate_object(info: ProjectInfo, object: ObjectStub) -> bool:
-    """Ensure we can instantiate this object in code."""
-    return validate_object(object.type, info, True) is None
+# def _validate_object(info: ProjectInfo, object: ObjectStub) -> bool:
+#     """Ensure we can instantiate this object in code."""
+#     return validate_object(object.type, info, True) is None
+
+
+def _find_valid_object_type(info: ProjectInfo, object: ObjectStub) -> Optional[str]:
+    """Find a valid object type for the given object."""
+    if validate_object(object.type, info, True) is None:
+        return object.type
+    
+    # Check if any of the aliases are valid
+    for alias in object.aliases:
+        if validate_object(alias, info, True) is None:
+            return alias
+
+    return None
 
 
 def find_objects(info: ProjectInfo, model: str, headers: List[str], usage: UsageTracker) -> List[ObjectStub]:
@@ -183,7 +196,9 @@ def find_objects(info: ProjectInfo, model: str, headers: List[str], usage: Usage
     log('Validating objects...')
     valid_objects = []
     for obj in objects:
-        if _validate_object(info, obj):
+        vtype = _find_valid_object_type(info, obj)
+        if vtype is not None:
+            obj.type = vtype
             valid_objects.append(obj)
             log(f'Check {obj.type}: {Colors.GREEN}VALID{Colors.END}')
         else:

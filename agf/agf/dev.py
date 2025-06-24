@@ -34,7 +34,7 @@ def do_infer(args):
             print(f'[{Colors.RED}-{Colors.END}] Harness {harness.name} does not exist')
             return
 
-    project.build_docker()
+    project.build_docker(args.coverage)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -48,6 +48,8 @@ def do_infer(args):
         ]
         if not args.base:
             mounts.append((str(harness.output_dir().absolute()), '/fuzz/output'))
+            if args.coverage:
+                mounts.append((str(harness.coverage_dir().absolute()), '/fuzz/coverage'))
 
         if args.base:
             project.invoke(
@@ -72,4 +74,5 @@ def register(subparsers):
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('--name', help='The name of the harness', default=None)
     subparser.add_argument('--base', action='store_true', help='Use the base image')
+    subparser.add_argument('--coverage', action='store_true', help='Build the base image with coverage instrumentation')
     subparser.set_defaults(func=do_infer)

@@ -8,6 +8,8 @@ import json
 
 from ..data.metadata import UsageTracker
 
+CUSTOM_SECCOMP = (Path(__file__).parent.parent / 'seccomp.json').absolute()
+
 
 class ProjectConfig(BaseModel):
     repo: str = Field(description='The url of the project')
@@ -44,6 +46,11 @@ class Harness:
         analysis_dir = self.path / 'analysis'
         analysis_dir.mkdir(parents=True, exist_ok=True)
         return analysis_dir
+    
+    def coverage_dir(self) -> Path:
+        coverage_dir = self.path / 'coverage'
+        coverage_dir.mkdir(parents=True, exist_ok=True)
+        return coverage_dir
     
     def num_crashes(self) -> int:
         crash_dir = self.output_dir() / 'crashes'
@@ -103,7 +110,7 @@ class Project:
             return []
         return [Harness(x) for x in harness_path.iterdir() if x.is_dir()]
 
-    def base_image(self) -> str:
+    def base_image(self, build_coverage: bool = False) -> str:
         """
         Builds the base image for the project.
         """
@@ -118,11 +125,14 @@ class Project:
         base_image += 'WORKDIR /fuzz/src\n'
         base_image += 'ENV DEBIAN_FRONTEND=noninteractive\n'
         base_image += 'ENV LD_LIBRARY_PATH=/fuzz/install/lib\n'
+        base_image += 'ENV ASAN_OPTIONS=hard_rss_limit_mb=256:detect_leaks=0\n'
+        if build_coverage:
+            base_image += 'ENV GRAPHFUZZ_BUILD_COVERAGE=1\n'
         return base_image
 
-    def build_docker(self) -> bool:
+    def build_docker(self, build_coverage: bool = False) -> bool:
         config = self.get_config()
-        base = self.base_image()
+        base = self.base_image(build_coverage)
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)
@@ -155,6 +165,7 @@ class Project:
             full_cmd += ['-e', f'{e}={os.environ[e]}']
         for mount in mounts:
             full_cmd += ['-v', f'{mount[0]}:{mount[1]}']
+        full_cmd += ['--security-opt', f'seccomp={CUSTOM_SECCOMP}']
         full_cmd += [f'main_{self.get_config().name}', 'bash', '-c', cmd]
         subprocess.run(full_cmd)
 

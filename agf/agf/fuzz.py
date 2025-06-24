@@ -47,14 +47,17 @@ def do_fuzz(args):
             (str(tmpdir.absolute()), '/fuzz/workspace'),
             (str(harness.output_dir().absolute()), '/fuzz/output'),
         ]
+
+        timeout = f'timeout -k 10s {args.time} ' if args.time is not None else ''
+
         project.invoke(
             mounts=mounts, 
-            cmd='''
+            cmd=f'''
                 cd /fuzz/workspace &&
                 agfi flow to-schema --meta harness.json --output test.json &&
                 agfi build full test &&
                 mkdir -p /fuzz/input &&
-                ./test -i /fuzz/input -o /fuzz/output --bypass-validation
+                {timeout}./test -i /fuzz/input -o /fuzz/output --bypass-validation --logfile /fuzz/output/log.txt
             ''')
 
 
@@ -62,4 +65,5 @@ def register(subparsers):
     subparser = subparsers.add_parser('fuzz', help='Run the fuzzer')
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('--name', help='The name of the harness', default=None)
+    subparser.add_argument('--time', type=int, help='The time to run the fuzzer for (in seconds)', default=None)
     subparser.set_defaults(func=do_fuzz)

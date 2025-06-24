@@ -7,7 +7,7 @@ use std::{
 use tempfile;
 
 use libafl::{
-    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{inprocess::InProcessExecutor, ExitKind, ForkserverExecutor, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
+    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{hooks::ExecutorHooksTuple, inprocess::InProcessExecutor, inprocess_fork::GenericInProcessForkExecutor, ExitKind, ForkserverExecutor, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
         havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
     }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::{powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, QueueScheduler, StdWeightedScheduler}, stages::{
         StdMutationalStage,
@@ -23,9 +23,9 @@ use libafl_targets::{
     libfuzzer_initialize, std_edges_map_observer, CmpLogObserver, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP_DEFAULT_SIZE, EDGES_MAP_PTR
 };
 #[cfg(unix)]
-use nix::unistd::dup;
+use libafl_bolts::{dup_and_mute_outputs, os::dup2};
 
-use crate::components::{graph_input::GraphInput, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, mutate_graph_sat::GraphMutateSolver, runtime_metadata::MetadataLoggerStage};
+use crate::components::{graph_input::GraphInput, hook_oom::HookOOM, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, mutate_graph_sat::GraphMutateSolver, runtime_metadata::MetadataLoggerStage};
 use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}, sampler::{encoder::EncoderConfig, multisampler::{MultiSampler, SamplerConstraint}}};
 
 /// The actual fuzzer
@@ -46,12 +46,31 @@ pub fn fuzz(
     let log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     #[cfg(unix)]
-    let mut stdout_cpy = unsafe {
-        let new_fd = dup(io::stdout().as_raw_fd())?;
-        File::from_raw_fd(new_fd)
+    let mut stdout_cpy = {
+        // We forward all outputs to dev/null, but keep a copy around for the fuzzer output.
+        //
+        // # Safety
+        // stdout and stderr should still be open at this point in time.
+        let (new_stdout, new_stderr) = unsafe {
+            dup_and_mute_outputs()?
+        };
+
+        // // If we are debugging, re-enable target stderror.
+        // if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_ok() {
+        //     // # Safety
+        //     // Nobody else uses the new stderror here.
+        //     unsafe {
+        //         dup2(new_stderr, io::stderr().as_raw_fd())?;
+        //     }
+        // }
+
+        // # Safety
+        // The new stdout is open at this point, and we will don't use it anywhere else.
+        #[cfg(unix)]
+        unsafe {
+            File::from_raw_fd(new_stdout)
+        }
     };
-    #[cfg(unix)]
-    let file_null = File::open("/dev/null")?;
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = SimpleMonitor::with_user_monitor(|s| {
@@ -211,8 +230,8 @@ pub fn fuzz(
     //         initial_seeds.push(initial_seed.to_graph(&ctx.pspec, 0));
     //     }
     // }
-    for idx in 0..ctx.pspec.endpoints.len() {
-        initial_seeds.push(ctx.generate_seeded(idx));
+    for idx in ctx.cache.borrow().enabled_endpoints.iter() {
+        initial_seeds.push(ctx.generate_seeded(*idx));
     }
 
     println!("Initial seeds: {:?}", initial_seeds.len());
@@ -289,7 +308,10 @@ pub fn fuzz(
     //     timeout,
     // )?;
 
-    let mut executor = InProcessForkExecutor::new(
+    let mut executor = GenericInProcessForkExecutor::with_hooks(
+        tuple_list!(
+            HookOOM::new(256 * 1024 * 1024) // 256 MB
+        ),
         &mut harness,
         tuple_list!(edges_observer, time_observer),
         &mut fuzzer,
@@ -310,7 +332,10 @@ pub fn fuzz(
         //     timeout * 10,
         // )?,
 
-        InProcessForkExecutor::new(
+        GenericInProcessForkExecutor::with_hooks(
+            tuple_list!(
+                HookOOM::new(256 * 1024 * 1024) // 256 MB
+            ),
             &mut tracing_harness,
             tuple_list!(cmplog_observer),
             &mut fuzzer,

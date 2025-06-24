@@ -5,6 +5,7 @@ from enum import Enum
 from langchain_core.messages.ai import UsageMetadata
 
 from ..utils.colors import Colors
+from ..data.schema import Spec, Object, Attr, Endpoint, OutlivesConstraint, EndpointRole, VariableDir, Variable
 
 
 class ObjectLifetime(str, Enum):
@@ -138,3 +139,56 @@ class SchemaMetadata(BaseModel):
 
     # Token usage
     usage: UsageTracker = Field(description="The number of tokens used for each task", default=UsageTracker())
+
+    def to_schema(self) -> Spec:
+        mappings = {x.name: x for x in self.mapping_functions}
+        templates = {x.name: x for x in self.template_functions}
+        hints = {x.name: x for x in self.hints_functions}
+        schema = Spec(
+            objects=[],
+            endpoints=[],
+        )
+
+        for obj in self.objects:
+            if obj.lifetime == 'ephemeral':
+                continue
+
+            schema.objects.append(Object(
+                name=obj.type,
+                attrs=[],
+            ))
+
+        for func in templates.values():
+            mapping = mappings.get(func.name)
+            hint = hints.get(func.name)
+            vars = []
+            for arg in [*mapping.arguments, mapping.return_value]:
+                if arg.canonical_type == 'none':
+                    continue
+
+                obj = next((x for x in self.objects if x.type == arg.canonical_type), None)
+                if obj is None:
+                    raise ValueError(f'Object {arg.canonical_type} not found in objects')
+
+                if obj.lifetime == 'ephemeral':
+                    continue
+
+                if arg.usage == FunctionArgumentUsage.DEFAULT:
+                    vars.append(Variable(name=arg.name, type=arg.canonical_type, dir=VariableDir.InOut))
+                elif arg.usage == FunctionArgumentUsage.NEW:
+                    vars.append(Variable(name=arg.name, type=arg.canonical_type, dir=VariableDir.New))
+                elif arg.usage == FunctionArgumentUsage.DELETE:
+                    vars.append(Variable(name=arg.name, type=arg.canonical_type, dir=VariableDir.Del))
+
+            schema.endpoints.append(Endpoint(
+                name=func.name,
+                variables=vars,
+                template=func.stub,
+                hints=hint.hints if hint else [],
+                preconditions=[],
+                effects=[],
+                role=EndpointRole.NONE,
+                outlives=[],
+            ))
+
+        return schema
