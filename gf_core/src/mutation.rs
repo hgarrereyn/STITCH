@@ -63,7 +63,6 @@ pub struct EndpointNode {
 pub struct EdgeRef {
     pub node_idx: usize,
     pub conn_idx: usize,
-    pub forward: bool,
     pub typ: usize,
     pub node_level: isize,
     pub depth: usize,
@@ -141,12 +140,7 @@ impl MutationContext {
 
         for endpoint in self.pspec.endpoints.iter() {
             for x in endpoint.inputs.iter() {
-                if missing_constructors.contains(x) || missing_destructors.contains(x) {
-                    disabled_endpoints.insert(endpoint.idx);
-                }
-            }
-            for x in endpoint.outputs.iter() {
-                if missing_constructors.contains(x) || missing_destructors.contains(x) {
+                if missing_constructors.contains(x) {
                     disabled_endpoints.insert(endpoint.idx);
                 }
             }
@@ -163,9 +157,9 @@ impl MutationContext {
 
         eprintln!("Enabled endpoints: {}/{}", enabled, total);
 
-        if !missing_constructors.is_empty() || !missing_destructors.is_empty() {
+        if !missing_constructors.is_empty() {
             if !bypass_validation {
-                eprintln!("Missing constructors or destructors");
+                eprintln!("Missing constructors (bypass with --bypass-validation)");
                 std::process::exit(1);
             }
         }
@@ -198,6 +192,7 @@ impl MutationContext {
 
         for endpoint in self.pspec.endpoints.iter() {
             if forward {
+                // We're adding nodes that consume the type. 
                 for (conn_idx, val) in endpoint.inputs.iter().enumerate() {
                     if idx == *val {
                         let mut endpoint_node = EndpointNode {
@@ -220,7 +215,9 @@ impl MutationContext {
                         for (_, t) in endpoint.outputs.iter().enumerate() {
                             let e = self.get_type_node_enabled(*t, depth-1, true);
                             endpoint_node.children.push((*t, depth-1, true));
-                            endpoint_node.enabled &= e;
+
+                            // Ignore children of a consumer node.
+                            // endpoint_node.enabled &= e;
                         }
 
                         if endpoint_node.enabled {
@@ -230,6 +227,7 @@ impl MutationContext {
                     }
                 }
             } else {
+                // We're adding nodes that produce the type.
                 for (conn_idx, val) in endpoint.outputs.iter().enumerate() {
                     if idx == *val {
                         let mut endpoint_node = EndpointNode {
@@ -246,7 +244,9 @@ impl MutationContext {
                             }
                             let e = self.get_type_node_enabled(*t, depth-1, true);
                             endpoint_node.rev_children.push((*t, depth-1, true));
-                            endpoint_node.enabled &= e;
+                            
+                            // Ignore rev_children of a producer node. (i.e. other destructors)
+                            // endpoint_node.enabled &= e;
                         }
 
                         for (_, t) in endpoint.inputs.iter().enumerate() {
@@ -269,16 +269,16 @@ impl MutationContext {
 
     // Given a graph with missing edges, complete the graph by adding nodes.
     fn complete(&self, graph: &mut Graph) {
-        let mut free_edges: Vec<EdgeRef> = Vec::new();
+        let mut free_inputs: Vec<EdgeRef> = Vec::new();
+        let mut free_outputs: Vec<EdgeRef> = Vec::new();
 
         for (idx, node) in graph.nodes.iter().enumerate() {
             for (conn_idx, ref_type) in node.in_ref.iter().enumerate() {
                 match ref_type {
                     NodeRefType::Disconnected => {
-                        free_edges.push(EdgeRef {
+                        free_inputs.push(EdgeRef {
                             node_idx: idx,
                             conn_idx,
-                            forward: false,
                             typ: self.pspec.endpoints[node.typ].inputs[conn_idx],
                             node_level: node.layer,
                             depth: usize::MAX,
@@ -291,10 +291,9 @@ impl MutationContext {
             for (conn_idx, ref_type) in node.out_ref.iter().enumerate() {
                 match ref_type {
                     NodeRefType::Disconnected => {
-                        free_edges.push(EdgeRef {
+                        free_outputs.push(EdgeRef {
                             node_idx: idx,
                             conn_idx,
-                            forward: true,
                             typ: self.pspec.endpoints[node.typ].outputs[conn_idx],
                             node_level: node.layer,
                             depth: usize::MAX,
@@ -305,23 +304,23 @@ impl MutationContext {
             }
         }
 
-        free_edges.shuffle(&mut *self.rng.borrow_mut());
+        free_inputs.shuffle(&mut *self.rng.borrow_mut());
+        free_outputs.shuffle(&mut *self.rng.borrow_mut());
 
-        while !free_edges.is_empty() {
-            let edge = free_edges.pop().unwrap();
-            self.complete_one(graph, &mut free_edges, edge);
+        while !free_inputs.is_empty() {
+            let edge = free_inputs.pop().unwrap();
+            self.complete_one(graph, &mut free_inputs, &mut free_outputs, edge);
         }
     }
 
-    fn complete_one(&self, graph: &mut Graph, free_edges: &mut Vec<EdgeRef>, edge: EdgeRef) {
+    fn complete_one(&self, graph: &mut Graph, free_inputs: &mut Vec<EdgeRef>, free_outputs: &mut Vec<EdgeRef>, edge: EdgeRef) {
         // Check for an existing node that can be connected.
         if self.rng.borrow_mut().gen_bool(self.opts.self_link_probability) {
             let choice = {
-                let linkable = free_edges.iter().enumerate().filter(
-                    |(_,x)|
-                        x.typ == edge.typ &&
-                        x.forward != edge.forward &&
-                        if edge.forward { x.node_level > edge.node_level } else { x.node_level < edge.node_level }
+                let linkable = free_outputs.iter().enumerate().filter(
+                    |(_,out)|
+                        out.typ == edge.typ &&
+                        out.node_level < edge.node_level
                 ).collect::<Vec<_>>();
 
                 if !linkable.is_empty() {
@@ -334,13 +333,8 @@ impl MutationContext {
             };
 
             if let Some((idx, link)) = choice {
-                free_edges.remove(idx);
-
-                if edge.forward {
-                    graph.link(edge.node_idx, edge.conn_idx, link.node_idx, link.conn_idx);
-                } else {
-                    graph.link(link.node_idx, link.conn_idx, edge.node_idx, edge.conn_idx);
-                }
+                free_outputs.remove(idx);
+                graph.link( link.node_idx, link.conn_idx, edge.node_idx, edge.conn_idx);
 
                 return;
             }
@@ -351,16 +345,16 @@ impl MutationContext {
 
         // If depth is usize::MAX, use the smallest depth that is enabled.
         let depth = if edge.depth == usize::MAX {
-            cache.smallest_depth(edge.typ, edge.forward).unwrap()
+            cache.smallest_depth(edge.typ, false).unwrap()
         } else {
             edge.depth
         };
 
-        let typ_node = cache.get_type_node(edge.typ, depth, edge.forward).unwrap();
-        self.apply_type_node(graph, free_edges, edge, typ_node);
+        let typ_node = cache.get_type_node(edge.typ, depth, false).unwrap();
+        self.apply_type_node(graph, free_inputs, free_outputs, edge, typ_node);
     }
 
-    fn apply_type_node(&self, graph: &mut Graph, free_edges: &mut Vec<EdgeRef>, edge: EdgeRef, typ_node: &TypeNode) {
+    fn apply_type_node(&self, graph: &mut Graph, free_inputs: &mut Vec<EdgeRef>, free_outputs: &mut Vec<EdgeRef>, edge: EdgeRef, typ_node: &TypeNode) {
         // Sample a random endpoint.
         let endpoint = typ_node.children.choose(&mut *self.rng.borrow_mut());
         let endpoint = if let Some(endpoint) = endpoint {
@@ -370,7 +364,8 @@ impl MutationContext {
             println!("Edge: {:?}", edge);
             println!("Cache: {:?}", self.cache.borrow());
             println!("Schema: {:?}", self.pspec);
-            println!("Free edges: {:?}", free_edges);
+            println!("Free inputs: {:?}", free_inputs);
+            println!("Free outputs: {:?}", free_outputs);
             graph.pprint();
             panic!("Missing endpoint in type node");
         };
@@ -379,36 +374,29 @@ impl MutationContext {
             &self.pspec,
             &mut *self.rng.borrow_mut(),
             endpoint.idx, 
-            edge.node_level + if edge.forward { 1 } else { -1 }, 
+            edge.node_level - 1, 
             self.pspec.endpoints[endpoint.idx].inputs.len(), 
             self.pspec.endpoints[endpoint.idx].outputs.len(), 
             self.pspec.endpoints[endpoint.idx].context_size.unwrap()
         );
 
-        // Link the edge.
-        if edge.forward {
-            graph.link(edge.node_idx, edge.conn_idx, node, endpoint.conn_idx);
-        } else {
-            graph.link(node, endpoint.conn_idx, edge.node_idx, edge.conn_idx);
-        }
+        graph.link(node, endpoint.conn_idx, edge.node_idx, edge.conn_idx);
 
         // Add the new edges to the free list.
-        for (i, (typ, depth, fwd)) in endpoint.children.iter().enumerate() {
-            free_edges.push(EdgeRef {
+        for (i, (typ, depth, _)) in endpoint.children.iter().enumerate() {
+            free_inputs.push(EdgeRef {
                 node_idx: node,
                 conn_idx: i,
-                forward: *fwd,
                 typ: *typ,
                 node_level: graph.nodes[node].layer,
                 depth: *depth,
             });
         }
 
-        for (i, (typ, depth, fwd)) in endpoint.rev_children.iter().enumerate() {
-            free_edges.push(EdgeRef {
+        for (i, (typ, depth, _)) in endpoint.rev_children.iter().enumerate() {
+            free_outputs.push(EdgeRef {
                 node_idx: node,
                 conn_idx: if i < endpoint.conn_idx { i } else { i + 1 }, // Skip the connected index
-                forward: *fwd,
                 typ: *typ,
                 node_level: graph.nodes[node].layer,
                 depth: *depth,

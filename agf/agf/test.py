@@ -24,13 +24,35 @@ def do_test(args):
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace'),
         ]
-        project.invoke(
-            mounts=mounts, 
-            cmd='''
-                cd /fuzz/workspace &&
-                agfi build external test &&
-                ./test
-            ''')
+        try:
+            print(f'[{Colors.GREEN}+{Colors.END}] Testing...')
+            project.invoke(
+                mounts=mounts, 
+                cmd='''
+                    cd /fuzz/workspace &&
+                    agfi build external test &&
+                    ./test
+                ''', check=True)
+            print(f'[{Colors.GREEN}+{Colors.END}] Test passed')
+        except Exception as e:
+            print(f'[{Colors.RED}-{Colors.END}] Test failed')
+            print(e)
+            return
+
+        try:
+            print(f'[{Colors.GREEN}+{Colors.END}] Testing codegen configuration...')
+            project.invoke(
+                mounts=mounts, 
+                cmd='''
+                    cd /fuzz/workspace &&
+                    agfi build test-obj int
+                ''', check=True)
+            print(f'[{Colors.GREEN}+{Colors.END}] Codegen configuration test passed')
+        except Exception as e:
+            print(f'[{Colors.RED}-{Colors.END}] Codegen configuration test failed')
+            print(e)
+            return
+
 
 def register(subparsers):
     subparser = subparsers.add_parser('test', help='Test the project build configuration')

@@ -35,6 +35,8 @@ def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, e
         with open(f_code, 'w') as f:
             f.write(code)
 
+        print(code)
+
         path = '%s/code' % tmpdir
         res = build_command(path, info, external=True, verbose=verbose)
         if res.returncode != 0:

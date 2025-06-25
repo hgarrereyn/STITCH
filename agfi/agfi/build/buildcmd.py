@@ -60,6 +60,8 @@ def build_command(path: str, info: ProjectInfo, external: bool, verbose: bool = 
 
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if verbose:
-        print('[BUILD] ' + res.stdout)
-        print('[BUILD] ' + res.stderr)
+        if res.stdout != '':
+            print('[BUILD OUT] ' + res.stdout)
+        if res.stderr != '':
+            print('[BUILD ERR] ' + res.stderr)
     return res

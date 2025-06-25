@@ -151,7 +151,7 @@ class Project:
                 str(temp_dir)
             ], check=True)
 
-    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash'):
+    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False):
         """
         Invoke a command inside the main container (must be built first).
 
@@ -167,7 +167,7 @@ class Project:
             full_cmd += ['-v', f'{mount[0]}:{mount[1]}']
         full_cmd += ['--security-opt', f'seccomp={CUSTOM_SECCOMP}']
         full_cmd += [f'main_{self.get_config().name}', 'bash', '-c', cmd]
-        subprocess.run(full_cmd)
+        subprocess.run(full_cmd, check=check)
 
     def next_harness_name(self) -> str:
         """

@@ -101,6 +101,18 @@ Do **NOT** assign a canonical type if the `sig_type` does not match any of the a
 </example>
 [/FINDING_CANONICAL_TYPE]
 
+[DETERMINING_USAGE]
+For each argument, determine the usage type.
+- `default`: the argument is passed as an input and still valid after the function call (most cases)
+- `new`: the argument is being produced by the function (i.e. either via the return value, or as an output argument)
+- `delete`: the argument is being freed by the function, and should not be used after the function call
+
+Use context clues such as documentation and the function name to determine the usage type.
+
+Functions that create new objects may be called `create_foo`, `new_foo`, `alloc_foo`, etc.
+Functions that delete objects may be called `delete_foo`, `free_foo`, `destroy_foo`, etc.
+[/DETERMINING_USAGE]
+
 [OBJECTS]
 {objects}
 [/OBJECTS]
