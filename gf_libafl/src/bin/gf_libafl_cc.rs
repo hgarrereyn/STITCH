@@ -18,8 +18,12 @@ pub fn main() {
 
         // Must be always present, even without --libafl
         args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
-        args.push("-fsanitize=address".into());
-        
+
+        let use_asan = env::var("GRAPHFUZZ_USE_ASAN").unwrap_or("0".to_string());
+        if use_asan == "1" {
+            args.push("-fsanitize=address".into());
+        }
+
         // Get the GRAPHFUZZ_BUILD_COVERAGE environment variable
         let build_coverage = env::var("GRAPHFUZZ_BUILD_COVERAGE").unwrap_or("0".to_string());
         if build_coverage == "1" {
@@ -29,6 +33,10 @@ pub fn main() {
         }
 
         let mut cc = ClangWrapper::new();
+
+        #[cfg(any(target_os = "linux", target_vendor = "apple"))]
+        cc.add_pass(LLVMPasses::AutoTokens);
+
         if let Some(code) = cc
             .cpp(is_cpp)
             // silence the compiler wrapper output, needed for some configure scripts.
@@ -38,8 +46,15 @@ pub fn main() {
             .parse_args(&args)
             .expect("Failed to parse the command line")
             .link_staticlib(&dir, "gf_libafl")
-            .link_libpython().unwrap()
             .add_pass(LLVMPasses::CmpLogRtn)
+            // .add_args(&[
+            //     format!("-L{}", dir.display()),
+            //     "-loom_wrapper".to_string(),
+            //     format!("-Wl,-rpath,{}", dir.display()),
+            // ])
+            .add_args(&[
+                "-lseccomp",
+            ])
             .run()
             .expect("Failed to run the wrapped compiler")
         {

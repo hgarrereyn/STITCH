@@ -7,6 +7,7 @@ use serde::{Serialize, Deserialize};
 
 use gf_core::graph::Graph;
 
+use log;
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +27,7 @@ impl Input for GraphInput {
     where
         P: AsRef<std::path::Path>,
     {
+        log::error!("Writing graph to file: {}", path.as_ref().display());
         libafl_bolts::fs::write_file_atomic(path, &serde_json::to_vec(self).unwrap())
     }
     

@@ -1,14 +1,25 @@
 FROM ubuntu:22.04
-ENV TERM xterm-256color
 
 RUN apt-get update && \
-    apt-get -y upgrade && \
-    apt-get -y install \
-    clang make cmake git wget curl tar gdb vim \
-    python3.11 python3-pip \
-    pkg-config libssl-dev \
-    protobuf-compiler libprotobuf-dev ninja-build \
-    universal-ctags
+    apt-get install -y \
+        build-essential curl git wget tar gdb vim \
+        python3.11 python3-pip \
+        pkg-config libssl-dev \
+        protobuf-compiler libprotobuf-dev ninja-build \
+        libseccomp-dev
+
+# Install dependencies.
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y \
+        build-essential \
+        lsb-release wget software-properties-common gnupg && \
+    apt-get install -y wget libtool-bin automake flex bison \
+        libglib2.0-dev libpixman-1-dev python3-setuptools unzip \
+        apt-utils apt-transport-https ca-certificates joe curl && \
+    wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 17
+
+ENV TERM xterm-256color
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
@@ -22,6 +33,7 @@ RUN pip install -r requirements.txt
 COPY rust-toolchain.toml /src/rust-toolchain.toml
 COPY /gf_core /src/gf_core
 COPY /gf_libafl /src/gf_libafl
+COPY /third_party /src/third_party
 
 ENV LIBAFL_EDGES_MAP_SIZE=800000
 
@@ -30,9 +42,10 @@ RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/src/gf_core/target \
     --mount=type=cache,target=/root/.rustup \
     cd /src/gf_libafl && \
-    OUT_DIR=/deps cargo build --release && \
+    cargo build --release && \
     cargo install --path . && \
     cp target/release/libgf_libafl.a /root/.cargo/bin/libgf_libafl.a && \
+    cp target/release/liboom_wrapper.so /root/.cargo/bin/liboom_wrapper.so && \
     mkdir -p /src/tmp && \
     cp -r target/release/build/libafl_cc-* /src/tmp && \
     cd /src/gf_core && \

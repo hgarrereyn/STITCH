@@ -1,6 +1,7 @@
 from pathlib import Path
 import tempfile
 import shutil
+import uuid
 
 from .utils.colors import Colors
 from .utils.project import Project, Harness
@@ -37,12 +38,17 @@ def do_infer(args):
     project.build_docker(args.coverage)
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        tmpdir.mkdir(parents=True, exist_ok=True)
+        if args.persist:
+            tmpdir = Path(args.path) / 'dev'
+            tmpdir.mkdir(parents=True, exist_ok=True)
+        else:
+            tmpdir = Path(tmpdir)
+            tmpdir.mkdir(parents=True, exist_ok=True)
         if not args.base:
             shutil.copy(harness.harness_config(), tmpdir / 'harness.json')
         shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
 
+        print('Mounting', tmpdir)
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace')
         ]
@@ -50,6 +56,8 @@ def do_infer(args):
             mounts.append((str(harness.output_dir().absolute()), '/fuzz/output'))
             if args.coverage:
                 mounts.append((str(harness.coverage_dir().absolute()), '/fuzz/coverage'))
+        if args.edit:
+            mounts.append((str(Path(__file__).parent.parent.parent.absolute() / 'agfi'), '/src/agfi'))
 
         if args.base:
             project.invoke(
@@ -64,7 +72,7 @@ def do_infer(args):
                 mounts=mounts, 
                 cmd='''
                     cd /fuzz/workspace &&
-                    agfi flow to-schema --meta harness.json --output test.json &&
+                    agfi inc to-schema --meta harness.json --output test.json &&
                     agfi build full test &&
                     bash
                 ''')
@@ -75,4 +83,6 @@ def register(subparsers):
     subparser.add_argument('--name', help='The name of the harness', default=None)
     subparser.add_argument('--base', action='store_true', help='Use the base image')
     subparser.add_argument('--coverage', action='store_true', help='Build the base image with coverage instrumentation')
+    subparser.add_argument('--edit', action='store_true', help='Mount agfi as a volume')
+    subparser.add_argument('--persist', action='store_true', help='Persist the workspace after the shell exits')
     subparser.set_defaults(func=do_infer)

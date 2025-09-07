@@ -8,6 +8,7 @@ import os
 import time
 import re
 from pydantic import BaseModel
+import argparse
 
 
 class CrashResult(BaseModel):
@@ -88,16 +89,38 @@ def observe_crash(cmd: List[str]) -> Optional[Tuple[str, str]]:
     if loc_gdb is None and loc_san is None:
         return None, None
     
+    # Choose which report/summary pair to use
     if loc_gdb is None:
-        return json.dumps(report_san), f'{typ_san} in {loc_san}'
+        report_json = json.dumps(report_san, indent=2)
+        summary = f'{typ_san} in {loc_san}'
     elif loc_san is None:
-        return json.dumps(report_gdb), f'{typ_gdb} in {loc_gdb}'
+        report_json = json.dumps(report_gdb, indent=2)
+        summary = f'{typ_gdb} in {loc_gdb}'
     else:
         # We have both reports, use gdb_loc and san type unless type is AccessViolation
         if typ_san != 'AccessViolation':
-            return json.dumps(report_san), f'{typ_san} in {loc_gdb}'
+            report_json = json.dumps(report_san, indent=2)
+            summary = f'{typ_san} in {loc_gdb}'
         else:
-            return json.dumps(report_gdb), f'{typ_gdb} in {loc_gdb}'
+            report_json = json.dumps(report_gdb, indent=2)
+            summary = f'{typ_gdb} in {loc_gdb}'
+
+    # ------- Assertion message refinement -------
+    # The previous logic may classify assertion failures simply as "AbortSignal".
+    # Try to detect assertion messages and create a more informative summary.
+ 
+    # If the type looks like an abort, attempt to extract assertion details
+    if summary.startswith('AbortSignal') or summary.startswith('SIGABRT') or summary.startswith('Abort'):
+        assert_msg = _extract_assertion_message(cmd)
+        if assert_msg:
+            # Preserve the location part if we have one
+            if ' in ' in summary:
+                loc_part = summary.split(' in ', 1)[1]
+                summary = f'Assertion "{assert_msg}" in {loc_part}'
+            else:
+                summary = f'Assertion "{assert_msg}"'
+
+    return report_json, strip_summary(summary)
 
 
 def build_and_observe_crash(testcase: str) -> Optional[Tuple[str, str]]:
@@ -185,3 +208,45 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
         crash_report=crash_report,
         crash_summary=crash_summary
     )
+
+
+def register(subparsers):
+    crash_parser = subparsers.add_parser('crash-summary')
+    crash_parser.add_argument('cmd', nargs=argparse.REMAINDER, help='Command to execute')
+    crash_parser.set_defaults(func=run_crash_repro)
+
+
+def run_crash_repro(args):
+    cmd = args.cmd
+    if not cmd:
+        print('No command provided to crash-repro')
+        return
+    crash_report, crash_summary = observe_crash(cmd)
+    print(crash_summary)
+
+
+def _extract_assertion_message(cmd: List[str]) -> Optional[str]:
+    """Run the given command, capture stderr once and try to extract the text of an
+    assertion message (e.g. "foo != bar") if the program terminates via an
+    assertion failure. Returns the extracted message if found, otherwise None.
+    This is a best-effort heuristic that looks for common assertion patterns.
+    It should never raise – on any failure it falls back to returning None."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=5)
+        stderr = r.stderr.decode(errors="ignore")
+        # Common patterns that appear in libc assert as well as custom asserts.
+        patterns = [
+            r"Assertion `([^`]+)` failed",  # glibc / clang assert w/ back-quotes
+            r"Assertion '([^']+)' failed",  # single quotes
+            r"Assertion `([^']+)' failed",  # mismatched quotes
+            r'Assertion "([^"]+)" failed',  # double quotes
+            r"assertion failed: ([^\n\r]+)",  # rust / go style
+            r"failed assertion `([^`]+)`",  # misc
+        ]
+        for pat in patterns:
+            m = re.search(pat, stderr)
+            if m:
+                return m.group(1).strip()
+    except Exception:
+        pass
+    return None

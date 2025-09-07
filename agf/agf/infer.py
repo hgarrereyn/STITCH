@@ -6,6 +6,7 @@ from .utils.env import check_env
 from .utils.colors import Colors
 from .utils.project import Project
 from .data.project_info import ProjectInfo
+from .utils.tee import tee_log
 
 
 def do_infer(args):
@@ -35,6 +36,11 @@ def do_infer(args):
 
     info = ProjectInfo.model_validate_json(open(project.path / 'config' / 'info.json').read())
 
+    # infer_log = harness.path / 'infer.log'
+    # infer_log.touch()
+
+    # tee_log(str(infer_log))
+
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         tmpdir.mkdir(parents=True, exist_ok=True)
@@ -43,17 +49,25 @@ def do_infer(args):
 
         headers = [x.name for x in info.codegen.headers]
 
-        env = ['OPENAI_API_KEY']
+        env = [
+            'OPENAI_API_KEY',
+            'LANGSMITH_API_KEY',
+            'LANGSMITH_PROJECT',
+            'LANGSMITH_ENDPOINT',
+            'LANGSMITH_TRACING',
+        ]
         mounts = [
             (str(tmpdir), '/fuzz/workspace')
         ]
-        project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow full --headers {" ".join(headers)} --model {args.model} --output meta.json')
-        project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-stubs --meta /fuzz/workspace/meta.json --model {args.model} --output /fuzz/workspace/meta2.json')
-        project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-templates --meta /fuzz/workspace/meta2.json --model {args.model} --output /fuzz/workspace/meta3.json')
-        project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-hints --meta /fuzz/workspace/meta3.json --model {args.model} --output /fuzz/workspace/meta4.json')
+        # project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow full --headers {" ".join(headers)} --model {args.model} --output meta.json')
+        # project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-stubs --meta /fuzz/workspace/meta.json --model {args.model} --output /fuzz/workspace/meta2.json')
+        # project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-templates --meta /fuzz/workspace/meta2.json --model {args.model} --output /fuzz/workspace/meta3.json')
+        # project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-hints --meta /fuzz/workspace/meta3.json --model {args.model} --output /fuzz/workspace/meta4.json')
+
+        project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi inc run --headers {" ".join(headers)} --model {args.model} --output meta.json --threads {args.threads}')
 
         # Save the results
-        shutil.copy(tmpdir / 'meta4.json', harness.path / 'harness.json')
+        shutil.copy(tmpdir / 'meta.json', harness.path / 'harness.json')
 
 
 def register(subparsers):
@@ -62,4 +76,5 @@ def register(subparsers):
     subparser.add_argument('--name', help='The name of the harness', default=None)
     subparser.add_argument('--force', action='store_true', help='Force overwrite existing harness')
     subparser.add_argument('--model', type=str, default='gpt-4.1', help='Model to use for inference')
+    subparser.add_argument('--threads', type=int, default=1, help='Number of threads to use for inference')
     subparser.set_defaults(func=do_infer)

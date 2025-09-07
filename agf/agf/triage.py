@@ -45,7 +45,13 @@ def do_triage(args):
         shutil.copy(harness.harness_config(), tmpdir / 'harness.json')
         shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
 
-        env = ['OPENAI_API_KEY']
+        env = [
+            'OPENAI_API_KEY',
+            'LANGSMITH_API_KEY',
+            'LANGSMITH_PROJECT',
+            'LANGSMITH_ENDPOINT',
+            'LANGSMITH_TRACING',
+        ]
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace'),
             (str(harness.output_dir().absolute()), '/fuzz/output'),
@@ -56,9 +62,9 @@ def do_triage(args):
             mounts=mounts, 
             cmd=f'''
                 cd /fuzz/workspace &&
-                agfi flow to-schema --meta harness.json --output test.json &&
+                agfi inc to-schema --meta harness.json --output test.json &&
                 agfi build full test &&
-                agfi run-triage ./test /fuzz/output/crashes /fuzz/analysis --nproc {args.nproc} {'--watch' if args.watch else ''}
+                agfi run-triage ./test /fuzz/output/crashes /fuzz/analysis --nproc {args.nproc} {'--watch' if args.watch else ''} {'--no-minimize' if args.no_minimize else ''}
             ''')
 
 
@@ -68,4 +74,5 @@ def register(subparsers):
     subparser.add_argument('--name', help='The name of the harness', default=None)
     subparser.add_argument('--watch', action='store_true', help='Continue watching for new crashes')
     subparser.add_argument('--nproc', type=int, default=1, help='Number of processes to use')
+    subparser.add_argument('--no-minimize', action='store_true', help='Do not minimize crashes')
     subparser.set_defaults(func=do_triage)

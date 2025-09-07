@@ -5,6 +5,8 @@ from .flows import register as register_flows
 from .write import register as register_write
 from .run_triage import register as register_run_triage
 from .run_cover import register as register_run_cover
+from .utils.crash_repro import register as register_crash_repro
+from .incremental import register as register_incremental
 
 def main():
     parser = argparse.ArgumentParser()
@@ -15,6 +17,8 @@ def main():
     register_write(subparsers)
     register_run_triage(subparsers)
     register_run_cover(subparsers)
+    register_crash_repro(subparsers)
+    register_incremental(subparsers)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

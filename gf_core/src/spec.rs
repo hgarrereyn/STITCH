@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 use regex::Regex;
 use serde::{Serialize, Deserialize};
 
-use crate::{grammar::{Assignment, Context, EnumDef, GrammarError, Leaf, ParserWithCtx, Ty, VarDef}, pspec::{PAttr, PAttrType, PEndpoint, PEndpointRole, PObject, POutlivesConstraint, PSpec, PVariableMapping}};
+use crate::{pspec::{PAttr, PAttrType, PEndpoint, PEndpointRole, PObject, POutlivesConstraint, PSpec, PVariableMapping}};
 
 
 // ------------------------------------------------------------------------------------------------
@@ -131,16 +131,18 @@ impl fmt::Display for ValidationError {
 
 #[derive(Debug, Clone)]
 pub enum EndpointValidationError {
-    DuplicateEffectTarget(Leaf, Vec<Assignment>),
-    ParsingError(String, GrammarError),
+    // DuplicateEffectTarget(Leaf, Vec<Assignment>),
+    // ParsingError(String, GrammarError),
+    CodeBlockError(String),
 }
 
 
 impl fmt::Display for EndpointValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EndpointValidationError::DuplicateEffectTarget(_target, effects) => write!(f, "More than one effect for the same target: ({})", effects.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ")),
-            EndpointValidationError::ParsingError(expr, error) => write!(f, "Error while parsing \"{}\":\n{}", expr, error),
+            // EndpointValidationError::DuplicateEffectTarget(_target, effects) => write!(f, "More than one effect for the same target: ({})", effects.iter().map(|e| e.to_string()).collect::<Vec<_>>().join(", ")),
+            // EndpointValidationError::ParsingError(expr, error) => write!(f, "Error while parsing \"{}\":\n{}", expr, error),
+            EndpointValidationError::CodeBlockError(error) => write!(f, "Error while parsing code block:\n{}", error),
         }
     }
 }
@@ -199,73 +201,106 @@ impl Endpoint {
         let mut output_vars = vec![];
         let mut mappings = vec![];
 
-        // Replace all instances of a variable name surrounded by non-word characters with "@@name@@"
-        let mut template = self.template.clone();
-        for v in self.variables.iter() {
-            let re = Regex::new(&format!(r"(\b{}\b)", v.name)).unwrap();
-            template = re.replace_all(&template, &format!("@@{}@@", v.name)).to_string();
-        }
-
         let mut pre_template = String::new();
         let mut post_template = String::new();
 
         let mut hint_args = vec![];
         let mut hint_args_sizes = vec![];
 
+        let mut template = self.template.clone();
+
+        // // Replace all instances of a variable name surrounded by non-word characters with "@@name@@"
+        // let mut template = self.template.clone();
+        // for v in self.variables.iter() {
+        //     let re = Regex::new(&format!(r"(\b{}\b)", v.name)).unwrap();
+        //     template = re.replace_all(&template, &format!("@@{}@@", v.name)).to_string();
+        // }
+
+        // for v in self.variables.iter() {
+        //     match v.dir {
+        //         VariableDir::InOut => {
+        //             if let Some(idx) = type_to_idx.get(&v.typ) {
+        //                 inputs.push(*idx);
+        //                 outputs.push(*idx);
+        //                 template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
+        //                 post_template.push_str(&format!("$o{} = $i{};\n", outputs.len() - 1, inputs.len() - 1));
+        //                 input_vars.push(v.name.clone());
+        //                 output_vars.push(v.name.clone());
+        //                 mappings.push(PVariableMapping {
+        //                     name: v.name.clone(),
+        //                     in_idx: inputs.len() - 1,
+        //                     out_idx: outputs.len() - 1,
+        //                 });
+        //             } else {
+        //                 args.push(v.typ.clone());
+        //                 template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
+        //             }
+        //         },
+        //         VariableDir::New => {
+        //             if let Some(idx) = type_to_idx.get(&v.typ) {
+        //                 outputs.push(*idx);
+        //                 template = template.replace(&format!("@@{}@@", v.name), &format!("$o{}", outputs.len() - 1));
+        //                 output_vars.push(v.name.clone());
+        //                 // mappings.push(PVariableMapping {
+        //                 //     name: v.name.clone(),
+        //                 //     in_idx: None,
+        //                 //     out_idx: Some(outputs.len() - 1),
+        //                 // });
+        //             } else {
+        //                 // Ignore new arg types
+        //                 // TODO: warning
+        //                 args.push(v.typ.clone());
+        //                 template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
+        //             }
+        //         },
+        //         VariableDir::Del => {
+        //             if let Some(idx) = type_to_idx.get(&v.typ) {
+        //                 inputs.push(*idx);
+        //                 template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
+        //                 input_vars.push(v.name.clone());
+        //                 // mappings.push(PVariableMapping {
+        //                 //     name: v.name.clone(),
+        //                 //     in_idx: Some(inputs.len() - 1),
+        //                 //     out_idx: None,
+        //                 // });
+        //             } else {
+        //                 // Ignore del arg types
+        //                 // TODO: warning
+        //                 args.push(v.typ.clone());
+        //                 template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
+        //             }
+        //         },
+        //     }
+        // }
+
         for v in self.variables.iter() {
             match v.dir {
                 VariableDir::InOut => {
-                    if let Some(idx) = type_to_idx.get(&v.typ) {
-                        inputs.push(*idx);
-                        outputs.push(*idx);
-                        template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
-                        post_template.push_str(&format!("$o{} = $i{};\n", outputs.len() - 1, inputs.len() - 1));
-                        input_vars.push(v.name.clone());
-                        output_vars.push(v.name.clone());
-                        mappings.push(PVariableMapping {
-                            name: v.name.clone(),
-                            in_idx: inputs.len() - 1,
-                            out_idx: outputs.len() - 1,
-                        });
-                    } else {
-                        args.push(v.typ.clone());
-                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
-                    }
-                },
+                    let idx = type_to_idx.get(&v.typ).unwrap();
+                    inputs.push(*idx);
+                    outputs.push(*idx);
+                    pre_template.push_str(&format!("{} {} = $i{};\n", v.typ, v.name, inputs.len() - 1));
+                    post_template.push_str(&format!("$o{} = {};\n", outputs.len() - 1, v.name));
+                    input_vars.push(v.name.clone());
+                    output_vars.push(v.name.clone());
+                    mappings.push(PVariableMapping {
+                        name: v.name.clone(),
+                        in_idx: inputs.len() - 1,
+                        out_idx: outputs.len() - 1,
+                    });
+                }
                 VariableDir::New => {
-                    if let Some(idx) = type_to_idx.get(&v.typ) {
-                        outputs.push(*idx);
-                        template = template.replace(&format!("@@{}@@", v.name), &format!("$o{}", outputs.len() - 1));
-                        output_vars.push(v.name.clone());
-                        // mappings.push(PVariableMapping {
-                        //     name: v.name.clone(),
-                        //     in_idx: None,
-                        //     out_idx: Some(outputs.len() - 1),
-                        // });
-                    } else {
-                        // Ignore new arg types
-                        // TODO: warning
-                        args.push(v.typ.clone());
-                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
-                    }
-                },
+                    let idx = type_to_idx.get(&v.typ).unwrap();
+                    outputs.push(*idx);
+                    post_template.push_str(&format!("$o{} = {};\n", outputs.len() - 1, v.name));
+                    output_vars.push(v.name.clone());
+                }
                 VariableDir::Del => {
-                    if let Some(idx) = type_to_idx.get(&v.typ) {
-                        inputs.push(*idx);
-                        template = template.replace(&format!("@@{}@@", v.name), &format!("$i{}", inputs.len() - 1));
-                        input_vars.push(v.name.clone());
-                        // mappings.push(PVariableMapping {
-                        //     name: v.name.clone(),
-                        //     in_idx: Some(inputs.len() - 1),
-                        //     out_idx: None,
-                        // });
-                    } else {
-                        // Ignore del arg types
-                        // TODO: warning
-                        args.push(v.typ.clone());
-                        template = template.replace(&format!("@@{}@@", v.name), &format!("$a{}", args.len() - 1));
-                    }
-                },
+                    let idx = type_to_idx.get(&v.typ).unwrap();
+                    inputs.push(*idx);
+                    pre_template.push_str(&format!("{} {} = $i{};\n", v.typ, v.name, inputs.len() - 1));
+                    input_vars.push(v.name.clone());
+                }
             }
         }
 
@@ -287,10 +322,18 @@ impl Endpoint {
             // Find all instances of FUZZ_PARAM_STR(<N>) and replace them with (char *)$aN
             let matches = find_macro_invocations(&template, "FUZZ_PARAM_STR");
             for (start, end, arg) in matches {
-                let len = arg.split_whitespace().next().unwrap().parse::<usize>().unwrap();
+                let len = match arg.parse::<usize>() {
+                    Ok(len) => len,
+                    Err(_) => {
+                        endpoint_errors.push(EndpointValidationError::CodeBlockError(format!("Invalid argument to FUZZ_PARAM_STR: {}", arg)));
+                        continue;
+                    }
+                };
                 args.push(format!("char[{}]", len + 1));
                 pre_template.push_str(&format!("$a{}[{}] = 0;\n", args.len() - 1, len));
-                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("((const char *)$a{})", args.len() - 1), 1);
+                pre_template.push_str(&format!("const char *$__str_{} = (const char *)gf_malloc({});\n", args.len() - 1, len + 1));
+                pre_template.push_str(&format!("memcpy((char *)$__str_{}, $a{}, {});\n", args.len() - 1, args.len() - 1, len + 1));
+                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("($__str_{})", args.len() - 1), 1);
 
                 hint_args.push(args.len() - 1);
                 hint_args_sizes.push(len);
@@ -301,15 +344,14 @@ impl Endpoint {
         {
             let mut template_with_fuzz = template.clone();
 
-            // Find all instances of FUZZ_PARAM_FILE(<N>) and replace them with gf_fuzz_param::write_to_temp_file($aN, N)
+            // Find all instances of FUZZ_PARAM_FILE() and replace them with gf_fuzz_param::write_to_temp_file($aN, 1024)
             let matches = find_macro_invocations(&template, "FUZZ_PARAM_FILE");
             for (start, end, arg) in matches {
-                let len = arg.split_whitespace().next().unwrap().parse::<usize>().unwrap();
-                args.push(format!("char[{}]", len));
-                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("gf_fuzz_param::write_to_temp_file($a{}, {})", args.len() - 1, len), 1);
+                args.push(format!("char[1024]"));
+                template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("gf_fuzz_param::write_to_temp_file($a{}, 1024)", args.len() - 1), 1);
 
                 hint_args.push(args.len() - 1);
-                hint_args_sizes.push(len);
+                hint_args_sizes.push(1024);
             }
 
             template = template_with_fuzz;
@@ -325,6 +367,7 @@ impl Endpoint {
             full_template.push_str(&post_template);
         }
 
+        /*
         // Precondition references input objects
         let precondition_ctx = self.build_context(&inputs, &input_vars, objects);
         let precondition_parser = ParserWithCtx::new(&precondition_ctx);
@@ -360,6 +403,7 @@ impl Endpoint {
                 endpoint_errors.push(EndpointValidationError::DuplicateEffectTarget(target.clone(), effects.clone()));
             }
         }
+        */
 
         if !endpoint_errors.is_empty() {
             return Err(endpoint_errors);
@@ -391,8 +435,8 @@ impl Endpoint {
             output_vars,
             mappings,
 
-            preconditions,
-            effects,
+            // preconditions,
+            // effects,
             role,
             outlives,
 
@@ -402,49 +446,49 @@ impl Endpoint {
         })
     }
 
-    fn build_context(&self, indexes: &[usize], names: &[String], objects: &[PObject]) -> Context {
-        let mut vars = HashMap::new();
+    // fn build_context(&self, indexes: &[usize], names: &[String], objects: &[PObject]) -> Context {
+    //     let mut vars = HashMap::new();
 
-        for (idx, name) in indexes.iter().zip(names.iter()) {
-            let object = &objects[*idx];
-            let object_name = &object.name;
+    //     for (idx, name) in indexes.iter().zip(names.iter()) {
+    //         let object = &objects[*idx];
+    //         let object_name = &object.name;
         
-            let mut fields = HashMap::new();
-            for attr in object.attrs.iter() {
-                fields.insert(attr.name.clone(), match &attr.typ {
-                    PAttrType::Int => Ty::Int,
-                    PAttrType::Enum { .. } => Ty::Enum(format!("{}::{}", object_name, attr.name)),
-                });
-            }
+    //         let mut fields = HashMap::new();
+    //         for attr in object.attrs.iter() {
+    //             fields.insert(attr.name.clone(), match &attr.typ {
+    //                 PAttrType::Int => Ty::Int,
+    //                 PAttrType::Enum { .. } => Ty::Enum(format!("{}::{}", object_name, attr.name)),
+    //             });
+    //         }
 
-            vars.insert(name.clone(), VarDef {
-                name: name.clone(),
-                fields,
-            });
-        }
+    //         vars.insert(name.clone(), VarDef {
+    //             name: name.clone(),
+    //             fields,
+    //         });
+    //     }
 
-        let mut enums = HashMap::new();
+    //     let mut enums = HashMap::new();
 
-        for idx in indexes.iter() {
-            let object = &objects[*idx];
-            let object_name = &object.name;
+    //     for idx in indexes.iter() {
+    //         let object = &objects[*idx];
+    //         let object_name = &object.name;
 
-            for attr in object.attrs.iter() {
-                if let PAttrType::Enum { variants } = &attr.typ {
-                    enums.insert(format!("{}::{}", object_name, attr.name), EnumDef {
-                        name: format!("{}::{}", object_name, attr.name),
-                        variants: variants.iter().map(|v| v.clone()).collect(),
-                    });
-                }
-            }
-        }
+    //         for attr in object.attrs.iter() {
+    //             if let PAttrType::Enum { variants } = &attr.typ {
+    //                 enums.insert(format!("{}::{}", object_name, attr.name), EnumDef {
+    //                     name: format!("{}::{}", object_name, attr.name),
+    //                     variants: variants.iter().map(|v| v.clone()).collect(),
+    //                 });
+    //             }
+    //         }
+    //     }
         
-        Context {
-            vars,
-            globals: HashMap::new(),
-            enums,
-        }
-    }
+    //     Context {
+    //         vars,
+    //         globals: HashMap::new(),
+    //         enums,
+    //     }
+    // }
 }
 
 pub fn find_macro_invocations<'a>(input: &'a str, keyword: &str) -> Vec<(usize, usize, String)> {
@@ -485,7 +529,7 @@ pub fn find_macro_invocations<'a>(input: &'a str, keyword: &str) -> Vec<(usize, 
 
 #[cfg(test)]
 mod tests {
-    use crate::grammar::{BoolAtom, BoolExpr, CmpOp, Constraint, EnumExpr, Expr, IntAtom, IntExpr, Leaf};
+    // use crate::grammar::{BoolAtom, BoolExpr, CmpOp, Constraint, EnumExpr, Expr, IntAtom, IntExpr, Leaf};
 
     use super::*;
     
@@ -548,6 +592,35 @@ mod tests {
     }
 
     #[test]
+    fn test_convert_fuzz_param_str_invalid() {
+        let spec_json = r#"
+        {
+            "objects": [],
+            "endpoints": [
+                {
+                    "name": "test_func",
+                    "variables": [],
+                    "template": "int z = FUZZ_PARAM_STR(10 + 1);"
+                }
+            ]
+        }
+        "#;
+        let spec: Spec = serde_json::from_str(spec_json).unwrap();
+        let pspec = spec.build_pspec().unwrap() ;
+        
+        assert_eq!(pspec.endpoints[0], PEndpoint {
+            name: "test_func".to_string(),
+            idx: 0,
+            inputs: vec![],
+            outputs: vec![],
+            args: vec!["char[11]".to_string()],
+            template: "$a0[10] = 0;\nint z = ((const char *)$a0);".to_string(),
+            mappings: vec![],
+            ..Default::default()
+        });
+    }
+
+    #[test]
     fn test_convert_fuzz_param_file() {
         let spec_json = r#"
         {
@@ -556,7 +629,7 @@ mod tests {
                 {
                     "name": "test_func",
                     "variables": [],
-                    "template": "int z = FUZZ_PARAM_FILE(256);"
+                    "template": "int z = FUZZ_PARAM_FILE();"
                 }
             ]
         }
@@ -569,91 +642,91 @@ mod tests {
             idx: 0,
             inputs: vec![],
             outputs: vec![],
-            args: vec!["char[256]".to_string()],
-            template: "int z = gf_fuzz_param::write_to_temp_file($a0, 256);".to_string(),
+            args: vec!["char[1024]".to_string()],
+            template: "int z = gf_fuzz_param::write_to_temp_file($a0, 1024);".to_string(),
             mappings: vec![],
             ..Default::default()
         });
     }
 
-    #[test]
-    fn test_encode_constraints() {
-        let spec_json = r#"
-        {
-            "objects": [
-                {
-                    "name": "foo",
-                    "attrs": [
-                        {
-                            "name": "x",
-                            "type": "int"
-                        },
-                        {
-                            "name": "y",
-                            "type": "enum",
-                            "variants": ["A", "B", "C"]
-                        }
-                    ]
-                }
-            ],
-            "endpoints": [
-                {
-                    "name": "test_func",
-                    "variables": [
-                        {
-                            "name": "z",
-                            "type": "foo",
-                            "dir": "*"
-                        }
-                    ],
-                    "template": "test_func(z);",
-                    "preconditions": [
-                        "z.x > 0"
-                    ],
-                    "effects": [
-                        "z.x := 5",
-                        "z.y := B"
-                    ]
-                }
-            ]
-        }
-        "#;
-        let spec: Spec = serde_json::from_str(spec_json).unwrap();
-        let pspec = spec.build_pspec().unwrap();
+    // #[test]
+    // fn test_encode_constraints() {
+    //     let spec_json = r#"
+    //     {
+    //         "objects": [
+    //             {
+    //                 "name": "foo",
+    //                 "attrs": [
+    //                     {
+    //                         "name": "x",
+    //                         "type": "int"
+    //                     },
+    //                     {
+    //                         "name": "y",
+    //                         "type": "enum",
+    //                         "variants": ["A", "B", "C"]
+    //                     }
+    //                 ]
+    //             }
+    //         ],
+    //         "endpoints": [
+    //             {
+    //                 "name": "test_func",
+    //                 "variables": [
+    //                     {
+    //                         "name": "z",
+    //                         "type": "foo",
+    //                         "dir": "*"
+    //                     }
+    //                 ],
+    //                 "template": "test_func(z);",
+    //                 "preconditions": [
+    //                     "z.x > 0"
+    //                 ],
+    //                 "effects": [
+    //                     "z.x := 5",
+    //                     "z.y := B"
+    //                 ]
+    //             }
+    //         ]
+    //     }
+    //     "#;
+    //     let spec: Spec = serde_json::from_str(spec_json).unwrap();
+    //     let pspec = spec.build_pspec().unwrap();
         
-        println!("{}", pspec.pprint());
+    //     println!("{}", pspec.pprint());
 
-        assert_eq!(pspec.endpoints[0], PEndpoint {
-            name: "test_func".to_string(),
-            idx: 0,
-            inputs: vec![0],
-            outputs: vec![0],
-            args: vec![],
-            template: "test_func($i0);\n$o0 = $i0;\n".to_string(),
-            input_vars: vec!["z".to_string()],
-            output_vars: vec!["z".to_string()],
-            mappings: vec![PVariableMapping {
-                name: "z".to_string(),
-                in_idx: 0,
-                out_idx: 0,
-            }],
-            preconditions: vec![Constraint {
-                expr: BoolExpr::Atom(BoolAtom::Cmp(IntExpr::Atom(IntAtom::Leaf(Leaf::Var("z".to_string(), "x".to_string()))), CmpOp::Gt, IntExpr::Atom(IntAtom::IntLit(0))))
-            }],
-            effects: vec![Assignment {
-                target: Leaf::Var("z".to_string(), "x".to_string()),
-                expr: Expr::Int(IntExpr::Atom(IntAtom::IntLit(5))),
-            }, Assignment {
-                target: Leaf::Var("z".to_string(), "y".to_string()),
-                expr: Expr::Enum(EnumExpr::Variant {
-                    enum_name: Some("foo::y".to_string()),
-                    variant: "B".to_string(),
-                }),
-            }],
-            context_size: None,
-            ..Default::default()
-        });
-    }
+    //     assert_eq!(pspec.endpoints[0], PEndpoint {
+    //         name: "test_func".to_string(),
+    //         idx: 0,
+    //         inputs: vec![0],
+    //         outputs: vec![0],
+    //         args: vec![],
+    //         template: "foo z = $i0;\ntest_func(z);\n$o0 = z;\n".to_string(),
+    //         input_vars: vec!["z".to_string()],
+    //         output_vars: vec!["z".to_string()],
+    //         mappings: vec![PVariableMapping {
+    //             name: "z".to_string(),
+    //             in_idx: 0,
+    //             out_idx: 0,
+    //         }],
+    //         preconditions: vec![Constraint {
+    //             expr: BoolExpr::Atom(BoolAtom::Cmp(IntExpr::Atom(IntAtom::Leaf(Leaf::Var("z".to_string(), "x".to_string()))), CmpOp::Gt, IntExpr::Atom(IntAtom::IntLit(0))))
+    //         }],
+    //         effects: vec![Assignment {
+    //             target: Leaf::Var("z".to_string(), "x".to_string()),
+    //             expr: Expr::Int(IntExpr::Atom(IntAtom::IntLit(5))),
+    //         }, Assignment {
+    //             target: Leaf::Var("z".to_string(), "y".to_string()),
+    //             expr: Expr::Enum(EnumExpr::Variant {
+    //                 enum_name: Some("foo::y".to_string()),
+    //                 variant: "B".to_string(),
+    //             }),
+    //         }],
+    //         context_size: None,
+    //         ..Default::default()
+    //     });
+    // }
 
     #[test]
     fn test_encode_complex() {

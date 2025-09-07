@@ -34,7 +34,7 @@ When minimizing, DO the following:
 - remove dead code
 - reformat code to be more readable and canonical
 - rename variables to be more descriptive
-- if constants or strings have unimportant data, replace them with simpler values
+- simplify values and expressions
 - remove error checking code (e.g. `if (...) FUZZ_BAIL()`) if it is not necessary to trigger the crash
 
 When minimizing, DO NOT do the following:
@@ -67,6 +67,8 @@ def try_minimize(crash_file: str, crash_report: str, summary: str, model: str) -
     
     if summary != new_summary:
         print('[!] Minimize failed: summary changed')
+        print(f'Old summary: {summary}')
+        print(f'New summary: {new_summary}')
         return None
     
     return MinimizeResult(testcase=new_file, report=report)

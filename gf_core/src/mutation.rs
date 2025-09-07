@@ -71,12 +71,14 @@ pub struct EdgeRef {
 #[derive(Debug)]
 pub struct MutationOptions {
     pub self_link_probability: f64,
+    pub max_nodes: usize,
 }
 
 impl Default for MutationOptions {
     fn default() -> Self {
         Self {
             self_link_probability: 0.2,
+            max_nodes: 50,
         }
     }
 }
@@ -85,7 +87,7 @@ impl Default for MutationOptions {
 #[derive(Debug)]
 pub struct MutationContext {
     pub pspec: PSpec,
-    opts: MutationOptions,
+    pub opts: MutationOptions,
     pub cache: RefCell<SchemaCache>,
     rng: RefCell<rand::rngs::ThreadRng>,
 }

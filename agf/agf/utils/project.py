@@ -148,7 +148,7 @@ class Project:
                 '--build-arg', f'BASE_IMAGE=base_{config.name}',
                 '-t', f'main_{config.name}',
                 '-f', self.path / 'config' / 'Dockerfile',
-                str(temp_dir)
+                str((self.path / 'config').absolute())
             ], check=True)
 
     def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False):
@@ -162,7 +162,7 @@ class Project:
         """
         full_cmd = ['docker', 'run', '-it', '--rm']
         for e in env:
-            full_cmd += ['-e', f'{e}={os.environ[e]}']
+            full_cmd += ['-e', f'{e}={os.environ.get(e, "")}']
         for mount in mounts:
             full_cmd += ['-v', f'{mount[0]}:{mount[1]}']
         full_cmd += ['--security-opt', f'seccomp={CUSTOM_SECCOMP}']

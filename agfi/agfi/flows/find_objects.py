@@ -143,9 +143,11 @@ class ObjectsResponse(BaseModel):
     objects: List[ObjectStub]
 
 
-def _scan_chunk(info: ProjectInfo, model: str, chunk: str) -> List[ObjectStub]:
+def _scan_chunk(info: ProjectInfo, model: str, chunk: str, usage: UsageTracker) -> List[ObjectStub]:
     llm = ChatOpenAI(model=model).with_structured_output(ObjectsResponse, strict=True)
-    res: ObjectsResponse = llm.invoke(PROMPT_SCAN_CHUNK.format(code=chunk))
+    with get_usage_metadata_callback() as cb:
+        res: ObjectsResponse = llm.invoke(PROMPT_SCAN_CHUNK.format(code=chunk))
+        usage.record('find-objects', UsageMetrics.from_usage(cb.usage_metadata))
     return res.objects
 
 
@@ -171,14 +173,14 @@ def find_objects(info: ProjectInfo, model: str, headers: List[str], usage: Usage
     def log(msg: str):
         print(f'[{Colors.BOLD}{Colors.GREEN}FIND{Colors.END}] {msg}')
 
-    log('Merging headers...')
-    merged_headers = merge_headers(headers)
-    log(f'Merged {len(headers)} headers into {len(merged_headers)} lines')
+    objects = []
 
-    log('Scanning merged headers...')
-    with get_usage_metadata_callback() as cb:
-        objects = _scan_chunk(info, model, merged_headers)
-        usage.record('find-objects', UsageMetrics.from_usage(cb.usage_metadata))
+    for header in headers:
+        print(f'[{Colors.BOLD}{Colors.GREEN}FIND{Colors.END}] Processing {header}')
+        with open(header, 'r') as f:
+            code = f.read()
+        objects.extend(_scan_chunk(info, model, code, usage))
+        print(f'[{Colors.BOLD}{Colors.GREEN}FIND{Colors.END}] Current objects: {len(objects)}')
 
     log(f'Found {len(objects)} objects')
 

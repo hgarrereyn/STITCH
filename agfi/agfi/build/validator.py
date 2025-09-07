@@ -35,8 +35,6 @@ def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, e
         with open(f_code, 'w') as f:
             f.write(code)
 
-        print(code)
-
         path = '%s/code' % tmpdir
         res = build_command(path, info, external=True, verbose=verbose)
         if res.returncode != 0:
@@ -70,7 +68,16 @@ def test_isolated_schema(meta: SchemaMetadata, template: FunctionStubTemplate, i
 def validate_object(object: str, info: ProjectInfo, verbose: bool = False) -> Optional[str]:
     """Check that the object symbol exists and can be the type of a variable."""
     code = f'''
+#include <type_traits>
+#include <stdio.h>
+
+template <typename T>
+void ensure_pointer_type() {{
+    static_assert(std::is_pointer<T>::value, "Object type must be a pointer type");
+}}
+
 int main() {{
+    ensure_pointer_type<{object}>();
     {object} x;
     x = x; // Ensure x is treated as an identifier
     return 0;

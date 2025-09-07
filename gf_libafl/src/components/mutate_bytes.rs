@@ -51,30 +51,42 @@ where
             sizes.push(node.context.len());
         }
 
-        // Run the inner mutator on the flattened context bytes.
-        let mut inp = BytesInput::new(flat.clone());
+        // Run the inner mutator on the flattened context bytes **without** an
+        // additional clone. We move `flat` into the `BytesInput`.
+        let mut inp = BytesInput::new(flat);
         let result = self.inner.mutate(state, &mut inp)?;
 
         if result == libafl::mutators::MutationResult::Skipped {
             return Ok(result);
         }
 
+        // Retrieve the (potentially mutated) bytes.
         let out = inp.borrow().bytes();
-        if out.len() <= flat.len() {
-            flat[..out.len()].copy_from_slice(out);
-        } else {
-            let sz = flat.len();
-            flat.copy_from_slice(&out[..sz]);
-        }
 
-        // Update the context bytes with the mutated bytes.
+        // Update the context bytes with the mutated bytes. If the mutator
+        // produced a shorter buffer, we only overwrite the bytes that changed,
+        // leaving the remaining bytes intact. If it produced a longer buffer,
+        // we truncate to the original length.
         let mut offset = 0;
-        for (i, size) in sizes.iter().enumerate() {
-            let start = offset;
-            let end = offset + size;
-            offset = end;
+        let out_len = out.len();
 
-            input.graph.nodes[i].context.copy_from_slice(&flat[start..end]);
+        for (i, size) in sizes.iter().enumerate() {
+            if offset >= out_len {
+                break; // Nothing more to copy
+            }
+
+            let end = offset + size;
+            let slice_end = out_len.min(end);
+            let slice = &out[offset..slice_end];
+
+            // Copy the mutated slice into the node's context.
+            input.graph.nodes[i]
+                .context
+                .get_mut(..slice.len())
+                .expect("slice length within bounds")
+                .copy_from_slice(slice);
+
+            offset = end;
         }
 
         Ok(libafl::mutators::MutationResult::Mutated)

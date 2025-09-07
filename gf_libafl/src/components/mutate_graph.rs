@@ -66,6 +66,7 @@ macro_rules! create_graph_mutator {
             fn mutate(&mut self, _state: &mut S, input: &mut GraphInput) -> Result<libafl::mutators::MutationResult, libafl::Error> {
                 let graph = &mut input.graph;
                 self.ctx.$func(graph);
+                graph.trim_to(self.ctx.opts.max_nodes);
                 Ok(libafl::mutators::MutationResult::Mutated)
             }
         }

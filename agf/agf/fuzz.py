@@ -54,10 +54,15 @@ def do_fuzz(args):
             mounts=mounts, 
             cmd=f'''
                 cd /fuzz/workspace &&
-                agfi flow to-schema --meta harness.json --output test.json &&
+                agfi inc to-schema --meta harness.json --output test.json &&
                 agfi build full test &&
                 mkdir -p /fuzz/input &&
-                {timeout}./test -i /fuzz/input -o /fuzz/output --bypass-validation --logfile /fuzz/output/log.txt
+                {timeout}while true; do
+                    echo "[INFO] Starting fuzzer..."
+                    ./test -i /fuzz/input -o /fuzz/output --bypass-validation --logfile /fuzz/output/log.txt --rss-limit-mb {args.rss_limit_mb if args.rss_limit_mb is not None else '0'} {'--keep-stdout' if args.keep_stdout else ''}
+                    exit_code=$?
+                    echo "[INFO] Fuzzer crashed with exit code $exit_code, restarting..."
+                done
             ''')
 
 
@@ -66,4 +71,6 @@ def register(subparsers):
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('--name', help='The name of the harness', default=None)
     subparser.add_argument('--time', type=int, help='The time to run the fuzzer for (in seconds)', default=None)
+    subparser.add_argument('--rss-limit-mb', type=int, help='The RSS limit for the fuzzer (in MB)', default=None)
+    subparser.add_argument('--keep-stdout', action='store_true', help='Keep the stdout of the fuzzer', default=False)
     subparser.set_defaults(func=do_fuzz)

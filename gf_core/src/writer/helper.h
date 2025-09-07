@@ -11,7 +11,19 @@
 #include <cstring>  // For strcpy()
 #include <unordered_map>
 #include <cctype>
+#include <tuple>
 
+namespace std {
+    template<>
+    struct hash<std::tuple<void *, std::string>> {
+        size_t operator()(const std::tuple<void *, std::string>& k) const {
+            auto h1 = std::hash<void*>{}(std::get<0>(k));
+            auto h2 = std::hash<std::string>{}(std::get<1>(k));
+            // Cheap hash combine:
+            return h1 ^ (h2 << 1);
+        }
+    };
+}
 
 template <typename T>
 constexpr auto type_name() {
@@ -129,6 +141,13 @@ std::vector<void *> gf_allocations;
 // Keep track of allocated files
 std::vector<std::string> gf_files;
 
+// Keep track of attributes
+std::unordered_map<std::tuple<void *, std::string>, int> *gf_attrs_int;
+std::unordered_map<std::tuple<void *, std::string>, std::string> *gf_attrs_str;
+std::unordered_map<std::string, int> *gf_attrs_int_global;
+std::unordered_map<std::string, std::string> *gf_attrs_str_global;
+
+
 static size_t MAX_MALLOC = 0x8000;
 
 void gf_bail();
@@ -172,6 +191,11 @@ extern "C" {
     void GRAPHFUZZ_PRE_INIT() {
         gf_allocations.clear();
         gf_files.clear();
+
+        gf_attrs_int = new std::unordered_map<std::tuple<void *, std::string>, int>();
+        gf_attrs_str = new std::unordered_map<std::tuple<void *, std::string>, std::string>();
+        gf_attrs_int_global = new std::unordered_map<std::string, int>();
+        gf_attrs_str_global = new std::unordered_map<std::string, std::string>();
     }
 
     void GRAPHFUZZ_POST_INIT() {
@@ -226,6 +250,62 @@ namespace gf_fuzz_param {
         strcpy(result, filename.c_str());
         return result;
     }
+
+    template <typename T>
+    void set_attr_int(T *var, const char *key, int value) {
+        (*gf_attrs_int)[std::make_tuple(var, key)] = value;
+    }
+
+    template <typename T>
+    void set_attr_str(T *var, const char *key, const char *value) {
+        (*gf_attrs_str)[std::make_tuple(var, key)] = value;
+    }
+
+    template <typename T>
+    int get_attr_int(T *var, const char *key) {
+        auto it = gf_attrs_int->find(std::make_tuple(var, key));
+        if (it != gf_attrs_int->end()) {
+            return it->second;
+        }
+        gf_bail();
+        return 0;
+    }
+
+    template <typename T>
+    const char *get_attr_str(T *var, const char *key) {
+        auto it = gf_attrs_str->find(std::make_tuple(var, key));
+        if (it != gf_attrs_str->end()) {
+            return it->second;
+        }
+        gf_bail();
+        return nullptr;
+    }
+
+    void set_attr_int_global(const char *key, int value) {
+        (*gf_attrs_int_global)[key] = value;
+    }
+
+    void set_attr_str_global(const char *key, const char *value) {
+        (*gf_attrs_str_global)[key] = value;
+    }
+
+    int get_attr_int_global(const char *key) {
+        auto it = gf_attrs_int_global->find(key);
+        if (it != gf_attrs_int_global->end()) {
+            return it->second;
+        }
+        gf_bail();
+        return 0;
+    }
+
+    const char *get_attr_str_global(const char *key) {
+        auto it = gf_attrs_str_global->find(key);
+        if (it != gf_attrs_str_global->end()) {
+            return it->second.c_str();
+        }
+        gf_bail();
+        return nullptr;
+    }
 }
 
 
@@ -269,3 +349,15 @@ char *x = gf_fuzz_param::write_to_temp_file($a0, 10);
 
 // Marker for bailing out
 #define FUZZ_BAIL() gf_bail()
+
+// Dynamic validation
+#define FUZZ_SET_ATTR_INT(var, key, value) gf_fuzz_param::set_attr_int(var, key, value)
+#define FUZZ_SET_ATTR_STR(var, key, value) gf_fuzz_param::set_attr_str(var, key, value)
+#define FUZZ_GET_ATTR_INT(var, key) gf_fuzz_param::get_attr_int(var, key)
+#define FUZZ_GET_ATTR_STR(var, key) gf_fuzz_param::get_attr_str(var, key)
+
+// Global state validation
+#define FUZZ_SET_ATTR_INT_GLOBAL(key, value) gf_fuzz_param::set_attr_int_global(key, value)
+#define FUZZ_SET_ATTR_STR_GLOBAL(key, value) gf_fuzz_param::set_attr_str_global(key, value)
+#define FUZZ_GET_ATTR_INT_GLOBAL(key) gf_fuzz_param::get_attr_int_global(key)
+#define FUZZ_GET_ATTR_STR_GLOBAL(key) gf_fuzz_param::get_attr_str_global(key)

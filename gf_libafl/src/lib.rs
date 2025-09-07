@@ -12,11 +12,16 @@ use libafl::inputs::Input;
 #[allow(unused_imports)]
 use libafl_targets::{libfuzzer_initialize, libfuzzer_test_one_input, std_edges_map_observer};
 
+use mimalloc::MiMalloc;
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 // use crate::components::runtime_metadata::FuzzerRuntimeMetadata;
 
 pub mod components;
 pub mod fuzzer;
 pub mod minimizer;
+pub mod seccomp;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -74,6 +79,15 @@ pub struct Options {
 
     #[arg(short, long, default_value = "1200")]
     pub timeout: String,
+
+    #[arg(short, long, default_value = "2000")]
+    pub rss_limit_mb: u64,
+
+    #[arg(short, long, default_value = "false")]
+    pub keep_stdout: bool,
+
+    #[arg(short, long, default_value = "false")]
+    pub verbose: bool,
 }
 
 #[no_mangle]
@@ -100,27 +114,41 @@ pub extern "C" fn libafl_main() {
         pspec.endpoints[i].hint_arg_offsets = s.clone();
     }
 
-    // Perform schema computation and caching/loading
-    let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
-    let mctx = MutationContext::new(pspec);
-    if pspec_cache_path.exists() {
-        println!("Loading pspec cache from {:?}", pspec_cache_path);
-        mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
-    } else {
-        println!("Computing mutation context...");
-        mctx.compute(res.compute_size, res.bypass_validation);
-        println!("Computed mutation context");
-        mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
-    }
-    let ctx = Rc::new(mctx);
-
     if res.input.is_some() && res.out.is_some() {
+        // Perform schema computation and caching/loading
+        let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
+        let mctx = MutationContext::new(pspec);
+        if pspec_cache_path.exists() {
+            println!("Loading pspec cache from {:?}", pspec_cache_path);
+            mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
+        } else {
+            println!("Computing mutation context...");
+            mctx.compute(res.compute_size, res.bypass_validation);
+            println!("Computed mutation context");
+            mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
+        }
+        let ctx = Rc::new(mctx);
+        
         run_fuzzer(res, gf_harness, ctx);
     } else if res.execute.is_some() {
-        execute_one(res, gf_harness, ctx);
+        execute_one(res, gf_harness);
     } else if res.write.is_some() {
         write_one(res, gf_harness);
     } else if res.minimize.is_some() {
+        // Perform schema computation and caching/loading
+        let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
+        let mctx = MutationContext::new(pspec);
+        if pspec_cache_path.exists() {
+            println!("Loading pspec cache from {:?}", pspec_cache_path);
+            mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
+        } else {
+            println!("Computing mutation context...");
+            mctx.compute(res.compute_size, res.bypass_validation);
+            println!("Computed mutation context");
+            mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
+        }
+        let ctx = Rc::new(mctx);
+        
         minimizer::minimize(res.minimize.unwrap(), res.minimize_output, res.minimize_cycles, gf_harness, res.full_write, ctx);
     } else {
         println!("Either input and out directories, execute command, test-filter with input, or minimize must be provided.");
@@ -162,11 +190,11 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
 
     fuzzer::fuzz(
         gf_harness, ctx, &out_dir, &in_dir, tokens,
-        &logfile, timeout
+        &logfile, timeout, Some(res.rss_limit_mb), res.keep_stdout, res.verbose
     ).unwrap();
 }
 
-fn execute_one(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
+fn execute_one(res: Options, gf_harness: Harness) {
     let path = PathBuf::from(res.execute.unwrap());
     let inp = GraphInput::from_file(path).expect("Could not read input file");
 

@@ -1,10 +1,10 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, num::ParseIntError};
 
 use rand::{rngs::ThreadRng, Rng};
 use serde::{Serialize, Deserialize};
 use colored::Colorize;
 
-use crate::{pspec::PSpec, sampler::sgraph::decode_hex};
+use crate::{pspec::PSpec};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeRef {
@@ -343,20 +343,42 @@ impl Graph {
     }
 
     pub fn trim_to(&mut self, max_nodes: usize) {
-        self.nodes.truncate(max_nodes);
+        // Nothing to do if we are already small enough
+        if self.nodes.len() <= max_nodes {
+            return;
+        }
 
-        // Disconnect outputs
-        for node in self.nodes.iter_mut() {
-            for out_ref in node.out_ref.iter_mut() {
-                match out_ref {
-                    NodeRefType::Connected(ref node_ref) => {
-                        if node_ref.node_idx >= max_nodes {
-                            *out_ref = NodeRefType::Disconnected;
-                        }
-                    }
-                    NodeRefType::Disconnected => {},
+        // 1. Decide which nodes we keep: the first `max_nodes` nodes in topological (layer) order.
+        let ordered = self.topological_sort();
+        let keep_vec: Vec<usize> = ordered.into_iter().take(max_nodes).collect();
+        let keep: HashSet<usize> = keep_vec.iter().copied().collect();
+
+        // 2. Disconnect outgoing edges that now point to nodes we will drop.
+        for idx in 0..self.nodes.len() {
+            if !keep.contains(&idx) {
+                continue;
+            }
+
+            for out_ref in self.nodes[idx].out_ref.iter_mut() {
+                let disconnect = match out_ref {
+                    NodeRefType::Connected(node_ref) => !keep.contains(&node_ref.node_idx),
+                    NodeRefType::Disconnected => false,
+                };
+
+                if disconnect {
+                    *out_ref = NodeRefType::Disconnected;
                 }
             }
         }
+
+        // 3. Collapse the graph so that only the kept nodes remain and reindex references accordingly.
+        self.collapse(&keep);
     }
+}
+
+pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect()
 }

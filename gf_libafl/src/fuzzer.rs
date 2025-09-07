@@ -2,12 +2,13 @@ use core::{cell::RefCell, time::Duration};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::{
-    borrow::BorrowMut, fs::{File, OpenOptions}, io::{self, Write}, num::NonZeroUsize, path::PathBuf, process, rc::Rc, sync::Arc
+    borrow::BorrowMut, fs::{File, OpenOptions}, io::{self, Write}, num::NonZeroUsize, path::PathBuf, process, rc::Rc, str::Bytes, sync::Arc
 };
+use libc::raise;
 use tempfile;
 
 use libafl::{
-    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{SimpleEventManager, SimpleRestartingEventManager}, executors::{hooks::ExecutorHooksTuple, inprocess::InProcessExecutor, inprocess_fork::GenericInProcessForkExecutor, ExitKind, ForkserverExecutor, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, monitors::SimpleMonitor, mutators::{
+    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::{EventRestarter, SimpleEventManager, SimpleRestartingEventManager}, executors::{hooks::ExecutorHooksTuple, inprocess::{GenericInProcessExecutor, HookableInProcessExecutor, InProcessExecutor}, inprocess_fork::GenericInProcessForkExecutor, ExitKind, ForkserverExecutor, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, fuzzer::{Fuzzer, StdFuzzer}, inputs::BytesInput, monitors::SimpleMonitor, mutators::{
         havoc_mutations_no_crossover, token_mutations::I2SRandReplace, tokens_mutations, StdMOptMutator, StdScheduledMutator, Tokens
     }, observers::{CanTrack, HitcountsMapObserver, StdMapObserver, TimeObserver}, schedulers::{powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, QueueScheduler, StdWeightedScheduler}, stages::{
         StdMutationalStage,
@@ -15,18 +16,21 @@ use libafl::{
     }, state::{HasCorpus, StdState}, Error, Evaluator, HasMetadata
 };
 use libafl_bolts::{
-    current_time, rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::{tuple_list, Merge}, AsSlice, AsSliceMut
+    current_time, os::peak_rss_mb_child_processes, rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::{tuple_list, Merge}, AsSlice, AsSliceMut
 };
 #[cfg(any(target_os = "linux", target_vendor = "apple"))]
 use libafl_targets::autotokens;
 use libafl_targets::{
-    libfuzzer_initialize, std_edges_map_observer, CmpLogObserver, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP_DEFAULT_SIZE, EDGES_MAP_PTR
+    edges_max_num, libfuzzer_initialize, std_edges_map_observer, CmpLogObserver, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP_DEFAULT_SIZE, EDGES_MAP_PTR
 };
 #[cfg(unix)]
 use libafl_bolts::{dup_and_mute_outputs, os::dup2};
 
-use crate::components::{graph_input::GraphInput, hook_oom::HookOOM, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, mutate_graph_sat::GraphMutateSolver, runtime_metadata::MetadataLoggerStage};
-use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}, sampler::{encoder::EncoderConfig, multisampler::{MultiSampler, SamplerConstraint}}};
+use simple_logger::SimpleLogger;
+use log::LevelFilter;
+
+use crate::{components::{graph_input::GraphInput, hook_oom::HookOOM, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, runtime_metadata::MetadataLoggerStage, state_metadata::{StateMetadata, StateMode}}, seccomp::{install_seccomp_trap, install_sigsys_bridge_to_sigusr2}};
+use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}};
 
 /// The actual fuzzer
 pub fn fuzz(
@@ -36,9 +40,16 @@ pub fn fuzz(
     seed_dir: &PathBuf,
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
-    timeout: Duration
+    timeout: Duration,
+    rss_limit_mb: Option<u64>,
+    keep_stdout: bool,
+    verbose: bool
 ) -> Result<(), Error>
 {
+    if verbose {
+        SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
+    } else {}
+
     let corpus_dir = out_dir.join("queue");
     let objective_dir = out_dir.join("crashes");
     let runtime_metadata_path = out_dir.join("runtime_metadata.json");
@@ -51,18 +62,20 @@ pub fn fuzz(
         //
         // # Safety
         // stdout and stderr should still be open at this point in time.
-        let (new_stdout, new_stderr) = unsafe {
-            dup_and_mute_outputs()?
+        let (new_stdout, new_stderr) = if keep_stdout {
+            (io::stdout().as_raw_fd(), io::stderr().as_raw_fd())
+        } else {
+            unsafe { dup_and_mute_outputs()? }
         };
 
-        // // If we are debugging, re-enable target stderror.
-        // if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_ok() {
-        //     // # Safety
-        //     // Nobody else uses the new stderror here.
-        //     unsafe {
-        //         dup2(new_stderr, io::stderr().as_raw_fd())?;
-        //     }
-        // }
+        // If we are debugging, re-enable target stderror.
+        if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_ok() {
+            // # Safety
+            // Nobody else uses the new stderror here.
+            unsafe {
+                dup2(new_stderr, io::stderr().as_raw_fd())?;
+            }
+        }
 
         // # Safety
         // The new stdout is open at this point, and we will don't use it anywhere else.
@@ -72,6 +85,9 @@ pub fn fuzz(
         }
     };
 
+    #[cfg(unix)]
+    let file_null = File::open("/dev/null").unwrap();
+
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = SimpleMonitor::with_user_monitor(|s| {
         #[cfg(unix)]
@@ -79,6 +95,7 @@ pub fn fuzz(
         #[cfg(windows)]
         println!("{s}");
         writeln!(log.borrow_mut(), "{:?} {s}", current_time()).unwrap();
+        // println!("{s}")
     });
 
     // We need a shared map to store our state before a crash.
@@ -107,6 +124,8 @@ pub fn fuzz(
     let invoke_result_shmem_buf = invoke_result_shmem.as_slice_mut();
     
     let obs = unsafe { std_edges_map_observer("edges") };
+
+    // let obs = unsafe { StdMapObserver::from_mut_ptr("edges", EDGES_MAP_PTR, edges_max_num()) };
 
     let (state, mut mgr) = match SimpleRestartingEventManager::launch(monitor, &mut shmem_provider)
     {
@@ -263,27 +282,25 @@ pub fn fuzz(
         StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
     );
 
-    // let scheduler = QueueScheduler::new();
-
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     let runtime_metadata = Rc::new(RefCell::new(RuntimeMetadataView::new(RUNTIME_METADATA_PTR)));
     
-    let metadata_logger = MetadataLoggerStage::new(
-        runtime_metadata.clone(), ctx.clone(), runtime_metadata_path.to_string_lossy().to_string(), Duration::from_secs(60)
-    );
+    // let metadata_logger = MetadataLoggerStage::new(
+    //     runtime_metadata.clone(), ctx.clone(), runtime_metadata_path.to_string_lossy().to_string(), Duration::from_secs(60)
+    // );
 
     let invoke_result = Rc::new(RefCell::new(invoke_result_shmem_buf));
 
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &GraphInput| {
         // Create a temporary directory for sandboxing
-        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+        // let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
         // let original_dir = std::env::current_dir().expect("Failed to get current directory");
         
         // Change to the temporary directory
-        std::env::set_current_dir(&temp_dir.path()).expect("Failed to change to temporary directory");
+        // std::env::set_current_dir(&temp_dir.path()).expect("Failed to change to temporary directory");
         
         let mut local_view = (*runtime_metadata).borrow_mut();
 
@@ -299,62 +316,62 @@ pub fn fuzz(
     let mut tracing_harness = harness;
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    // let mut executor = InProcessExecutor::with_timeout(
-    //     &mut harness,
-    //     tuple_list!(edges_observer, time_observer),
-    //     &mut fuzzer,
-    //     &mut state,
-    //     &mut mgr,
-    //     timeout,
-    // )?;
-
-    let mut executor = GenericInProcessForkExecutor::with_hooks(
-        tuple_list!(
-            HookOOM::new(256 * 1024 * 1024) // 256 MB
-        ),
+    let mut executor = InProcessExecutor::with_timeout(
+        // tuple_list!(
+        //     HookOOM::new(256 * 1024 * 1024) // 256 MB
+        // ),
         &mut harness,
         tuple_list!(edges_observer, time_observer),
         &mut fuzzer,
         &mut state,
         &mut mgr,
         timeout,
-        shmem_provider.clone()
     )?;
+
+    // let mut executor = InProcessForkExecutor::new(
+    //     &mut harness,
+    //     tuple_list!(edges_observer, time_observer),
+    //     &mut fuzzer,
+    //     &mut state,
+    //     &mut mgr,
+    //     timeout,
+    //     shmem_provider.clone()
+    // )?;
 
     // Setup a tracing stage in which we log comparisons
     let tracing = TracingStage::new(
-        // InProcessExecutor::with_timeout(
-        //     &mut tracing_harness,
-        //     tuple_list!(cmplog_observer),
-        //     &mut fuzzer,
-        //     &mut state,
-        //     &mut mgr,
-        //     timeout * 10,
-        // )?,
-
-        GenericInProcessForkExecutor::with_hooks(
-            tuple_list!(
-                HookOOM::new(256 * 1024 * 1024) // 256 MB
-            ),
+        InProcessExecutor::with_timeout(
+            // tuple_list!(
+            //     HookOOM::new(256 * 1024 * 1024) // 256 MB
+            // ),
             &mut tracing_harness,
             tuple_list!(cmplog_observer),
             &mut fuzzer,
             &mut state,
             &mut mgr,
             timeout * 10,
-            shmem_provider
         )?,
+
+        // InProcessForkExecutor::new(
+        //     &mut tracing_harness,
+        //     tuple_list!(cmplog_observer),
+        //     &mut fuzzer,
+        //     &mut state,
+        //     &mut mgr,
+        //     timeout * 10,
+        //     shmem_provider
+        // )?,
         // Give it more time!
     );
 
-    let mark = MarkStage::new(invoke_result.clone());
+    // let mark = MarkStage::new(invoke_result.clone());
 
     // The order of the stages matter!
     // let mut stages = tuple_list!(calibration, tracing, i2s, power);
 
     let mut stages = tuple_list!(
-        mark,
-        metadata_logger,
+        // mark,
+        // metadata_logger,
         graph_mutator,
         tracing,
         i2s,
@@ -388,30 +405,89 @@ pub fn fuzz(
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
 
-    // If corpus is empty, add a seed
-    if state.corpus().count() == 0 {
-        for (idx, seed) in initial_seeds.iter().enumerate() {
-            println!("Adding seed {}/{}", idx + 1, initial_seeds.len());
-            let seed_input = GraphInput {
-                graph: seed.clone(),
+    // Remove target output (logs still survive)
+    // if !keep_stdout {
+    //     #[cfg(unix)]
+    //     {
+    //         let null_fd = file_null.as_raw_fd();
+    //         dup2(null_fd, io::stdout().as_raw_fd())?;
+    //         if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_err() {
+    //             dup2(null_fd, io::stderr().as_raw_fd())?;
+    //         }
+    //     }
+    // }
+    // reopen file to make sure we're at the end
+    log.replace(OpenOptions::new().append(true).create(true).open(logfile)?);
+
+    // Enforce address space hard limit based on rss_limit_mb to avoid K8s OOM kills.
+    // Rely on LibAFL's in-process crash handlers for proper restart/crash reporting.
+    if let Some(rss_limit_mb) = rss_limit_mb {
+        if (rss_limit_mb > 0) {
+            let limit_bytes: u64 = rss_limit_mb * 1024 * 1024;
+            let mut rlimit = libc::rlimit {
+                rlim_cur: limit_bytes as libc::rlim_t,
+                rlim_max: libc::RLIM_INFINITY,
             };
-            fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed_input)?;
+            let sr = unsafe { libc::setrlimit(libc::RLIMIT_AS, &rlimit) };
+            if sr != 0 {
+                eprintln!("Warning: setrlimit(RLIMIT_AS) failed: {}", std::io::Error::last_os_error());
+            }
         }
     }
 
-    // Remove target output (logs still survive)
-    // #[cfg(unix)]
-    // {
-    //     let null_fd = file_null.as_raw_fd();
-    //     dup2(null_fd, io::stdout().as_raw_fd())?;
-    //     if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_err() {
-    //         dup2(null_fd, io::stderr().as_raw_fd())?;
-    //     }
-    // }
-    // // reopen file to make sure we're at the end
-    // log.replace(OpenOptions::new().append(true).create(true).open(logfile)?);
+    log::info!("Installing seccomp trap");
+    // Install seccomp trap
+    unsafe { install_sigsys_bridge_to_sigusr2().unwrap(); }
+    install_seccomp_trap(&[
+        "execve", "execveat",
+        "fork", "vfork",
+        "clone", "clone3",
+        "rt_sigaction",
+        // "rt_sigprocmask",
+    ]).unwrap();
 
-    println!("Starting fuzzing loop");
+    log::info!("Seccomp trap installed");
+
+    log::info!("Seeding");
+    // Seed loading
+    if state.metadata_map().get::<StateMetadata>().is_none() {
+        state.add_metadata(StateMetadata::new());
+    }
+
+    let state_metadata = state.metadata_map().get::<StateMetadata>().unwrap().clone();
+    match state_metadata.mode {
+        StateMode::Initializing => {
+            log::info!("First run");
+            for (idx, seed) in initial_seeds.iter().enumerate() {
+                log::info!("Adding seed {}/{}", idx + 1, initial_seeds.len());
+                let seed_input = GraphInput {
+                    graph: seed.clone(),
+                };
+                state.metadata_map_mut().get_mut::<StateMetadata>().unwrap().mode = StateMode::AddingSeed(idx);
+                fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed_input)?;
+            }
+            state.metadata_map_mut().get_mut::<StateMetadata>().unwrap().mode = StateMode::Running;
+        }
+        StateMode::AddingSeed(crashed_idx) => {
+            log::info!("Fuzzer crashed while adding seed {}/{}", crashed_idx + 1, initial_seeds.len());
+            // Continue where it left off
+            for (idx, seed) in initial_seeds.iter().enumerate() {
+                if idx <= crashed_idx {
+                    continue;
+                }
+                log::info!("Adding seed {}/{}", idx + 1, initial_seeds.len());
+                let seed_input = GraphInput {
+                    graph: seed.clone(),
+                };
+                state.metadata_map_mut().get_mut::<StateMetadata>().unwrap().mode = StateMode::AddingSeed(idx);
+                fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed_input)?;
+            }
+            state.metadata_map_mut().get_mut::<StateMetadata>().unwrap().mode = StateMode::Running;
+        }
+        StateMode::Running => {}
+    }
+
+    log::info!("Starting fuzzing loop");
     fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;
 
     // Never reached

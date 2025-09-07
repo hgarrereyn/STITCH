@@ -1,7 +1,7 @@
 
 use serde::{Serialize, Deserialize};
 
-use crate::grammar::{Assignment, Constraint};
+// use crate::grammar::{Assignment, Constraint};
 
 use colored::Colorize;
 
@@ -50,8 +50,8 @@ pub struct PEndpoint {
     pub output_vars: Vec<String>, // Original variable names
     pub mappings: Vec<PVariableMapping>,
 
-    pub preconditions: Vec<Constraint>,
-    pub effects: Vec<Assignment>,
+    // pub preconditions: Vec<Constraint>,
+    // pub effects: Vec<Assignment>,
     pub role: PEndpointRole,
     pub outlives: Vec<POutlivesConstraint>,
 
@@ -75,8 +75,8 @@ impl Default for PEndpoint {
             input_vars: vec![],
             output_vars: vec![],
             mappings: vec![],
-            preconditions: vec![],
-            effects: vec![],
+            // preconditions: vec![],
+            // effects: vec![],
             context_size: None,
             hint_arg_offsets: vec![],
             role: PEndpointRole::None,
@@ -160,15 +160,15 @@ impl PSpec {
             s.push_str(&format!("  Args: {}\n", endpoint.args.iter().map(|arg| format!("{}", arg).yellow().to_string()).collect::<Vec<String>>().join(", ")));
             
             // preconditions
-            s.push_str("  Preconditions:\n");
-            for precondition in &endpoint.preconditions {
-                s.push_str(&format!("    {}\n", precondition.pprint()));
-            }
+            // s.push_str("  Preconditions:\n");
+            // for precondition in &endpoint.preconditions {
+            //     s.push_str(&format!("    {}\n", precondition.pprint()));
+            // }
             // effects
-            s.push_str("  Effects:\n");
-            for effect in &endpoint.effects {
-                s.push_str(&format!("    {}\n", effect.pprint()));
-            }
+            // s.push_str("  Effects:\n");
+            // for effect in &endpoint.effects {
+            //     s.push_str(&format!("    {}\n", effect.pprint()));
+            // }
 
             // role
             s.push_str(&format!("  Role: {:?}\n", endpoint.role));

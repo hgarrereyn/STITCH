@@ -123,55 +123,56 @@ def run_triage(args):
             for _ in tqdm(p.imap_unordered(generate_reproducer, [(fuzzer, crashes_dir / c, summary, bucket_dir) for (c,summary,bucket_dir) in need_repro]), total=len(need_repro), desc='Generating reproducers'):
                 pass
 
-        # Do llm minimization as necessary
-        bucket_counts = defaultdict(lambda: (0, 0)) # {hash: (repro, fail)}
-        bucket_attempts = defaultdict(set) # {hash: set(reports)}
-        for bucket_dir in buckets_dir.iterdir():
-            fail_count = len(list((bucket_dir / 'minimized').glob('*.fail')))
-            success_count = len(list((bucket_dir / 'minimized').glob('*.cpp')))
-            bucket_counts[bucket_dir.name] = (success_count, fail_count)
-            bucket_attempts[bucket_dir.name] = set([f.stem for f in (bucket_dir / 'minimized').iterdir()])
+        if not args.no_minimize:
+            # Do llm minimization as necessary
+            bucket_counts = defaultdict(lambda: (0, 0)) # {hash: (repro, fail)}
+            bucket_attempts = defaultdict(set) # {hash: set(reports)}
+            for bucket_dir in buckets_dir.iterdir():
+                fail_count = len(list((bucket_dir / 'minimized').glob('*.fail')))
+                success_count = len(list((bucket_dir / 'minimized').glob('*.cpp')))
+                bucket_counts[bucket_dir.name] = (success_count, fail_count)
+                bucket_attempts[bucket_dir.name] = set([f.stem for f in (bucket_dir / 'minimized').iterdir()])
 
-        need_minimize = []
+            need_minimize = []
 
-        # Scan through buckets and fill as necessary
-        for bucket_dir in buckets_dir.iterdir():
-            available_external = list((bucket_dir / 'repro').glob('*.cpp'))
-    
-            for external_file in available_external:
-                if external_file.stem in bucket_attempts[bucket_dir.name]:
-                    # Skip if we've already attempted this external file
-                    continue
+            # Scan through buckets and fill as necessary
+            for bucket_dir in buckets_dir.iterdir():
+                available_external = list((bucket_dir / 'repro').glob('*.cpp'))
+        
+                for external_file in available_external:
+                    if external_file.stem in bucket_attempts[bucket_dir.name]:
+                        # Skip if we've already attempted this external file
+                        continue
 
-                success_count, fail_count = bucket_counts[bucket_dir.name]
-                if success_count < MIN_PER_CRASH and fail_count < MIN_FAIL_PER_CRASH:
-                    need_minimize.append((external_file.absolute(), bucket_dir))
-                    bucket_counts[bucket_dir.name] = (success_count + 1, fail_count)
-                    bucket_attempts[bucket_dir.name].add(external_file.stem)
+                    success_count, fail_count = bucket_counts[bucket_dir.name]
+                    if success_count < MIN_PER_CRASH and fail_count < MIN_FAIL_PER_CRASH:
+                        need_minimize.append((external_file.absolute(), bucket_dir))
+                        bucket_counts[bucket_dir.name] = (success_count + 1, fail_count)
+                        bucket_attempts[bucket_dir.name].add(external_file.stem)
 
-        for external_file, bucket_dir in need_minimize:
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                tmp_dir = Path(tmp_dir)
-                out_file = tmp_dir / 'minimized.cpp'
-                out_report = tmp_dir / 'minimized.report'
-                
-                subprocess.run([
-                    'agfi', 'flow', 'llm-minimize',
-                    external_file,
-                    '--out_file', str(out_file), 
-                    '--out_report', str(out_report)], 
-                    check=True, capture_output=False
-                )
-                
-                if not out_file.exists():
-                    (bucket_dir / 'minimized' / f'{external_file.stem}.fail').touch()
-                else:
-                    print(f'[{Colors.GREEN}MIN{Colors.END}][{Colors.YELLOW}{bucket_dir.name}{Colors.END}] ({Colors.CYAN}{external_file.stem}{Colors.END})')
-                    print('-' * 60)
-                    print(out_file.read_text())
-                    print('-' * 60)
-                    (bucket_dir / 'minimized' / f'{external_file.stem}.cpp').write_text(out_file.read_text())
-                    (bucket_dir / 'minimized' / f'{external_file.stem}.report').write_text(out_report.read_text())
+            for external_file, bucket_dir in need_minimize:
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    tmp_dir = Path(tmp_dir)
+                    out_file = tmp_dir / 'minimized.cpp'
+                    out_report = tmp_dir / 'minimized.report'
+                    
+                    subprocess.run([
+                        'agfi', 'flow', 'llm-minimize',
+                        external_file,
+                        '--out_file', str(out_file), 
+                        '--out_report', str(out_report)], 
+                        check=True, capture_output=False
+                    )
+                    
+                    if not out_file.exists():
+                        (bucket_dir / 'minimized' / f'{external_file.stem}.fail').touch()
+                    else:
+                        print(f'[{Colors.GREEN}MIN{Colors.END}][{Colors.YELLOW}{bucket_dir.name}{Colors.END}] ({Colors.CYAN}{external_file.stem}{Colors.END})')
+                        print('-' * 60)
+                        print(out_file.read_text())
+                        print('-' * 60)
+                        (bucket_dir / 'minimized' / f'{external_file.stem}.cpp').write_text(out_file.read_text())
+                        (bucket_dir / 'minimized' / f'{external_file.stem}.report').write_text(out_report.read_text())
 
         if not watch:
             break
@@ -184,4 +185,5 @@ def register(subparsers):
     parser.add_argument('output', type=str, help='Output directory')
     parser.add_argument('--nproc', type=int, default=1, help='Number of processes to use')
     parser.add_argument('--watch', action='store_true', help='Continue watching for new crashes')
+    parser.add_argument('--no-minimize', action='store_true', help='Do not minimize crashes')
     parser.set_defaults(func=run_triage)

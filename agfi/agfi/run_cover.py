@@ -32,7 +32,7 @@ def process_queue_item(args):
         env['LLVM_PROFILE_FILE'] = str(tmp_dir / 'coverage.profdata')
 
         subprocess.run([
-            fuzzer, '-e', queue_item, '--bypass-validation'
+            'timeout', '15', fuzzer, '-e', queue_item, '--bypass-validation'
         ], env=env, capture_output=not verbose)
 
         subprocess.run([

@@ -24,3 +24,5 @@ class Colors:
     NEGATIVE = "\033[7m"
     CROSSED = "\033[9m"
     END = "\033[0m"
+    WHITE = "\033[97m"
+    DIM = "\033[2m"

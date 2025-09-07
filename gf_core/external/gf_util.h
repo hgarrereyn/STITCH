@@ -48,7 +48,6 @@ namespace gf_fuzz_param {
         return result;
     }
 
-    template <size_t N>
     const char *fuzz_param_file() {
         // Placeholder for compilation tests
         return "filename.txt";
@@ -78,10 +77,64 @@ namespace gf_fuzz_param {
         strcpy(result, filename.c_str());
         return result;
     }
+
+    template <typename T>
+    void set_attr_int(T *var, const char *key, int value) {
+        // Placeholder for compilation tests
+    }
+
+    template <typename T>
+    void set_attr_str(T *var, const char *key, const char *value) {
+        // Placeholder for compilation tests
+    }
+
+    template <typename T>
+    int get_attr_int(T *var, const char *key) {
+        // Placeholder for compilation tests
+        return 0;
+    }
+
+    template <typename T>
+    const char *get_attr_str(T *var, const char *key) {
+        // Placeholder for compilation tests
+        return "value";
+    }
+
+    void set_attr_int_global(const char *key, int value) {
+        // Placeholder for compilation tests
+    }
+
+    void set_attr_str_global(const char *key, const char *value) {
+        // Placeholder for compilation tests
+    }
+
+    int get_attr_int_global(const char *key) {
+        // Placeholder for compilation tests
+        return 0;
+    }
+
+    const char *get_attr_str_global(const char *key) {
+        // Placeholder for compilation tests
+        return "value";
+    }
 }
 
+// Indicator
+#define FUZZ_BAIL() gf_bail()
+
+// Random sampling
 #define FUZZ_PARAM(T) gf_fuzz_param::fuzz_param<T>()
 #define FUZZ_PARAM_STR(N) gf_fuzz_param::fuzz_param_str<N>()
-#define FUZZ_PARAM_FILE(N) gf_fuzz_param::fuzz_param_file<N>()
+#define FUZZ_PARAM_FILE() gf_fuzz_param::fuzz_param_file()
 
-#define FUZZ_BAIL() gf_bail()
+// Dynamic validation
+#define FUZZ_SET_ATTR_INT(var, key, value) gf_fuzz_param::set_attr_int(var, key, value)
+#define FUZZ_SET_ATTR_STR(var, key, value) gf_fuzz_param::set_attr_str(var, key, value)
+#define FUZZ_GET_ATTR_INT(var, key) gf_fuzz_param::get_attr_int(var, key)
+#define FUZZ_GET_ATTR_STR(var, key) gf_fuzz_param::get_attr_str(var, key)
+
+// Global state validation
+#define FUZZ_SET_ATTR_INT_GLOBAL(key, value) gf_fuzz_param::set_attr_int_global(key, value)
+#define FUZZ_SET_ATTR_STR_GLOBAL(key, value) gf_fuzz_param::set_attr_str_global(key, value)
+#define FUZZ_GET_ATTR_INT_GLOBAL(key) gf_fuzz_param::get_attr_int_global(key)
+#define FUZZ_GET_ATTR_STR_GLOBAL(key) gf_fuzz_param::get_attr_str_global(key)
