@@ -8,6 +8,7 @@ from ..utils.colors import Colors
 # (input/output) price ($) per million tokens
 MODEL_COST = {
     'gpt-4.1-2025-04-14': (2.0, 8.0),
+    'gpt-5-2025-08-07': (1.25, 10.0),
 }
 
 class UsageTokens(BaseModel):

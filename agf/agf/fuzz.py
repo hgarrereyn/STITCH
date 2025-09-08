@@ -35,7 +35,10 @@ def do_fuzz(args):
         print(f'[{Colors.RED}-{Colors.END}] Harness {harness.name} does not exist')
         return
     
-    project.build_docker()
+    if args.asan:
+        print(f'[{Colors.GREEN}+{Colors.END}] Using ASAN')
+
+    project.build_docker(use_asan=args.asan)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -43,12 +46,14 @@ def do_fuzz(args):
         shutil.copy(harness.harness_config(), tmpdir / 'harness.json')
         shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
 
+        output_dir = harness.asan_output_dir() if args.asan else harness.output_dir()
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace'),
-            (str(harness.output_dir().absolute()), '/fuzz/output'),
+            (str(output_dir.absolute()), '/fuzz/output'),
         ]
 
-        timeout = f'timeout -k 10s {args.time} ' if args.time is not None else ''
+        runner_pre = f"timeout -k 10s {args.time} sh -c '" if args.time is not None else "sh -c '"
+        runner_post = "'"
 
         project.invoke(
             mounts=mounts, 
@@ -56,21 +61,25 @@ def do_fuzz(args):
                 cd /fuzz/workspace &&
                 agfi inc to-schema --meta harness.json --output test.json &&
                 agfi build full test &&
+                unset LD_LIBRARY_PATH &&
                 mkdir -p /fuzz/input &&
-                {timeout}while true; do
+                export LD_LIBRARY_PATH=/fuzz/install/lib &&
+                {runner_pre}trap "echo [INFO] Caught interrupt, exiting...; exit 130" INT TERM; while true; do
                     echo "[INFO] Starting fuzzer..."
                     ./test -i /fuzz/input -o /fuzz/output --bypass-validation --logfile /fuzz/output/log.txt --rss-limit-mb {args.rss_limit_mb if args.rss_limit_mb is not None else '0'} {'--keep-stdout' if args.keep_stdout else ''}
                     exit_code=$?
                     echo "[INFO] Fuzzer crashed with exit code $exit_code, restarting..."
                 done
+                {runner_post}
             ''')
 
 
 def register(subparsers):
     subparser = subparsers.add_parser('fuzz', help='Run the fuzzer')
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
-    subparser.add_argument('--name', help='The name of the harness', default=None)
-    subparser.add_argument('--time', type=int, help='The time to run the fuzzer for (in seconds)', default=None)
-    subparser.add_argument('--rss-limit-mb', type=int, help='The RSS limit for the fuzzer (in MB)', default=None)
-    subparser.add_argument('--keep-stdout', action='store_true', help='Keep the stdout of the fuzzer', default=False)
+    subparser.add_argument('-n','--name', help='The name of the harness', default=None)
+    subparser.add_argument('-t', '--time', type=int, help='The time to run the fuzzer for (in seconds)', default=None)
+    subparser.add_argument('-r', '--rss-limit-mb', type=int, help='The RSS limit for the fuzzer (in MB)', default=None)
+    subparser.add_argument('-k', '--keep-stdout', action='store_true', help='Keep the stdout of the fuzzer', default=False)
+    subparser.add_argument('-a', '--asan', action='store_true', help='Use ASAN', default=False)
     subparser.set_defaults(func=do_fuzz)

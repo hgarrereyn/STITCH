@@ -363,4 +363,11 @@ Stick to allocating small regions of memory (<= 2048 bytes).
 ## Requirement specification
 Leave comments in the code block that indicate which requirements are enforced (or unable to be enforced).
 Style "// (REQ) ..." for enforced requirements and "// (REQ-TODO) ..." for requirements that were not possible to enforce.
+Annotate each argument with a comment that indicates how it is constructed (input, synthesized, null, etc...) and whether or not that is spec-compliant.
+
+## Safety
+Do not perform any actions that could lead to crashes or other undefined behavior.
+Do not perform casting between pointer types or incompatible types.
+Do not invoke target APIs with invalid or malformed inputs.
+Do not provide null pointers as inputs unless explicitly allowed by the spec (annotate this with a comment).
 [/CODING_STYLE]

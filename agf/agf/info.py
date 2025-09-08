@@ -346,6 +346,10 @@ def do_info(args):
             if len(cost_per_task) > 0:
                 total_cost = sum(cost_per_task.values())
                 print(f'  {Colors.CYAN}*{Colors.END} Total Cost: {Colors.YELLOW}${total_cost:.2f}{Colors.END}')
+                if getattr(args, 'cost', False):
+                    print(f'  {Colors.CYAN}*{Colors.END} Cost Breakdown:')
+                    for task, cost in sorted(cost_per_task.items(), key=lambda x: x[1], reverse=True):
+                        print(f'    {Colors.DIM}- {task}:{Colors.END} {Colors.YELLOW}${cost:.2f}{Colors.END}')
             
             print()
             
@@ -386,11 +390,15 @@ def do_info(args):
                 total_cost = sum(cost_per_task.values())
                 line += f' | {Colors.YELLOW}${total_cost:.2f}{Colors.END}'
             print(line)
+            if getattr(args, 'cost', False) and len(cost_per_task) > 0:
+                for task, cost in sorted(cost_per_task.items(), key=lambda x: x[1], reverse=True):
+                    print(f'    {Colors.DIM}- {task}:{Colors.END} {Colors.YELLOW}${cost:.2f}{Colors.END}')
         
         print()
         print(f'[{Colors.CYAN}i{Colors.END}] Use {Colors.CYAN}agf info --name <harness_name>{Colors.END} to view synthesis events for a specific harness')
         print(f'[{Colors.CYAN}i{Colors.END}] Use {Colors.CYAN}--failed-only{Colors.END} flag to show only endpoints that were never successfully validated')
         print(f'[{Colors.CYAN}i{Colors.END}] Use {Colors.CYAN}--show-prompts{Colors.END} flag to show detailed prompt templates and LLM responses')
+        print(f'[{Colors.CYAN}i{Colors.END}] Use {Colors.CYAN}--cost{Colors.END} flag to show cost breakdowns')
 
 def register(subparsers):
     subparser = subparsers.add_parser('info', help='Display information about the project')
@@ -398,4 +406,5 @@ def register(subparsers):
     subparser.add_argument('--name', type=str, help='Show synthesis events for a specific harness')
     subparser.add_argument('--failed-only', action='store_true', help='Show only endpoints that were never successfully validated')
     subparser.add_argument('--show-prompts', action='store_true', help='Show detailed prompt templates, variables, and LLM responses')
+    subparser.add_argument('--cost', action='store_true', help='Show detailed cost breakdowns per task and totals')
     subparser.set_defaults(func=do_info)

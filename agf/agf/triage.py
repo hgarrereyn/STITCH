@@ -37,8 +37,8 @@ def do_triage(args):
     
     check_env(['OPENAI_API_KEY'])
     
-    project.build_docker()
-    
+    # First, triage non-ASAN crashes
+    project.build_docker(use_asan=False)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         tmpdir.mkdir(parents=True, exist_ok=True)
@@ -67,11 +67,41 @@ def do_triage(args):
                 agfi run-triage ./test /fuzz/output/crashes /fuzz/analysis --nproc {args.nproc} {'--watch' if args.watch else ''} {'--no-minimize' if args.no_minimize else ''}
             ''')
 
+    # Then, triage ASAN crashes (if any)
+    project.build_docker(use_asan=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(harness.harness_config(), tmpdir / 'harness.json')
+        shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
+
+        env = [
+            'OPENAI_API_KEY',
+            'LANGSMITH_API_KEY',
+            'LANGSMITH_PROJECT',
+            'LANGSMITH_ENDPOINT',
+            'LANGSMITH_TRACING',
+        ]
+        mounts = [
+            (str(tmpdir.absolute()), '/fuzz/workspace'),
+            (str(harness.asan_output_dir().absolute()), '/fuzz/output'),
+            (str(harness.analysis_dir().absolute()), '/fuzz/analysis'),
+        ]
+        project.invoke(
+            env=env,
+            mounts=mounts, 
+            cmd=f'''
+                cd /fuzz/workspace &&
+                agfi inc to-schema --meta harness.json --output test.json &&
+                agfi build full test &&
+                agfi run-triage ./test /fuzz/output/crashes /fuzz/analysis --nproc {args.nproc} {'--watch' if args.watch else ''} {'--no-minimize' if args.no_minimize else ''}
+            ''')
+
 
 def register(subparsers):
     subparser = subparsers.add_parser('triage', help='Triage crashes')
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
-    subparser.add_argument('--name', help='The name of the harness', default=None)
+    subparser.add_argument('-n', '--name', help='The name of the harness', default=None)
     subparser.add_argument('--watch', action='store_true', help='Continue watching for new crashes')
     subparser.add_argument('--nproc', type=int, default=1, help='Number of processes to use')
     subparser.add_argument('--no-minimize', action='store_true', help='Do not minimize crashes')

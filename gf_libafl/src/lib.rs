@@ -151,6 +151,20 @@ pub extern "C" fn libafl_main() {
         
         minimizer::minimize(res.minimize.unwrap(), res.minimize_output, res.minimize_cycles, gf_harness, res.full_write, ctx);
     } else {
+        // Perform schema computation and caching/loading
+        let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
+        let mctx = MutationContext::new(pspec);
+        if pspec_cache_path.exists() {
+            println!("Loading pspec cache from {:?}", pspec_cache_path);
+            mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
+        } else {
+            println!("Computing mutation context...");
+            mctx.compute(res.compute_size, res.bypass_validation);
+            println!("Computed mutation context");
+            mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
+        }
+        let ctx = Rc::new(mctx);
+
         println!("Either input and out directories, execute command, test-filter with input, or minimize must be provided.");
         return;
     }

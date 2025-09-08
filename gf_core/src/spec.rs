@@ -329,7 +329,7 @@ impl Endpoint {
                         continue;
                     }
                 };
-                args.push(format!("char[{}]", len + 1));
+                args.push(format!("unsigned char[{}]", len + 1));
                 pre_template.push_str(&format!("$a{}[{}] = 0;\n", args.len() - 1, len));
                 pre_template.push_str(&format!("const char *$__str_{} = (const char *)gf_malloc({});\n", args.len() - 1, len + 1));
                 pre_template.push_str(&format!("memcpy((char *)$__str_{}, $a{}, {});\n", args.len() - 1, args.len() - 1, len + 1));
@@ -347,7 +347,7 @@ impl Endpoint {
             // Find all instances of FUZZ_PARAM_FILE() and replace them with gf_fuzz_param::write_to_temp_file($aN, 1024)
             let matches = find_macro_invocations(&template, "FUZZ_PARAM_FILE");
             for (start, end, arg) in matches {
-                args.push(format!("char[1024]"));
+                args.push(format!("unsigned char[1024]"));
                 template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("gf_fuzz_param::write_to_temp_file($a{}, 1024)", args.len() - 1), 1);
 
                 hint_args.push(args.len() - 1);

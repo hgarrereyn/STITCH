@@ -35,7 +35,7 @@ def do_infer(args):
             print(f'[{Colors.RED}-{Colors.END}] Harness {harness.name} does not exist')
             return
 
-    project.build_docker(args.coverage)
+    project.build_docker(args.coverage, args.asan)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         if args.persist:
@@ -53,7 +53,8 @@ def do_infer(args):
             (str(tmpdir.absolute()), '/fuzz/workspace')
         ]
         if not args.base:
-            mounts.append((str(harness.output_dir().absolute()), '/fuzz/output'))
+            output_dir = harness.asan_output_dir() if args.asan else harness.output_dir()
+            mounts.append((str(output_dir.absolute()), '/fuzz/output'))
             if args.coverage:
                 mounts.append((str(harness.coverage_dir().absolute()), '/fuzz/coverage'))
         if args.edit:
@@ -80,9 +81,10 @@ def do_infer(args):
 def register(subparsers):
     subparser = subparsers.add_parser('dev', help='Launch a shell inside the main container')
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
-    subparser.add_argument('--name', help='The name of the harness', default=None)
+    subparser.add_argument('-n', '--name', help='The name of the harness', default=None)
     subparser.add_argument('--base', action='store_true', help='Use the base image')
     subparser.add_argument('--coverage', action='store_true', help='Build the base image with coverage instrumentation')
     subparser.add_argument('--edit', action='store_true', help='Mount agfi as a volume')
     subparser.add_argument('--persist', action='store_true', help='Persist the workspace after the shell exits')
+    subparser.add_argument('-a', '--asan', action='store_true', help='Use ASAN', default=False)
     subparser.set_defaults(func=do_infer)

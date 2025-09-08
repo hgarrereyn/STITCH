@@ -42,6 +42,11 @@ class Harness:
         output_dir.mkdir(parents=True, exist_ok=True)
         return output_dir
     
+    def asan_output_dir(self) -> Path:
+        output_dir = self.path / 'output_asan'
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+    
     def analysis_dir(self) -> Path:
         analysis_dir = self.path / 'analysis'
         analysis_dir.mkdir(parents=True, exist_ok=True)
@@ -110,7 +115,7 @@ class Project:
             return []
         return [Harness(x) for x in harness_path.iterdir() if x.is_dir()]
 
-    def base_image(self, build_coverage: bool = False) -> str:
+    def base_image(self, build_coverage: bool = False, use_asan: bool = False) -> str:
         """
         Builds the base image for the project.
         """
@@ -128,11 +133,13 @@ class Project:
         base_image += 'ENV ASAN_OPTIONS=hard_rss_limit_mb=256:detect_leaks=0\n'
         if build_coverage:
             base_image += 'ENV GRAPHFUZZ_BUILD_COVERAGE=1\n'
+        if use_asan:
+            base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
         return base_image
 
-    def build_docker(self, build_coverage: bool = False) -> bool:
+    def build_docker(self, build_coverage: bool = False, use_asan: bool = False) -> bool:
         config = self.get_config()
-        base = self.base_image(build_coverage)
+        base = self.base_image(build_coverage, use_asan)
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)

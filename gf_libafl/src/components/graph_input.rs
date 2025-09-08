@@ -1,9 +1,11 @@
 
-use std::io::Read;
+use std::{io::Read};
 
+use ahash::RandomState;
 use libafl::{inputs::Input, HasMetadata};
 use libafl_bolts::{ErrorBacktrace, HasLen};
 use serde::{Serialize, Deserialize};
+use core::hash::{BuildHasher, Hasher};
 
 use gf_core::graph::Graph;
 
@@ -17,10 +19,12 @@ pub struct GraphInput {
 
 impl Input for GraphInput {
     fn generate_name(&self, id: Option<libafl::corpus::CorpusId>) -> String {
-        match id {
-            Some(id) => format!("graph_{}", id),
-            None => "graph_nocorpus".to_string(),
-        }
+        let json_bytes = serde_json::to_vec(self).unwrap();
+        let mut hasher = RandomState::with_seeds(0, 0, 0, 0).build_hasher();
+        hasher.write(&json_bytes);
+        let hash = format!("{:016x}", hasher.finish());
+
+        format!("graph_{}", hash)
     }
     
     fn to_file<P>(&self, path: P) -> Result<(), libafl::Error>

@@ -224,7 +224,7 @@ namespace gf_fuzz_param {
     template <size_t N>
     const char *fuzz_param_file() {}
 
-    const char *write_to_temp_file(const char *data, size_t len) {
+    const char *write_to_temp_file(const unsigned char *data, size_t len) {
         std::string filename;
 
         // POSIX: Use mkstemp
@@ -241,7 +241,7 @@ namespace gf_fuzz_param {
             gf_bail();
         }
 
-        file.write(data, len);
+        file.write((const char *)data, len);
         file.close();
 
         gf_files.push_back(filename);

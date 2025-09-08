@@ -28,13 +28,16 @@ For EACH function name in [FOCUS_FUNCTIONS], you MUST return exactly one result:
 
 Do not include any results for endpoints not listed in [FOCUS_FUNCTIONS].
 
-Some tips:
-1. You may change the inputs/outputs of the code blocks to fix issues, but do not add or remove functions.
-2. If you see any (REQ) comments that are incorrect, fix them!
-3. If you see any (REQ-TODO) comments that you can address, address them!
-4. If you see any stubbed out functions that you can implement, implement them!
-5. If attributes are set but not checked (or vice versa), update the other code block to match.
-6. Generally, do not delete code unless it violates the specification and you can replace it with something that follows the specification.
+Focus on the following items of clarification:
+1. Ensure that code blocks do not ever invoke target APIs with invalid or spec-incompliant inputs.
+2. Does the code block perform any dangerous casting? If so, fix it or stub out the functionality.
+3. You may change the inputs/outputs of the code blocks to fix issues, but do not add or remove functions.
+4. If you see any (REQ) comments that are incorrect, fix them!
+5. If you see any (REQ-TODO) comments that you can address, address them!
+6. If you see any stubbed out functions that you can implement, implement them!
+7. If attributes are set but not checked (or vice versa), update the other code block to match. (i.e. a FUZZ_GET_ATTR_INT() call should have a corresponding FUZZ_SET_ATTR_INT() call in some other code block)
+8. Generally, do not delete code unless it violates the specification and you can replace it with something that follows the specification.
+9. Optimize for fuzzability and coverage of the target API.
 
 [SPEC]
 {spec}

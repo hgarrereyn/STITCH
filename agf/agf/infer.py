@@ -64,7 +64,11 @@ def do_infer(args):
         # project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-templates --meta /fuzz/workspace/meta2.json --model {args.model} --output /fuzz/workspace/meta3.json')
         # project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi flow gen-hints --meta /fuzz/workspace/meta3.json --model {args.model} --output /fuzz/workspace/meta4.json')
 
-        project.invoke(env=env, mounts=mounts, cmd=f'cd /fuzz/workspace && agfi inc run --headers {" ".join(headers)} --model {args.model} --output meta.json --threads {args.threads}')
+        cmd = f'cd /fuzz/workspace && agfi inc run --headers {" ".join(headers)} --model {args.model} --output meta.json --threads {args.threads}'
+        if args.strip:
+            cmd += ' --strip'
+
+        project.invoke(env=env, mounts=mounts, cmd=cmd)
 
         # Save the results
         shutil.copy(tmpdir / 'meta.json', harness.path / 'harness.json')
@@ -77,4 +81,5 @@ def register(subparsers):
     subparser.add_argument('--force', action='store_true', help='Force overwrite existing harness')
     subparser.add_argument('--model', type=str, default='gpt-4.1', help='Model to use for inference')
     subparser.add_argument('--threads', type=int, default=1, help='Number of threads to use for inference')
+    subparser.add_argument('--strip', action='store_true', help='Strip extra metadata from the output file')
     subparser.set_defaults(func=do_infer)

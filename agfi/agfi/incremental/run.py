@@ -16,7 +16,7 @@ from .data import FunctionEntryBatch, ProjectMetadata, FailedFunctionImpl, Funct
 from .scan_objects import scan_objects, run_validate_object
 from .scan_functions import scan_functions, run_validate_function, scan_function_info_batch
 from .synth import run_synth_batch, validate_impl_build, run_synth_batch_with_errors
-from .fill import analyze_missing_object_types, run_fill_batch
+from .fill import analyze_blocking_missing_types, run_fill_batch
 from .polish import run_polish_batch
 from .generate_hints import run_generate_hints_batch
 
@@ -221,8 +221,8 @@ def main(args):
         MAX_FILL_PASSES = 3
         FILL_BATCH_SIZE = 20
         for fill_iter in range(MAX_FILL_PASSES):
-            missing_types = analyze_missing_object_types(metadata.validated_endpoints, metadata.objects, max_depth=6)
-            # Only attempt to fill object types that are in our known objects set
+            missing_types = analyze_blocking_missing_types(metadata.validated_endpoints, metadata.objects, max_depth=6)
+            # Only attempt to fill object types that are in our known objects set and actually block endpoints
             known_types = {o.type for o in metadata.objects or []} | {'void *'}
             target_types = [t for t in missing_types if t in known_types]
             if not target_types:
@@ -249,8 +249,8 @@ def main(args):
             if args.output:
                 open(args.output, 'w').write(metadata.model_dump_json(indent=2))
 
-    # Polish stage: run up to 3 passes or until no more changes, in batches of 20 endpoints
-    MAX_POLISH_PASSES = 3
+    # Polish stage: run up to 5 passes or until no more changes, in batches of 20 endpoints
+    MAX_POLISH_PASSES = 5
     POLISH_BATCH_SIZE = 20
     if metadata.validated_endpoints:
         for polish_iter in range(MAX_POLISH_PASSES):
@@ -315,6 +315,10 @@ def main(args):
 
     metadata.metadata['total_time'] = end_time - start_time
 
+    if args.strip:
+        metadata.events = []
+        metadata.polish_changes = []
+
     if args.output:
         open(args.output, 'w').write(metadata.model_dump_json(indent=2))
     
@@ -331,4 +335,5 @@ def register(subparsers):
     parser.add_argument('--output', type=str, default=None, help='Path to the output file')
     parser.add_argument('--threads', type=int, default=1, help='Number of threads to use')
     parser.add_argument('--export-events', type=str, default=None, help='Path to export events JSON file')
+    parser.add_argument('--strip', action='store_true', help='Strip extra metadata from the output file')
     parser.set_defaults(func=main)

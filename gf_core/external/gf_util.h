@@ -11,6 +11,22 @@
 #include <vector>
 #include <unistd.h> // For close() on POSIX systems
 #include <cstring>  // For strcpy()
+#include <unordered_map>
+#include <cctype>
+#include <tuple>
+
+namespace std {
+    template<>
+    struct hash<std::tuple<void *, std::string>> {
+        size_t operator()(const std::tuple<void *, std::string>& k) const {
+            auto h1 = std::hash<void*>{}(std::get<0>(k));
+            auto h2 = std::hash<std::string>{}(std::get<1>(k));
+            // Cheap hash combine:
+            return h1 ^ (h2 << 1);
+        }
+    };
+}
+
 
 void *gf_malloc(size_t size) {
     return malloc(size);
@@ -27,6 +43,12 @@ void gf_bail() {
     printf("Bailing\n");
     exit(99);
 }
+
+// Keep track of attributes
+std::unordered_map<std::tuple<void *, std::string>, int> *gf_attrs_int = new std::unordered_map<std::tuple<void *, std::string>, int>();
+std::unordered_map<std::tuple<void *, std::string>, std::string> *gf_attrs_str = new std::unordered_map<std::tuple<void *, std::string>, std::string>();
+std::unordered_map<std::string, int> *gf_attrs_int_global = new std::unordered_map<std::string, int>();
+std::unordered_map<std::string, std::string> *gf_attrs_str_global = new std::unordered_map<std::string, std::string>();
 
 
 namespace gf_fuzz_param {
@@ -53,7 +75,7 @@ namespace gf_fuzz_param {
         return "filename.txt";
     }
 
-    const char *write_to_temp_file(const char *data, size_t len) {
+    const char *write_to_temp_file(const unsigned char *data, size_t len) {
         std::string filename;
 
         // POSIX: Use mkstemp
@@ -70,7 +92,7 @@ namespace gf_fuzz_param {
             gf_bail();
         }
 
-        file.write(data, len);
+        file.write((const char *)data, len);
         file.close();
 
         char *result = (char *)gf_malloc(filename.size() + 1);
@@ -80,42 +102,58 @@ namespace gf_fuzz_param {
 
     template <typename T>
     void set_attr_int(T *var, const char *key, int value) {
-        // Placeholder for compilation tests
+        (*gf_attrs_int)[std::make_tuple(var, key)] = value;
     }
 
     template <typename T>
     void set_attr_str(T *var, const char *key, const char *value) {
-        // Placeholder for compilation tests
+        (*gf_attrs_str)[std::make_tuple(var, key)] = value;
     }
 
     template <typename T>
     int get_attr_int(T *var, const char *key) {
-        // Placeholder for compilation tests
+        auto it = gf_attrs_int->find(std::make_tuple(var, key));
+        if (it != gf_attrs_int->end()) {
+            return it->second;
+        }
+        gf_bail();
         return 0;
     }
 
     template <typename T>
     const char *get_attr_str(T *var, const char *key) {
-        // Placeholder for compilation tests
-        return "value";
+        auto it = gf_attrs_str->find(std::make_tuple(var, key));
+        if (it != gf_attrs_str->end()) {
+            return it->second;
+        }
+        gf_bail();
+        return nullptr;
     }
 
     void set_attr_int_global(const char *key, int value) {
-        // Placeholder for compilation tests
+        (*gf_attrs_int_global)[key] = value;
     }
 
     void set_attr_str_global(const char *key, const char *value) {
-        // Placeholder for compilation tests
+        (*gf_attrs_str_global)[key] = value;
     }
 
     int get_attr_int_global(const char *key) {
-        // Placeholder for compilation tests
+        auto it = gf_attrs_int_global->find(key);
+        if (it != gf_attrs_int_global->end()) {
+            return it->second;
+        }
+        gf_bail();
         return 0;
     }
 
     const char *get_attr_str_global(const char *key) {
-        // Placeholder for compilation tests
-        return "value";
+        auto it = gf_attrs_str_global->find(key);
+        if (it != gf_attrs_str_global->end()) {
+            return it->second.c_str();
+        }
+        gf_bail();
+        return nullptr;
     }
 }
 

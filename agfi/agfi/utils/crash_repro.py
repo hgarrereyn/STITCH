@@ -32,6 +32,10 @@ def strip_summary(s: str) -> str:
     pre, post = s.split(' in ')
     # remove anything matching " (.*) " from pre
     pre = re.sub(r' \(([^\)]*)\)', ' (...)', pre)
+
+    # convert /tmp/tmpwwe8s9nb/reproducer to <tmpdir>/reproducer
+    pre = re.sub(r'/tmp/tmp[a-z0-9]+/reproducer', '<tmpdir>/reproducer', pre)
+
     return pre + ' in ' + post
 
 
@@ -164,11 +168,11 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
     try:
         subprocess.run(minimize_cmd, check=True, capture_output=True, timeout=30)
     except Exception as e:
-        # print(f"Failed to minimize crash: {e}")
+        print(f"Failed to minimize crash: {e}")
         return None
         
     if not minimized_file.exists():
-        # print("Minimization failed - no output file produced")
+        print("Minimization failed - no output file produced")
         return None
         
     # Step 2: Generate external reproducer
@@ -177,11 +181,11 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
     try:
         subprocess.run(write_cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        # print(f"Failed to generate external reproducer: {e}")
+        print(f"Failed to generate external reproducer: {e}")
         return None
         
     if not external_file.exists():
-        # print("External reproducer generation failed - no output file produced")
+        print("External reproducer generation failed - no output file produced")
         return None
         
     # Step 3: Build the external reproducer
@@ -189,16 +193,20 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
     try:
         subprocess.run([
             'agfi', 'build', 'external', str(external_base)
-        ], check=True, capture_output=True)
+        ], check=True, capture_output=False)
     except subprocess.CalledProcessError as e:
-        # print(f"Failed to build external reproducer: {e}")
+        print(f"Failed to build external reproducer: {e}")
+        code = external_file.read_text()
+        print('-' * 80)
+        print(code)
+        print('-' * 80)
         return None
 
     # Run the binary and try to extract ASAN report
     crash_report, crash_summary = observe_crash([str((tmp_path / 'reproducer').absolute())])
 
     if crash_report is None:
-        # print("Failed to observe crash with external reproducer")
+        print("Failed to observe crash with external reproducer")
         return None
 
     return ReproducedCrash(
