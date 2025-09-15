@@ -12,13 +12,15 @@ CUSTOM_SECCOMP = (Path(__file__).parent.parent / 'seccomp.json').absolute()
 
 
 class ProjectConfig(BaseModel):
-    repo: str = Field(description='The url of the project')
+    repo: Optional[str] = Field(default=None, description='The url of the project')
     commit: Optional[str] = Field(default=None, description='The commit hash of the project')
     repro_per_crash: int = Field(default=20, description='The number of reproducers to generate for each crash')
     llm_min_per_crash: int = Field(default=1, description='Number of minimized test cases to generate for each crash')
 
     @property
     def name(self) -> str:
+        if self.repo is None:
+            return 'unknown'
         name = self.repo.split('github.com/')[1].split('.git')[0].replace('/', '_').replace('.', '_').lower()
         name = ''.join(x for x in name if x.isalnum() or x in ['_'])
         return name
@@ -123,10 +125,11 @@ class Project:
 
         base_image = ''
         base_image += 'FROM gfafl_base\n'
-        if config.commit is not None:
-            base_image += f'RUN git clone {config.repo} /fuzz/src && cd /fuzz/src && git checkout {config.commit} && git submodule update --init --remote --recursive\n'
-        else:
-            base_image += f'RUN git clone --depth 1 {config.repo} /fuzz/src && cd /fuzz/src && git submodule update --init --remote --recursive\n'
+        if config.repo is not None:
+            if config.commit is not None:
+                base_image += f'RUN git clone {config.repo} /fuzz/src && cd /fuzz/src && git checkout {config.commit} && git submodule update --init --remote --recursive\n'
+            else:
+                base_image += f'RUN git clone --depth 1 {config.repo} /fuzz/src && cd /fuzz/src && git submodule update --init --remote --recursive\n'
         base_image += 'WORKDIR /fuzz/src\n'
         base_image += 'ENV DEBIAN_FRONTEND=noninteractive\n'
         base_image += 'ENV LD_LIBRARY_PATH=/fuzz/install/lib\n'

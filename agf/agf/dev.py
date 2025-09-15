@@ -60,8 +60,13 @@ def do_infer(args):
         if args.edit:
             mounts.append((str(Path(__file__).parent.parent.parent.absolute() / 'agfi'), '/src/agfi'))
 
+        env = [
+            'OPENAI_API_KEY'
+        ]
+
         if args.base:
             project.invoke(
+                env=env,
                 mounts=mounts, 
                 cmd='''
                 cd /fuzz/workspace &&
@@ -70,6 +75,7 @@ def do_infer(args):
             )
         else:
             project.invoke(
+                env=env,
                 mounts=mounts, 
                 cmd='''
                     cd /fuzz/workspace &&

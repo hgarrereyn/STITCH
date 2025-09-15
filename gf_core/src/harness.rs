@@ -9,7 +9,7 @@ use super::graph::NodeRefType;
 extern "C" {
     // Defined in the fuzz target generated code.
     fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, shim_size_ptr: &mut *const c_void, shim_arg_offsets_ptr: &mut *const c_void, num_shims: &mut usize, write_init_shim_ptr: &mut *const c_void);
-    fn GRAPHFUZZ_INVOKE_SHIM(shim: *const c_void, in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8, bailed: &mut usize);
+    fn GRAPHFUZZ_INVOKE_SHIM(shim: *const c_void, in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8, bailed: &mut usize, exit_buffer: *mut u8, exit_buffer_size: usize);
     fn GRAPHFUZZ_PRE_INIT();
     fn GRAPHFUZZ_POST_INIT();
 }
@@ -28,7 +28,9 @@ pub struct Harness {
 #[derive(Debug)]
 pub enum InvokeResult {
     Success,
-    Bailed(BailPoint),
+    Bailed(BailPoint), // FUZZ_BAIL() was called
+    AssertionViolation(BailPoint, String), // FUZZ_ASSERT() violation
+    LibraryException(BailPoint, String), // Library exception
 }
 
 #[derive(Debug)]
@@ -95,27 +97,55 @@ impl Harness {
                 }).collect::<Vec<_>>();
             let out_ref = slots[node.index].as_ptr();
 
-            let mut m = 0;
+            let mut exit_type = 0;
+            let mut exit_buffer = [0; 1024];
 
             let start = Instant::now();
             unsafe {
-                GRAPHFUZZ_INVOKE_SHIM(self.exec_shims[node.typ] as *const c_void, in_ref.as_ptr(), out_ref, node.context.as_ptr(), &mut m);
+                GRAPHFUZZ_INVOKE_SHIM(self.exec_shims[node.typ] as *const c_void, in_ref.as_ptr(), out_ref, node.context.as_ptr(), &mut exit_type, exit_buffer.as_mut_ptr(), 1024);
             }
             let end = Instant::now();
             let millis = end.duration_since(start).as_millis() as f64;
 
-            if m == 0 {
-                if let Some(metadata) = &mut metadata {
-                    metadata.endpoint_stats_mut(node.typ).mark_success(millis);
+            match exit_type {
+                0 => { // Normal exit
+                    if let Some(metadata) = &mut metadata {
+                        metadata.endpoint_stats_mut(node.typ).mark_success(millis);
+                    }
                 }
-            } else {
-                if let Some(metadata) = &mut metadata {
-                    metadata.endpoint_stats_mut(node.typ).mark_failure();
+                1 => { // Libary exception 
+                    unsafe {
+                        GRAPHFUZZ_POST_INIT();
+                    }
+                    return InvokeResult::LibraryException(BailPoint {
+                        node_idx: node.index,
+                        node_type: node.typ,
+                    }, String::from_utf8_lossy(&exit_buffer).to_string());
                 }
-                return InvokeResult::Bailed(BailPoint {
-                    node_idx: node.index,
-                    node_type: node.typ,
-                });
+                2 => { // FUZZ_BAIL() was called
+                    if let Some(metadata) = &mut metadata {
+                        metadata.endpoint_stats_mut(node.typ).mark_failure();
+                    }
+                    unsafe {
+                        GRAPHFUZZ_POST_INIT();
+                    }
+                    return InvokeResult::Bailed(BailPoint {
+                        node_idx: node.index,
+                        node_type: node.typ,
+                    });
+                }
+                3 => { // FUZZ_ASSERT() violation
+                    unsafe {
+                        GRAPHFUZZ_POST_INIT();
+                    }
+                    return InvokeResult::AssertionViolation(BailPoint {
+                        node_idx: node.index,
+                        node_type: node.typ,
+                    }, String::from_utf8_lossy(&exit_buffer).to_string());
+                }
+                _ => {
+                    panic!("Invalid exit type: {}", exit_type);
+                }
             }
         }
 

@@ -142,9 +142,13 @@ impl Graph {
         let mut context = vec![0; context_size];
 
         if pspec.endpoints[typ].hints.len() > 0 {
-            for (hint_arg, hint_size) in pspec.endpoints[typ].hint_args.iter().zip(pspec.endpoints[typ].hint_args_sizes.iter()) {
+            for (hint_arg, max_hint_size) in pspec.endpoints[typ].hint_args.iter().zip(pspec.endpoints[typ].hint_args_sizes.iter()) {
+                // Hints are of the type: [size (u32)][data (u8[])]
+                // In the pspec, hint_arg points to the size, and max_hint_size specifies the backing size of the data section
+                // We need to update the size argument to a valid size and then fill the backing buffer with the hint data
+                
                 // Lookup the hint arg offset
-                let hint_arg_offset = pspec.endpoints[typ].hint_arg_offsets[*hint_arg];
+                let off = pspec.endpoints[typ].arg_offsets[*hint_arg] as usize;
 
                 // Pick a random hint
                 let hint_idx = rng.gen_range(0..pspec.endpoints[typ].hints.len());
@@ -152,10 +156,13 @@ impl Graph {
                 let mut hint_bytes = decode_hex(&hint).unwrap();
 
                 // Truncate the hint to the max buffer arg size
-                hint_bytes.truncate(*hint_size);
+                hint_bytes.truncate(*max_hint_size);
 
-                // Copy the hint to the context
-                context[hint_arg_offset as usize..hint_arg_offset as usize + hint_bytes.len()].copy_from_slice(&hint_bytes);
+                // Set the size of the buffer
+                context[off..off + 4].copy_from_slice(&(hint_bytes.len() as u32).to_le_bytes());
+
+                // Set the data of the buffer
+                context[off+4..off + 4 + hint_bytes.len()].copy_from_slice(&hint_bytes);
             }
         }
 

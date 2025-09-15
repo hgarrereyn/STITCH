@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <cctype>
 #include <tuple>
+#include <stdexcept>
+#include <cassert>
 
 namespace std {
     template<>
@@ -144,6 +146,7 @@ std::vector<std::string> gf_files;
 // Keep track of attributes
 std::unordered_map<std::tuple<void *, std::string>, int> *gf_attrs_int;
 std::unordered_map<std::tuple<void *, std::string>, std::string> *gf_attrs_str;
+std::unordered_map<std::tuple<void *, std::string>, void *> *gf_attrs_ptr;
 std::unordered_map<std::string, int> *gf_attrs_int_global;
 std::unordered_map<std::string, std::string> *gf_attrs_str_global;
 
@@ -173,18 +176,35 @@ void gf_bail() {
     longjmp(gf_jump_buf, 1);
 }
 
+static thread_local char gf_bail_assert_message[1024];
+
+void gf_bail_assert(const char *message) {
+    strncpy(gf_bail_assert_message, message, 1024);
+    longjmp(gf_jump_buf, 2);
+}
+
 extern "C" {
-    void GRAPHFUZZ_INVOKE_SHIM(void *shim, void *in, void *out, void *context, int *bailed) {
-        if (setjmp(gf_jump_buf) != 0) {
-            *bailed = 1;
-            return;
+    void GRAPHFUZZ_INVOKE_SHIM(void *shim, void *in, void *out, void *context, int *exit_type, void *exit_buffer, size_t exit_buffer_size) {
+        int res = setjmp(gf_jump_buf);
+        if (res != 0) {
+            if (res == 1) {
+                // FUZZ_BAIL() was called
+                *exit_type = 2;
+                return;
+            } else if (res == 2) {
+                // FUZZ_ASSERT() violation
+                *exit_type = 3;
+                strncpy((char *)exit_buffer, gf_bail_assert_message, exit_buffer_size);
+                return;
+            }
         }
-        *bailed = 0;
+        *exit_type = 0; // Normal exit
         try {
             ((void (*)(void *, void *, void *))shim)(in, out, context);
         } catch (std::exception& e) {
-            // fprintf(stderr, "Terminating due to std::exception: %s\n", e.what());
-            *bailed = 1;
+            // copy e.what() into the provided exit_buffer up to the provided exit_buffer_size
+            strncpy((char *)exit_buffer, e.what(), exit_buffer_size);
+            *exit_type = 2; // Library exception
         }
     }
 
@@ -194,6 +214,7 @@ extern "C" {
 
         gf_attrs_int = new std::unordered_map<std::tuple<void *, std::string>, int>();
         gf_attrs_str = new std::unordered_map<std::tuple<void *, std::string>, std::string>();
+        gf_attrs_ptr = new std::unordered_map<std::tuple<void *, std::string>, void *>();
         gf_attrs_int_global = new std::unordered_map<std::string, int>();
         gf_attrs_str_global = new std::unordered_map<std::string, std::string>();
     }
@@ -218,10 +239,10 @@ namespace gf_fuzz_param {
         static_assert(!std::is_class_v<T>, "Struct/class types are not supported in FUZZ_PARAM");
     }
 
-    template <size_t N>
-    const char *fuzz_param_str() {}
+    std::string fuzz_param_str() {
+        return std::string();
+    }
 
-    template <size_t N>
     const char *fuzz_param_file() {}
 
     const char *write_to_temp_file(const unsigned char *data, size_t len) {
@@ -262,12 +283,16 @@ namespace gf_fuzz_param {
     }
 
     template <typename T>
+    void set_attr_ptr(T *var, const char *key, void *value) {
+        (*gf_attrs_ptr)[std::make_tuple(var, key)] = value;
+    }
+
+    template <typename T>
     int get_attr_int(T *var, const char *key) {
         auto it = gf_attrs_int->find(std::make_tuple(var, key));
         if (it != gf_attrs_int->end()) {
             return it->second;
         }
-        gf_bail();
         return 0;
     }
 
@@ -277,7 +302,15 @@ namespace gf_fuzz_param {
         if (it != gf_attrs_str->end()) {
             return it->second;
         }
-        gf_bail();
+        return "";
+    }
+
+    template <typename T>
+    void *get_attr_ptr(T *var, const char *key) {
+        auto it = gf_attrs_ptr->find(std::make_tuple(var, key));
+        if (it != gf_attrs_ptr->end()) {
+            return it->second;
+        }
         return nullptr;
     }
 
@@ -294,7 +327,6 @@ namespace gf_fuzz_param {
         if (it != gf_attrs_int_global->end()) {
             return it->second;
         }
-        gf_bail();
         return 0;
     }
 
@@ -303,49 +335,22 @@ namespace gf_fuzz_param {
         if (it != gf_attrs_str_global->end()) {
             return it->second.c_str();
         }
-        gf_bail();
-        return nullptr;
+        return "";
+    }
+
+    void check_assert(bool condition, const char *message) {
+        if (!condition) {
+            // fprintf(stderr, "Fuzzer assertion failed: %s\n", message);
+            gf_bail_assert(message);
+        }
     }
 }
 
 
 // Fuzzable data, these get replaced during template synthesis
 #define FUZZ_PARAM(T) gf_fuzz_param::fuzz_param<T>()
-#define FUZZ_PARAM_STR(N) gf_fuzz_param::fuzz_param_str<N>()
-#define FUZZ_PARAM_FILE(N) gf_fuzz_param::fuzz_param_file<N>()
-
-/*
-----------------------------
-
-Before:
-int x = FUZZ_PARAM(int);
-
-After:
-// args += ["int"];
-int x = $a0;
-
-----------------------------
-
-Before:
-char *x = FUZZ_PARAM_STR(10);
-
-After:
-// args += ["char[10]"];
-char *x = (const char *)$a0;
-
-----------------------------
-
-Before:
-char *x = FUZZ_PARAM_FILE(10);
-
-After:
-// args += ["char[10]"];
-char *x = gf_fuzz_param::write_to_temp_file($a0, 10);
-
-----------------------------
-
-*/
-
+#define FUZZ_PARAM_STR() gf_fuzz_param::fuzz_param_str()
+#define FUZZ_PARAM_FILENAME() gf_fuzz_param::fuzz_param_file()
 
 // Marker for bailing out
 #define FUZZ_BAIL() gf_bail()
@@ -353,11 +358,16 @@ char *x = gf_fuzz_param::write_to_temp_file($a0, 10);
 // Dynamic validation
 #define FUZZ_SET_ATTR_INT(var, key, value) gf_fuzz_param::set_attr_int(var, key, value)
 #define FUZZ_SET_ATTR_STR(var, key, value) gf_fuzz_param::set_attr_str(var, key, value)
+#define FUZZ_SET_ATTR_PTR(var, key, value) gf_fuzz_param::set_attr_ptr(var, key, value)
 #define FUZZ_GET_ATTR_INT(var, key) gf_fuzz_param::get_attr_int(var, key)
 #define FUZZ_GET_ATTR_STR(var, key) gf_fuzz_param::get_attr_str(var, key)
+#define FUZZ_GET_ATTR_PTR(var, key) gf_fuzz_param::get_attr_ptr(var, key)
 
 // Global state validation
 #define FUZZ_SET_ATTR_INT_GLOBAL(key, value) gf_fuzz_param::set_attr_int_global(key, value)
 #define FUZZ_SET_ATTR_STR_GLOBAL(key, value) gf_fuzz_param::set_attr_str_global(key, value)
 #define FUZZ_GET_ATTR_INT_GLOBAL(key) gf_fuzz_param::get_attr_int_global(key)
 #define FUZZ_GET_ATTR_STR_GLOBAL(key) gf_fuzz_param::get_attr_str_global(key)
+
+// Assertions
+#define FUZZ_ASSERT(condition, message) gf_fuzz_param::check_assert(condition, message)

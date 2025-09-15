@@ -52,21 +52,17 @@ def do_stats(args):
 def display_basic_stats(harness_data: dict):
     """Display basic statistics about objects and endpoints."""
     objects = harness_data.get('objects', [])
-    validated_endpoints = harness_data.get('validated_endpoints', [])
-    failed_endpoints = harness_data.get('failed_endpoints', [])
+    validated_endpoints = harness_data.get('endpoints', [])
     
     print(f'[{Colors.CYAN}*{Colors.END}] Objects: {Colors.CYAN}{len(objects)}{Colors.END}')
     print(f'[{Colors.CYAN}*{Colors.END}] Validated Endpoints: {Colors.GREEN}{len(validated_endpoints)}{Colors.END}')
-    print(f'[{Colors.CYAN}*{Colors.END}] Failed Endpoints: {Colors.RED}{len(failed_endpoints)}{Colors.END}')
-    print(f'[{Colors.CYAN}*{Colors.END}] Total Endpoints: {Colors.CYAN}{len(validated_endpoints) + len(failed_endpoints)}{Colors.END}')
     print()
 
 
 def display_constructability_analysis(harness_data: dict, max_depth: int):
     """Analyze which endpoints are unconstructable due to missing dependencies."""
     objects = harness_data.get('objects', []) or []
-    validated_endpoints = harness_data.get('validated_endpoints', []) or []
-    failed_endpoints = harness_data.get('failed_endpoints', []) or []
+    validated_endpoints = harness_data.get('endpoints', []) or []
 
     # Create object type mapping (ObjectStub uses 'type'; fallback to 'name')
     object_names: List[str] = []

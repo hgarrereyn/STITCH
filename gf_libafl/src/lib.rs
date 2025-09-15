@@ -111,7 +111,19 @@ pub extern "C" fn libafl_main() {
     }
 
     for (i, s) in gf_harness.shim_arg_offsets.iter().enumerate() {
-        pspec.endpoints[i].hint_arg_offsets = s.clone();
+        pspec.endpoints[i].arg_offsets = s.clone();
+    }
+
+    // Compute arg sizes based on arg_offsets
+    for (i, s) in gf_harness.shim_arg_offsets.iter().enumerate() {
+        let mut arg_sizes = vec![];
+        for j in 1..s.len() {
+            arg_sizes.push(s[j] - s[j-1]);
+        }
+        if s.len() > 0 {
+            arg_sizes.push(pspec.endpoints[i].context_size.unwrap() as u32 - s[s.len() - 1]);
+        }
+        pspec.endpoints[i].arg_sizes = arg_sizes;
     }
 
     if res.input.is_some() && res.out.is_some() {

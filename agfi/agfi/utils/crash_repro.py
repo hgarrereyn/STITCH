@@ -32,10 +32,7 @@ def strip_summary(s: str) -> str:
     pre, post = s.split(' in ')
     # remove anything matching " (.*) " from pre
     pre = re.sub(r' \(([^\)]*)\)', ' (...)', pre)
-
-    # convert /tmp/tmpwwe8s9nb/reproducer to <tmpdir>/reproducer
-    pre = re.sub(r'/tmp/tmp[a-z0-9]+/reproducer', '<tmpdir>/reproducer', pre)
-
+    post = re.sub(r'/tmp/[^/]+', '<tmpdir>', post)
     return pre + ' in ' + post
 
 
@@ -166,7 +163,7 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
     minimized_file = tmp_path / 'minimized'
     minimize_cmd = [fuzzer, '-m', str(crash_file), '--minimize-output', str(minimized_file)]
     try:
-        subprocess.run(minimize_cmd, check=True, capture_output=True, timeout=30)
+        subprocess.run(minimize_cmd, check=True, capture_output=True, timeout=120)
     except Exception as e:
         print(f"Failed to minimize crash: {e}")
         return None

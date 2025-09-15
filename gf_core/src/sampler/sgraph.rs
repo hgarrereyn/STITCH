@@ -128,7 +128,7 @@ impl SGraph {
             if pspec.endpoints[node.func_idx].hints.len() > 0 {
                 for (hint_arg, hint_size) in pspec.endpoints[node.func_idx].hint_args.iter().zip(pspec.endpoints[node.func_idx].hint_args_sizes.iter()) {
                     // Lookup the hint arg offset
-                    let hint_arg_offset = pspec.endpoints[node.func_idx].hint_arg_offsets[*hint_arg];
+                    let hint_arg_offset = pspec.endpoints[node.func_idx].arg_offsets[*hint_arg];
 
                     // Pick a random hint
                     let hint_idx = rng.gen_range(0..pspec.endpoints[node.func_idx].hints.len());

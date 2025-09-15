@@ -44,20 +44,17 @@ pub struct PEndpoint {
     pub hints: Vec<String>, // Hint strings copied from public spec
     pub hint_args: Vec<usize>, // Indices of arguments derived from FUZZ_PARAM_STR/FUZZ_PARAM_FILE
     pub hint_args_sizes: Vec<usize>, // Sizes of arguments derived from FUZZ_PARAM_STR/FUZZ_PARAM_FILE
+    pub flat_args: Vec<usize>, // Indices of fixed-size arguments derived from FUZZ_PARAM
 
     // Metadata
     pub input_vars: Vec<String>, // Original variable names
     pub output_vars: Vec<String>, // Original variable names
     pub mappings: Vec<PVariableMapping>,
 
-    // pub preconditions: Vec<Constraint>,
-    // pub effects: Vec<Assignment>,
-    pub role: PEndpointRole,
-    pub outlives: Vec<POutlivesConstraint>,
-
     // Filled in at runtime
     pub context_size: Option<usize>,
-    pub hint_arg_offsets: Vec<u32>,
+    pub arg_offsets: Vec<u32>,
+    pub arg_sizes: Vec<u32>,
 }
 
 impl Default for PEndpoint {
@@ -72,15 +69,13 @@ impl Default for PEndpoint {
             hints: vec![],
             hint_args: vec![],
             hint_args_sizes: vec![],
+            flat_args: vec![],
             input_vars: vec![],
             output_vars: vec![],
             mappings: vec![],
-            // preconditions: vec![],
-            // effects: vec![],
             context_size: None,
-            hint_arg_offsets: vec![],
-            role: PEndpointRole::None,
-            outlives: vec![],
+            arg_offsets: vec![],
+            arg_sizes: vec![],
         }
     }
 }
@@ -158,25 +153,6 @@ impl PSpec {
             s.push_str(&format!("  Outputs: {}\n", endpoint.outputs.iter().map(|i| format!("{}", i).yellow().to_string()).collect::<Vec<String>>().join(", ")));
             // args
             s.push_str(&format!("  Args: {}\n", endpoint.args.iter().map(|arg| format!("{}", arg).yellow().to_string()).collect::<Vec<String>>().join(", ")));
-            
-            // preconditions
-            // s.push_str("  Preconditions:\n");
-            // for precondition in &endpoint.preconditions {
-            //     s.push_str(&format!("    {}\n", precondition.pprint()));
-            // }
-            // effects
-            // s.push_str("  Effects:\n");
-            // for effect in &endpoint.effects {
-            //     s.push_str(&format!("    {}\n", effect.pprint()));
-            // }
-
-            // role
-            s.push_str(&format!("  Role: {:?}\n", endpoint.role));
-            // outlives
-            s.push_str("  Outlives:\n");
-            for outlives in &endpoint.outlives {
-                s.push_str(&format!("    {} > {}\n", outlives.a, outlives.b));
-            }
 
             s.push_str("--------------------------------\n");
             s.push_str(&format!("{}\n", endpoint.template));

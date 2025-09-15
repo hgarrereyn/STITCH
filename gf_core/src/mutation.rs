@@ -420,7 +420,9 @@ impl MutationContext {
             endpoint.idx, 
             0, 
             endpoint.inputs.len(), 
-            endpoint.outputs.len(), endpoint.context_size.unwrap());
+            endpoint.outputs.len(), 
+            endpoint.context_size.unwrap()
+        );
 
         self.complete(&mut graph);
         graph.sanitize();

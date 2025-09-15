@@ -29,7 +29,7 @@ use libafl_bolts::{dup_and_mute_outputs, os::dup2};
 use simple_logger::SimpleLogger;
 use log::LevelFilter;
 
-use crate::{components::{graph_input::GraphInput, hook_oom::HookOOM, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, runtime_metadata::MetadataLoggerStage, state_metadata::{StateMetadata, StateMode}}, seccomp::{install_seccomp_trap, install_sigsys_bridge_to_sigusr2}};
+use crate::{components::{graph_input::GraphInput, measure_stage::{IndexesBailedLenMinimizerScheduler, MarkStage}, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, runtime_metadata::MetadataLoggerStage, state_metadata::{StateMetadata, StateMode}}, seccomp::{install_seccomp_trap, install_sigsys_bridge_to_sigusr2}};
 use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext, pspec::PSpec, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}};
 
 /// The actual fuzzer
@@ -48,11 +48,10 @@ pub fn fuzz(
 {
     if verbose {
         SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
-    } else {}
+    }
 
     let corpus_dir = out_dir.join("queue");
     let objective_dir = out_dir.join("crashes");
-    let runtime_metadata_path = out_dir.join("runtime_metadata.json");
 
     let log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
@@ -310,16 +309,23 @@ pub fn fuzz(
         // Store the result in the shared memory
         (*invoke_result).borrow_mut()[0] = matches!(res, InvokeResult::Success) as u8;
 
-        ExitKind::Ok
+        match res {
+            InvokeResult::Success => ExitKind::Ok,
+            InvokeResult::Bailed(_) => ExitKind::Ok,
+            InvokeResult::AssertionViolation(_, msg) => {
+                // abort with the message
+                unsafe {
+                    panic!("{}", msg);
+                }
+            },
+            InvokeResult::LibraryException(_, _) => ExitKind::Ok,
+        }
     };
 
     let mut tracing_harness = harness;
 
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
     let mut executor = InProcessExecutor::with_timeout(
-        // tuple_list!(
-        //     HookOOM::new(256 * 1024 * 1024) // 256 MB
-        // ),
         &mut harness,
         tuple_list!(edges_observer, time_observer),
         &mut fuzzer,
@@ -341,9 +347,6 @@ pub fn fuzz(
     // Setup a tracing stage in which we log comparisons
     let tracing = TracingStage::new(
         InProcessExecutor::with_timeout(
-            // tuple_list!(
-            //     HookOOM::new(256 * 1024 * 1024) // 256 MB
-            // ),
             &mut tracing_harness,
             tuple_list!(cmplog_observer),
             &mut fuzzer,
@@ -405,17 +408,6 @@ pub fn fuzz(
         println!("We imported {} inputs from disk.", state.corpus().count());
     }
 
-    // Remove target output (logs still survive)
-    // if !keep_stdout {
-    //     #[cfg(unix)]
-    //     {
-    //         let null_fd = file_null.as_raw_fd();
-    //         dup2(null_fd, io::stdout().as_raw_fd())?;
-    //         if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_err() {
-    //             dup2(null_fd, io::stderr().as_raw_fd())?;
-    //         }
-    //     }
-    // }
     // reopen file to make sure we're at the end
     log.replace(OpenOptions::new().append(true).create(true).open(logfile)?);
 

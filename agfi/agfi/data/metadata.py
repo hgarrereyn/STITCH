@@ -3,9 +3,10 @@ from typing import List, Optional, Any, Dict
 from enum import Enum
 
 from langchain_core.messages.ai import UsageMetadata
+from openai.types.responses.response_usage import ResponseUsage
 
 from ..utils.colors import Colors
-from ..data.schema import Spec, Object, Attr, Endpoint, OutlivesConstraint, EndpointRole, VariableDir, Variable
+from ..data.schema import Spec, Object, Endpoint, VariableDir, Variable
 
 
 class ObjectLifetime(str, Enum):
@@ -63,6 +64,7 @@ class FunctionStubHints(BaseModel):
 # (input/output) price ($) per million tokens
 MODEL_COST = {
     'gpt-4.1-2025-04-14': (2.0, 8.0),
+    'gpt-5': (1.25, 10.0),
 }
 
 class UsageTokens(BaseModel):
@@ -81,6 +83,14 @@ class UsageTokens(BaseModel):
             input_tokens=usage['input_tokens'],
             output_tokens=usage['output_tokens'],
             total_tokens=usage['total_tokens'],
+        )
+
+    @staticmethod
+    def from_openai(usage: ResponseUsage):
+        return UsageTokens(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
         )
     
     def cost(self, input_price: float, output_price: float) -> float:
@@ -119,6 +129,13 @@ class UsageTracker(BaseModel):
             self.by_task[task] = UsageMetrics()
         self.by_task[task].add(usage)
 
+    def record_model(self, task: str, model: str, usage: UsageTokens):
+        if task not in self.by_task:
+            self.by_task[task] = UsageMetrics()
+        if model not in self.by_task[task].models:
+            self.by_task[task].models[model] = UsageTokens()
+        self.by_task[task].models[model].add(usage)
+
     def cost_by_task(self) -> Dict[str, float]:
         return {task: metrics.cost() for task, metrics in self.by_task.items()}
 
@@ -155,7 +172,7 @@ class SchemaMetadata(BaseModel):
 
             schema.objects.append(Object(
                 name=obj.type,
-                attrs=[],
+                # attrs=[],
             ))
 
         for func in templates.values():
@@ -185,10 +202,10 @@ class SchemaMetadata(BaseModel):
                 variables=vars,
                 template=func.stub,
                 hints=hint.hints if hint else [],
-                preconditions=[],
-                effects=[],
-                role=EndpointRole.NONE,
-                outlives=[],
+                # preconditions=[],
+                # effects=[],
+                # role=EndpointRole.NONE,
+                # outlives=[],
             ))
 
         return schema
