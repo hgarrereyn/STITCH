@@ -5,7 +5,7 @@ use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventRestarter, SimpleRe
 use libafl_bolts::{rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::tuple_list};
 
 use crate::components::graph_input::GraphInput;
-use gf_core::{harness::Harness, mutation::MutationContext};
+use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext};
 
 
 pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness: Harness, full_write: bool, ctx: Rc<MutationContext>) {
@@ -14,8 +14,13 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness:
     let mut objective = CrashFeedback::new();
 
     let mut harness = |input: &GraphInput| {
-        gf_harness.invoke(&input.graph, None);
-        ExitKind::Ok
+        let res = gf_harness.invoke(&input.graph, None);
+        match res {
+            InvokeResult::Success => ExitKind::Ok,
+            InvokeResult::Bailed(_) => ExitKind::Ok,
+            InvokeResult::AssertionViolation(_, _) => ExitKind::Ok,
+            InvokeResult::LibraryException(_, _) => ExitKind::Crash,
+        }
     };
 
     let monitor = SimpleMonitor::with_user_monitor(|s| {

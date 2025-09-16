@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from ..data.schema import Endpoint, Variable, VariableDir, Spec, Object
 from ..data.metadata import UsageTracker
+from .util import sample_generator
 
 
 class ObjectInfo(BaseModel):
@@ -62,15 +63,37 @@ class FunctionImplError(BaseModel):
     error: str = Field(description="An error message if the function implementation is invalid")
 
 
+class FunctionClassifier(BaseModel):
+    name: str
+    data_types: List[str]
+
+
+class DataTypeInfo(BaseModel):
+    data_type: str
+    description: str
+
+
+class DataGenerator(BaseModel):
+    data_type: str
+    generator: str
+
+
 class ProjectMetadata(BaseModel):
     objects: Optional[List[ObjectInfo]] = None
     functions: Optional[List[FunctionInfo]] = None
 
     endpoints: Optional[List[FunctionImpl]] = None
 
+    # Types of data used by the endpoints
+    endpoint_classifiers: Optional[List[FunctionClassifier]] = None
+
+    # Generators for each type of data
+    data_types: Optional[List[DataTypeInfo]] = None
+    generators: Optional[List[DataGenerator]] = None
+
     usage: UsageTracker = Field(description="The number of tokens used for each task", default=UsageTracker())
 
-    def to_schema(self) -> Spec:
+    def to_schema(self, hint_synthesis: int = 1000) -> Spec:
         schema = Spec(
             objects=[],
             endpoints=[],
@@ -81,13 +104,23 @@ class ProjectMetadata(BaseModel):
 
         schema.objects.append(Object(name='void *', attrs=[]))
 
-        # Build a lookup for hints by endpoint name
-        # hints_map = {h.name: h.hints for h in (self.endpoint_hints or [])}
+        # Run each generator hint_synthesis times
+        synthesized_data = {}
+        for generator in self.generators:
+            hints = sample_generator(generator.generator, n=hint_synthesis)
+            hints =  list(set(hints))
+            synthesized_data[generator.data_type] = [x.hex() for x in hints]
+
+        classifiers_by_name = {c.name: c for c in self.endpoint_classifiers}
 
         for func in self.endpoints:
             ep = func.to_endpoint()
-            # if ep.name in hints_map:
-            #     ep.hints = hints_map[ep.name]
+
+            if func.name in classifiers_by_name:
+                for data_type in classifiers_by_name[func.name].data_types:
+                    if data_type in synthesized_data:
+                        ep.hints.extend(synthesized_data[data_type])
+
             schema.endpoints.append(ep)
 
         return schema

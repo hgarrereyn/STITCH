@@ -4,7 +4,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.table import Table
 from typing import List
-from .data import FunctionImpl, VarArg, FunctionImplError
+from .data import FunctionImpl, FunctionImplError, DataGenerator
 
 console = Console()
 
@@ -63,3 +63,12 @@ def pretty_print_error(error: FunctionImplError):
     syntax = Syntax(error.error, "text", theme="monokai", line_numbers=False)
     console.print(Panel(syntax, title="Error", border_style="red"))
     console.print()
+
+def pretty_print_generator(generator: DataGenerator):
+    console.print(f"[bold green]Generator for {generator.data_type}:[/bold green]")
+    syntax = Syntax(generator.generator, "python", theme="monokai", line_numbers=True)
+    console.print(Panel(syntax, title="Generator", border_style="blue"))
+
+def pretty_print_code(code: str, language: str = "python", theme: str = "monokai", line_numbers: bool = True):
+    syntax = Syntax(code, language, theme=theme, line_numbers=line_numbers)
+    console.print(Panel(syntax, title="Code", border_style="blue"))

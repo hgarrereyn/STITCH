@@ -120,7 +120,7 @@ impl Harness {
                     return InvokeResult::LibraryException(BailPoint {
                         node_idx: node.index,
                         node_type: node.typ,
-                    }, String::from_utf8_lossy(&exit_buffer).to_string());
+                    }, String::from_utf8_lossy(&exit_buffer[..exit_buffer.iter().position(|&x| x == 0).unwrap()]).to_string());
                 }
                 2 => { // FUZZ_BAIL() was called
                     if let Some(metadata) = &mut metadata {
@@ -141,7 +141,7 @@ impl Harness {
                     return InvokeResult::AssertionViolation(BailPoint {
                         node_idx: node.index,
                         node_type: node.typ,
-                    }, String::from_utf8_lossy(&exit_buffer).to_string());
+                    }, String::from_utf8_lossy(&exit_buffer[..exit_buffer.iter().position(|&x| x == 0).unwrap()]).to_string());
                 }
                 _ => {
                     panic!("Invalid exit type: {}", exit_type);

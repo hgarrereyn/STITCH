@@ -226,7 +226,8 @@ fn execute_one(res: Options, gf_harness: Harness) {
     println!("Executing graph:");
     graph.pprint();
 
-    gf_harness.invoke(&graph, None);
+    let res = gf_harness.invoke(&graph, None);
+    println!("Execution result: {:?}", res);
 }
 
 fn write_one(res: Options, gf_harness: Harness) {
