@@ -1,10 +1,10 @@
 use std::{collections::HashSet, num::ParseIntError};
 
-use rand::{rngs::ThreadRng, Rng};
+use rand::Rng;
 use serde::{Serialize, Deserialize};
 use colored::Colorize;
 
-use crate::{pspec::PSpec};
+use crate::{mutation::MutationContext, pspec::PSpec};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NodeRef {
@@ -135,34 +135,54 @@ impl Graph {
         }
     }
 
-    pub fn add_node(&mut self, pspec: &PSpec, rng: &mut ThreadRng, typ: usize, layer: isize, in_size: usize, out_size: usize, context_size: usize) -> usize {
+    pub fn add_node(&mut self, ctx: &MutationContext, typ: usize, layer: isize, in_size: usize, out_size: usize, context_size: usize) -> usize {
         let idx = self.nodes.len();
 
         // Initialize buffer arguments with hints if possible
         let mut context = vec![0; context_size];
 
-        if pspec.endpoints[typ].hints.len() > 0 {
-            for (hint_arg, max_hint_size) in pspec.endpoints[typ].hint_args.iter().zip(pspec.endpoints[typ].hint_args_sizes.iter()) {
+        let has_hints = ctx.pspec.endpoints[typ].hints.len() > 0;
+        let has_raw_inputs = ctx.raw_inputs.borrow().len() > 0;
+        
+        if has_hints || has_raw_inputs {
+            // Iterate over buffers in the node and fill them with hints or raw inputs
+            for (hint_arg, max_hint_size) in ctx.pspec.endpoints[typ].hint_args.iter().zip(ctx.pspec.endpoints[typ].hint_args_sizes.iter()) {
                 // Hints are of the type: [size (u32)][data (u8[])]
                 // In the pspec, hint_arg points to the size, and max_hint_size specifies the backing size of the data section
                 // We need to update the size argument to a valid size and then fill the backing buffer with the hint data
                 
+                // Select either a random hint or a random raw input
+                let (will_use_hints, will_use_raw_inputs) = match (has_hints, has_raw_inputs) {
+                    (true, true) => {
+                        let p = ctx.rng.borrow_mut().gen_bool(0.5);
+                        (p, !p)
+                    },
+                    (true, false) => (true, false),
+                    (false, true) => (false, true),
+                    (false, false) => (false, false),
+                };
+
+                // Retrieve random data for the buffer
+                let mut data = if will_use_hints {
+                    let hint_idx = ctx.rng.borrow_mut().gen_range(0..ctx.pspec.endpoints[typ].hints.len());
+                    let hint = ctx.pspec.endpoints[typ].hints[hint_idx].clone();
+                    decode_hex(&hint).unwrap()
+                } else {
+                    let raw_input_idx = ctx.rng.borrow_mut().gen_range(0..ctx.raw_inputs.borrow().len());
+                    ctx.raw_inputs.borrow()[raw_input_idx].clone().as_bytes().to_vec()
+                };
+
                 // Lookup the hint arg offset
-                let off = pspec.endpoints[typ].arg_offsets[*hint_arg] as usize;
+                let off = ctx.pspec.endpoints[typ].arg_offsets[*hint_arg] as usize;
 
-                // Pick a random hint
-                let hint_idx = rng.gen_range(0..pspec.endpoints[typ].hints.len());
-                let hint = pspec.endpoints[typ].hints[hint_idx].clone();
-                let mut hint_bytes = decode_hex(&hint).unwrap();
-
-                // Truncate the hint to the max buffer arg size
-                hint_bytes.truncate(*max_hint_size);
+                // Truncate the data to the max buffer arg size
+                data.truncate(*max_hint_size);
 
                 // Set the size of the buffer
-                context[off..off + 4].copy_from_slice(&(hint_bytes.len() as u32).to_le_bytes());
+                context[off..off + 4].copy_from_slice(&(data.len() as u32).to_le_bytes());
 
                 // Set the data of the buffer
-                context[off+4..off + 4 + hint_bytes.len()].copy_from_slice(&hint_bytes);
+                context[off+4..off + 4 + data.len()].copy_from_slice(&data);
             }
         }
 

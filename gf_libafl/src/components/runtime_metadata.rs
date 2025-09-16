@@ -1,24 +1,21 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use std::path::Path;
 use std::fs::File;
 use std::io::Write;
 use gf_core::mutation::MutationContext;
 use gf_core::pspec::PSpec;
-use gf_core::runtime_metadata::{RuntimeMetadata, RuntimeMetadataView};
+use gf_core::runtime_metadata::RuntimeMetadataView;
 use libafl::HasMetadata;
 use libafl::{
     stages::Stage,
     state::{UsesState, State},
     Error,
 };
-use libafl_bolts::{impl_serdeany, Named, shmem::MmapShMem, AsSlice, AsSliceMut};
+use libafl_bolts::Named;
 use serde::{Deserialize, Serialize};
-use gf_core::{graph::Graph, harness::BailPoint};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,7 +112,7 @@ where
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut Self::State,
+        _state: &mut Self::State,
         _manager: &mut EM,
     ) -> Result<(), Error> {
         let now = Instant::now();

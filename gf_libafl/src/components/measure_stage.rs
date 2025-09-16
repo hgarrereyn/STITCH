@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
-use libafl::{corpus::{Corpus, Testcase}, executors::Executor, feedbacks::MapIndexesMetadata, inputs::UsesInput, schedulers::{MinimizerScheduler, TestcaseScore}, stages::Stage, state::{HasCorpus, HasCurrentTestcase, State, UsesState}, Error, HasMetadata};
-use libafl_bolts::{impl_serdeany, ErrorBacktrace, Named};
+use libafl::{corpus::{Corpus, Testcase}, executors::Executor, feedbacks::MapIndexesMetadata, schedulers::{MinimizerScheduler, TestcaseScore}, stages::Stage, state::{HasCorpus, HasCurrentTestcase, State, UsesState}, Error, HasMetadata};
+use libafl_bolts::{impl_serdeany, Named};
 use serde::{Deserialize, Serialize};
 
 use crate::components::graph_input::GraphInput;
@@ -104,7 +104,7 @@ where
 {
     #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
     fn compute(
-        state: &S,
+        _state: &S,
         entry: &mut Testcase<<S::Corpus as Corpus>::Input>,
     ) -> Result<f64, Error> {
         let bailed = if entry.has_metadata::<GraphTestcaseMetadata>() {

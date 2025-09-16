@@ -2,7 +2,7 @@ use core::{cell::RefCell, time::Duration};
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::{
-    borrow::BorrowMut, fs::{File, OpenOptions}, io::{self, Write}, num::NonZeroUsize, path::PathBuf, process, rc::Rc, str::Bytes, sync::Arc
+    borrow::BorrowMut, fs::{self, File, OpenOptions}, io::{self, Write}, num::NonZeroUsize, path::PathBuf, process, rc::Rc, str::Bytes, sync::Arc
 };
 use libc::raise;
 use tempfile;
@@ -38,6 +38,7 @@ pub fn fuzz(
     ctx: Rc<MutationContext>,
     out_dir: &PathBuf,
     seed_dir: &PathBuf,
+    raw_in_dir: Option<PathBuf>,
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
     timeout: Duration,
@@ -49,6 +50,17 @@ pub fn fuzz(
     if verbose {
         SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
     }
+
+    // Read raw inputs into the ctx
+    if let Some(raw_in_dir) = raw_in_dir {
+        for entry in fs::read_dir(raw_in_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let contents = fs::read_to_string(path)?;
+            ctx.raw_inputs.borrow_mut().push(contents);
+        }
+    }
+    println!("Read {} raw inputs", ctx.raw_inputs.borrow().len());
 
     let corpus_dir = out_dir.join("queue");
     let objective_dir = out_dir.join("crashes");
@@ -238,43 +250,16 @@ pub fn fuzz(
         )
     );
 
-    // let mut ms = MultiSampler::new(&ctx.pspec, EncoderConfig::default());
-
     let mut initial_seeds = vec![];
-    // for idx in 0..ctx.pspec.endpoints.len() {
-    //     println!("Sampling for function {}/{}", idx + 1, ctx.pspec.endpoints.len());
-    //     let initial_seed = ms.sample_with_constraints(&[SamplerConstraint::IncludeFunction(idx)]);
-    //     if let Some(initial_seed) = initial_seed {
-    //         initial_seeds.push(initial_seed.to_graph(&ctx.pspec, 0));
-    //     }
-    // }
     for idx in ctx.cache.borrow().enabled_endpoints.iter() {
         initial_seeds.push(ctx.generate_seeded(*idx));
     }
 
     println!("Initial seeds: {:?}", initial_seeds.len());
 
-    // let graph_mutator = StdMutationalStage::new(
-    //     GraphMutateSolver::new(
-    //         ctx.pspec.clone(),
-    //         ms,
-    //         0.02
-    //     )
-    // );
-
     let context_stage = StdMutationalStage::new(
         GraphMutateBytes::new(ctx.clone(), mutator),
     );
-
-    // let power = StdMutationalStage::new(
-    //     GraphByteMutator::new(ctx.clone(), mutator),
-    // );
-
-    // A minimization+queue policy to get testcasess from the corpus
-    // let scheduler = IndexesLenTimeMinimizerScheduler::new(
-    //     &edges_observer,
-    //     StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
-    // );
 
     let scheduler = IndexesBailedLenMinimizerScheduler::new(
         &edges_observer,
@@ -285,10 +270,6 @@ pub fn fuzz(
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
     let runtime_metadata = Rc::new(RefCell::new(RuntimeMetadataView::new(RUNTIME_METADATA_PTR)));
-    
-    // let metadata_logger = MetadataLoggerStage::new(
-    //     runtime_metadata.clone(), ctx.clone(), runtime_metadata_path.to_string_lossy().to_string(), Duration::from_secs(60)
-    // );
 
     let invoke_result = Rc::new(RefCell::new(invoke_result_shmem_buf));
 

@@ -1,7 +1,6 @@
 use libafl::{
-    corpus::{Corpus, Testcase}, inputs::Input, schedulers::testcase_score::TestcaseScore, state::{HasCorpus, State}, Error
+    corpus::{Corpus, Testcase}, schedulers::testcase_score::TestcaseScore, state::HasCorpus, Error
 };
-use libafl_bolts::HasLen;
 
 use crate::components::graph_input::GraphInput;
 

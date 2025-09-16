@@ -1,4 +1,4 @@
-use libafl_bolts::{impl_serdeany, Named};
+use libafl_bolts::impl_serdeany;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

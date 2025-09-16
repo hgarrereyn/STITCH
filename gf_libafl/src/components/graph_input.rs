@@ -2,7 +2,7 @@
 use std::{io::Read};
 
 use ahash::RandomState;
-use libafl::{inputs::Input, HasMetadata};
+use libafl::inputs::Input;
 use libafl_bolts::{ErrorBacktrace, HasLen};
 use serde::{Serialize, Deserialize};
 use core::hash::{BuildHasher, Hasher};
@@ -18,7 +18,7 @@ pub struct GraphInput {
 }
 
 impl Input for GraphInput {
-    fn generate_name(&self, id: Option<libafl::corpus::CorpusId>) -> String {
+    fn generate_name(&self, _id: Option<libafl::corpus::CorpusId>) -> String {
         let json_bytes = serde_json::to_vec(self).unwrap();
         let mut hasher = RandomState::with_seeds(0, 0, 0, 0).build_hasher();
         hasher.write(&json_bytes);

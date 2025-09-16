@@ -191,7 +191,7 @@ impl Spec {
 
 impl Endpoint {
     pub fn build_pspec(&self, type_to_idx: &HashMap<String, usize>, endpoint_idx: usize, objects: &[PObject]) -> Result<PEndpoint, Vec<EndpointValidationError>> {
-        let mut endpoint_errors = vec![];
+        // let mut endpoint_errors = vec![];
         
         let mut inputs = vec![];
         let mut outputs = vec![];
@@ -405,10 +405,6 @@ impl Endpoint {
             }
         }
         */
-
-        if !endpoint_errors.is_empty() {
-            return Err(endpoint_errors);
-        }
 
         Ok(PEndpoint {
             name: self.name.clone(),

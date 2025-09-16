@@ -89,7 +89,8 @@ pub struct MutationContext {
     pub pspec: PSpec,
     pub opts: MutationOptions,
     pub cache: RefCell<SchemaCache>,
-    rng: RefCell<rand::rngs::ThreadRng>,
+    pub raw_inputs: RefCell<Vec<String>>,
+    pub rng: RefCell<rand::rngs::ThreadRng>,
 }
 
 impl MutationContext {
@@ -98,6 +99,7 @@ impl MutationContext {
             pspec,
             opts: MutationOptions::default(),
             cache: RefCell::new(SchemaCache::new()),
+            raw_inputs: RefCell::new(Vec::new()),
             rng: RefCell::new(rand::thread_rng()),
         }
     }
@@ -117,56 +119,71 @@ impl MutationContext {
     }
 
     pub fn compute(&self, max_depth: usize, bypass_validation: bool) {
+        // Analyze which types are constructible at the given depth
         let mut missing_constructors = HashSet::new();
-        let mut missing_destructors = HashSet::new();
         
         for typ in self.pspec.objects.iter() {
-            if !(self.get_type_node_enabled(typ.idx, max_depth, true)) {
-                missing_destructors.insert(typ.idx);
-            }
             if !(self.get_type_node_enabled(typ.idx, max_depth, false)) {
                 missing_constructors.insert(typ.idx);
             }
         }
 
-        for x in self.pspec.objects.iter() {
-            if missing_constructors.contains(&x.idx) {
-                eprintln!("Missing constructor for type {}", x.name);
-            }
-            if missing_destructors.contains(&x.idx) {
-                eprintln!("Missing destructor for type {}", x.name);
-            }
-        }
-
-        let mut disabled_endpoints = HashSet::new();
+        // Analyze disabled endpoints and their dependencies
+        let mut disabled_endpoints = Vec::new();
+        let mut enabled_endpoints = Vec::new();
 
         for endpoint in self.pspec.endpoints.iter() {
-            for x in endpoint.inputs.iter() {
-                if missing_constructors.contains(x) {
-                    disabled_endpoints.insert(endpoint.idx);
+            let mut missing_dependencies = Vec::new();
+            
+            // Check each input type to see if it's constructible
+            for input_type in endpoint.inputs.iter() {
+                if missing_constructors.contains(input_type) {
+                    let type_name = &self.pspec.objects[*input_type].name;
+                    missing_dependencies.push(type_name.clone());
                 }
             }
-        }
-
-        for endpoint in self.pspec.endpoints.iter() {
-            if !disabled_endpoints.contains(&endpoint.idx) {
-                self.cache.borrow_mut().enabled_endpoints.push(endpoint.idx);
+            
+            if missing_dependencies.is_empty() {
+                enabled_endpoints.push(endpoint.idx);
+            } else {
+                disabled_endpoints.push((endpoint.idx, missing_dependencies));
             }
         }
 
-        let enabled = self.cache.borrow_mut().enabled_endpoints.len();
-        let total = self.pspec.endpoints.len();
+        // Store enabled endpoints in cache
+        self.cache.borrow_mut().enabled_endpoints = enabled_endpoints.clone();
 
-        eprintln!("Enabled endpoints: {}/{}", enabled, total);
+        let enabled_count = enabled_endpoints.len();
+        let total_count = self.pspec.endpoints.len();
+        let disabled_count = disabled_endpoints.len();
 
-        if !missing_constructors.is_empty() {
+        eprintln!("Endpoint Analysis (depth={}):", max_depth);
+        eprintln!("  Enabled endpoints: {}/{}", enabled_count, total_count);
+        eprintln!("  Disabled endpoints: {}/{}", disabled_count, total_count);
+        eprintln!();
+
+        // Show disabled endpoints with their dependencies
+        if !disabled_endpoints.is_empty() {
+            eprintln!("Disabled endpoints:");
+            for (endpoint_idx, missing_deps) in disabled_endpoints.iter() {
+                let endpoint = &self.pspec.endpoints[*endpoint_idx];
+                eprintln!("  • {}: Missing constructors for: {}", 
+                    endpoint.name, 
+                    missing_deps.join(", ")
+                );
+            }
+            eprintln!();
+        }
+
+        // Validation logic
+        if !disabled_endpoints.is_empty() {
             if !bypass_validation {
-                eprintln!("Missing constructors (bypass with --bypass-validation)");
+                eprintln!("Disabled endpoints (bypass with --bypass-validation)");
                 std::process::exit(1);
             }
         }
 
-        if enabled == 0 {
+        if enabled_count == 0 {
             eprintln!("No enabled endpoints");
             std::process::exit(1);
         }
@@ -215,10 +232,10 @@ impl MutationContext {
                         }
 
                         for (_, t) in endpoint.outputs.iter().enumerate() {
-                            let e = self.get_type_node_enabled(*t, depth-1, true);
                             endpoint_node.children.push((*t, depth-1, true));
 
                             // Ignore children of a consumer node.
+                            // let e = self.get_type_node_enabled(*t, depth-1, true);
                             // endpoint_node.enabled &= e;
                         }
 
@@ -244,10 +261,10 @@ impl MutationContext {
                             if conn_idx == conn_out {
                                 continue;
                             }
-                            let e = self.get_type_node_enabled(*t, depth-1, true);
                             endpoint_node.rev_children.push((*t, depth-1, true));
                             
                             // Ignore rev_children of a producer node. (i.e. other destructors)
+                            // let e = self.get_type_node_enabled(*t, depth-1, true);
                             // endpoint_node.enabled &= e;
                         }
 
@@ -373,8 +390,7 @@ impl MutationContext {
         };
 
         let node = graph.add_node(
-            &self.pspec,
-            &mut *self.rng.borrow_mut(),
+            &self,
             endpoint.idx, 
             edge.node_level - 1, 
             self.pspec.endpoints[endpoint.idx].inputs.len(), 
@@ -415,8 +431,7 @@ impl MutationContext {
         let endpoint_idx = cache.enabled_endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
         let endpoint = &self.pspec.endpoints[*endpoint_idx];
         let _ = graph.add_node(
-            &self.pspec,
-            &mut *self.rng.borrow_mut(),
+            &self,
             endpoint.idx, 
             0, 
             endpoint.inputs.len(), 
@@ -437,8 +452,7 @@ impl MutationContext {
         
         let endpoint = &self.pspec.endpoints[idx];
         let _ = graph.add_node(
-            &self.pspec,
-            &mut *self.rng.borrow_mut(),
+            &self,
             endpoint.idx, 
             0, 
             endpoint.inputs.len(), 
@@ -577,8 +591,7 @@ impl MutationContext {
 
         // Add the new node
         let new_node = graph.add_node(
-            &self.pspec,
-            &mut *self.rng.borrow_mut(),
+            &self,
             endpoint.idx, 
             graph.nodes[node_idx].layer + if is_input { -1 } else { 1 }, 
             endpoint.inputs.len(), 

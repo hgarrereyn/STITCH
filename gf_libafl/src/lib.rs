@@ -16,8 +16,6 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-// use crate::components::runtime_metadata::FuzzerRuntimeMetadata;
-
 pub mod components;
 pub mod fuzzer;
 pub mod minimizer;
@@ -35,14 +33,17 @@ pub struct Cli {
 
 #[derive(Args)]
 pub struct Options {
+    /// Path to output directory, will contain `/queue` and `/crashes` subdirectories
     #[arg(short, long)]
     pub out: Option<String>,
 
+    /// Path to input directory, contains graph seeds
     #[arg(short, long)]
     pub input: Option<String>,
 
+    /// Path to directory containing raw input files, used for hint mutations
     #[arg(short, long)]
-    pub filter_dir: Option<String>,
+    pub raw_input: Option<String>,
 
     #[arg(short, long, default_value = "false")]
     pub bypass_validation: bool,
@@ -50,30 +51,39 @@ pub struct Options {
     #[arg(short, long, default_value = "10")]
     pub compute_size: usize,
 
+    /// If provided, execute the specified testcase instead of fuzzing.
     #[arg(short, long)]
     pub execute: Option<String>,
 
+    /// If provided, convert the specified testcase to source code.
     #[arg(short, long)]
     pub write: Option<String>,
 
+    /// If provided, minimize the specified testcase.
     #[arg(short, long)]
     pub minimize: Option<String>,
 
+    /// Output path for minimized testcase.
     #[arg(short, long)]
     pub minimize_output: Option<String>,
 
+    /// If provided, write the full testcase code during minimization.
     #[arg(short, long, default_value = "false")]
     pub full_write: bool,
 
+    /// Number of cycles to run during minimization.
     #[arg(short, long, default_value = "10000")]
     pub minimize_cycles: usize,
 
+    /// Path to pspec file (by default assumed to be {fuzzer}.pspec)
     #[arg(short, long)]
     pub pspec: Option<String>,
 
+    /// Path to tokens file
     #[arg(short, long)]
     pub tokens: Option<String>,
 
+    /// Path to logfile
     #[arg(short, long, default_value = "libafl.log")]
     pub logfile: String,
 
@@ -88,6 +98,21 @@ pub struct Options {
 
     #[arg(short, long, default_value = "false")]
     pub verbose: bool,
+}
+
+fn compute_mutation_context(pspec: PSpec, pspec_path: String, compute_size: usize, bypass_validation: bool) -> Rc<MutationContext> {
+    let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
+    let mctx = MutationContext::new(pspec);
+    if pspec_cache_path.exists() {
+        println!("Loading pspec cache from {:?}", pspec_cache_path);
+        mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
+    } else {
+        println!("Computing mutation context...");
+        mctx.compute(compute_size, bypass_validation);
+        println!("Computed mutation context");
+        mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
+    }
+    Rc::new(mctx)
 }
 
 #[no_mangle]
@@ -127,55 +152,25 @@ pub extern "C" fn libafl_main() {
     }
 
     if res.input.is_some() && res.out.is_some() {
-        // Perform schema computation and caching/loading
-        let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
-        let mctx = MutationContext::new(pspec);
-        if pspec_cache_path.exists() {
-            println!("Loading pspec cache from {:?}", pspec_cache_path);
-            mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
-        } else {
-            println!("Computing mutation context...");
-            mctx.compute(res.compute_size, res.bypass_validation);
-            println!("Computed mutation context");
-            mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
-        }
-        let ctx = Rc::new(mctx);
-        
+        // Fuzzing!
+        let ctx = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);        
         run_fuzzer(res, gf_harness, ctx);
     } else if res.execute.is_some() {
+        // Execute one testcase
         execute_one(res, gf_harness);
     } else if res.write.is_some() {
+        // Write one testcase
         write_one(res, gf_harness);
     } else if res.minimize.is_some() {
-        // Perform schema computation and caching/loading
-        let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
-        let mctx = MutationContext::new(pspec);
-        if pspec_cache_path.exists() {
-            println!("Loading pspec cache from {:?}", pspec_cache_path);
-            mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
-        } else {
-            println!("Computing mutation context...");
-            mctx.compute(res.compute_size, res.bypass_validation);
-            println!("Computed mutation context");
-            mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
-        }
-        let ctx = Rc::new(mctx);
-        
+        // Minimize one testcase
+        let ctx = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);
         minimizer::minimize(res.minimize.unwrap(), res.minimize_output, res.minimize_cycles, gf_harness, res.full_write, ctx);
     } else {
-        // Perform schema computation and caching/loading
-        let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
-        let mctx = MutationContext::new(pspec);
-        if pspec_cache_path.exists() {
-            println!("Loading pspec cache from {:?}", pspec_cache_path);
-            mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
-        } else {
-            println!("Computing mutation context...");
-            mctx.compute(res.compute_size, res.bypass_validation);
-            println!("Computed mutation context");
-            mctx.save(&pspec_cache_path).expect("Could not save pspec cache");
-        }
-        let ctx = Rc::new(mctx);
+        // No action specified
+
+        // Compute mutation context to force the cache to be created.
+        // (downstream users can run the harness with no arguments to force cache creation)
+        let _ = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);
 
         println!("Either input and out directories, execute command, test-filter with input, or minimize must be provided.");
         return;
@@ -204,6 +199,8 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
         return;
     }
 
+    let raw_in_dir = res.raw_input.map(PathBuf::from);
+
     let tokens = res.tokens.map(PathBuf::from);
 
     let logfile = PathBuf::from(res.logfile);
@@ -215,7 +212,7 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
     );
 
     fuzzer::fuzz(
-        gf_harness, ctx, &out_dir, &in_dir, tokens,
+        gf_harness, ctx, &out_dir, &in_dir, raw_in_dir,tokens,
         &logfile, timeout, Some(res.rss_limit_mb), res.keep_stdout, res.verbose
     ).unwrap();
 }

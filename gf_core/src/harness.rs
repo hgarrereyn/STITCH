@@ -1,7 +1,7 @@
 use core::panic;
 use std::{ffi::c_void, io::Write, time::Instant};
 
-use crate::{graph::Graph, runtime_metadata::{RuntimeMetadata, RuntimeMetadataView}};
+use crate::{graph::Graph, runtime_metadata::RuntimeMetadataView};
 
 use super::graph::NodeRefType;
 

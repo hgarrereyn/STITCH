@@ -1,6 +1,6 @@
 use std::{borrow::Cow, num::NonZeroUsize, rc::Rc};
 
-use libafl::{corpus::{Corpus, CorpusId}, inputs::UsesInput, mutators::{MutationId, Mutator, MutatorsTuple}, state::{HasCorpus, HasRand, HasSolutions}, HasMetadata};
+use libafl::{corpus::{Corpus, CorpusId}, mutators::{MutationId, Mutator, MutatorsTuple}, state::{HasCorpus, HasRand, HasSolutions}, HasMetadata};
 use libafl_bolts::{rands::Rand, Named};
 
 use gf_core::mutation::MutationContext;
