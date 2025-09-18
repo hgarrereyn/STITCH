@@ -1,5 +1,5 @@
-use core::time;
-use std::rc::Rc;
+use std::time::Instant;
+use std::{rc::Rc, time};
 
 use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventRestarter, SimpleRestartingEventManager}, executors::{Executor, ExitKind, InProcessExecutor}, feedbacks::CrashFeedback, inputs::Input, monitors::SimpleMonitor, schedulers::QueueScheduler, state::{HasSolutions, StdState}, Error, StdFuzzer};
 use libafl_bolts::{rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::tuple_list};
@@ -8,7 +8,7 @@ use crate::components::graph_input::GraphInput;
 use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext};
 
 
-pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness: Harness, full_write: bool, ctx: Rc<MutationContext>) {
+pub fn minimize(path: String, output: Option<String>, cycles: usize, minimize_timeout: usize, gf_harness: Harness, full_write: bool, ctx: Rc<MutationContext>) {
     let inp = GraphInput::from_file(path).unwrap();
 
     let mut objective = CrashFeedback::new();
@@ -93,7 +93,13 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, gf_harness:
         timeout,
     ).unwrap();
 
+    let start_time = time::Instant::now();
     for _ in 0..cycles {
+        // Exit if the timeout has been reached
+        if start_time.elapsed().as_secs() > (minimize_timeout as u64) {
+            break;
+        }
+
         let mut g = inp.graph.clone();
         ctx.mutate_random(&mut g);
 

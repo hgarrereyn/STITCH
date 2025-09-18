@@ -70,5 +70,5 @@ def pretty_print_generator(generator: DataGenerator):
     console.print(Panel(syntax, title="Generator", border_style="blue"))
 
 def pretty_print_code(code: str, language: str = "python", theme: str = "monokai", line_numbers: bool = True, title: str = None):
-    syntax = Syntax(code, language, theme=theme, line_numbers=line_numbers)
+    syntax = Syntax(code, language, theme=theme, line_numbers=line_numbers, word_wrap=True)
     console.print(Panel(syntax, title=title, border_style="blue"))

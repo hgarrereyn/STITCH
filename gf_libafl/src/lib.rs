@@ -75,6 +75,10 @@ pub struct Options {
     #[arg(short, long, default_value = "10000")]
     pub minimize_cycles: usize,
 
+    /// Number of seconds to run during minimization.
+    #[arg(short, long, default_value = "10")]
+    pub minimize_timeout: usize,
+
     /// Path to pspec file (by default assumed to be {fuzzer}.pspec)
     #[arg(short, long)]
     pub pspec: Option<String>,
@@ -164,7 +168,7 @@ pub extern "C" fn libafl_main() {
     } else if res.minimize.is_some() {
         // Minimize one testcase
         let ctx = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);
-        minimizer::minimize(res.minimize.unwrap(), res.minimize_output, res.minimize_cycles, gf_harness, res.full_write, ctx);
+        minimizer::minimize(res.minimize.unwrap(), res.minimize_output, res.minimize_cycles, res.minimize_timeout, gf_harness, res.full_write, ctx);
     } else {
         // No action specified
 

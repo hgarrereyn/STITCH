@@ -32,6 +32,8 @@ You will be provided a list of objects and functions from a target codebase, alo
 - Try to be as comprehensive and wide-scope as possible.
 - Limit the resulting size of output buffers to 4096 bytes or fewer.
 - Prioritize trying to cover as much functionality and edge cases as possible.
+- Focus on generating likely valid inputs that cover a wide range of possibilities.
+    - (the fuzzing engine will mutate these values later to fuzz-test invalid inputs)
 
 # Output Format
 - Return a single object with the following field:

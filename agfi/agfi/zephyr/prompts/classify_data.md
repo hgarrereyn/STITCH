@@ -12,10 +12,12 @@ For each target function stub, classify the types of data used by the function.
 # Fuzzer Stubs
 - Fuzzer stubs are C++ code snippets that invoke target functions with fuzzable random arguments.
 - `FUZZ_PARAM_STR` returns a `std::string` with random fuzzable data.
-- `FUZZ_PARAM_FILENAME` returns a filename pointing to random fuzzable data.
+- `FUZZ_PARAM_FILENAME` returns a filename pointing to a file filled withrandom fuzzable data.
 
 # Instructions
 - Your task is to determine how data from `FUZZ_PARAM_STR` and `FUZZ_PARAM_FILENAME` calls are used by the function.
+    - `FUZZ_PARAM_STR` returns a data buffer, figure out how that buffer is used
+    - `FUZZ_PARAM_FILENAME` returns a filename, figure out how _data_ from that file is used (the filename itself is formed with a generic string pattern and is not fuzz-tested, the file data is the interesting part)
 - Classify the usage into specific "data types" either from the list of known data types, or a new data type that you must also add to the `new_data_types` list.
 - Only `FUZZ_PARAM_STR` and `FUZZ_PARAM_FILENAME` calls are relevant for classification, other `FUZZ_PARAM_*` calls should be ignored.
 

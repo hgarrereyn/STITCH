@@ -27,12 +27,17 @@ SYNTH_RETRIES = 3
 def main(args):
     info = ProjectInfo.model_validate_json(open(args.info).read())
 
-    code = open(args.header).read()
+    code = ''
+    for header in args.headers:
+        code += f'<CODE FILE="{header}">\n'
+        code += open(header).read()
+        code += '</CODE>\n'
+
     usage = UsageTracker()
 
     start_time = time.time()
 
-    log('INFO', f"Scanning header for objects")
+    log('INFO', f"Scanning header(s) for objects")
     s_objects = time.time()
     objects = scan_objects(code, usage)
     t_objects = time.time() - s_objects
@@ -44,7 +49,7 @@ def main(args):
     t_validate_objects = time.time() - s_validate_objects
     log('SCAN', f"Validated {len(objects)} objects")
 
-    log('INFO', f"Scanning header for function names")
+    log('INFO', f"Scanning header(s) for function names")
     s_function_names = time.time()
     function_names = scan_function_names(code, usage)
     t_function_names = time.time() - s_function_names
@@ -56,7 +61,7 @@ def main(args):
     t_validate_function_names = time.time() - s_validate_function_names
     log('SCAN', f"Validated {len(function_names)} function names")
 
-    log('INFO', f"Scanning header for functions")
+    log('INFO', f"Scanning header(s) for functions")
     s_functions = time.time()
     functions = scan_functions(code, function_names, usage)
     t_functions = time.time() - s_functions
@@ -81,6 +86,7 @@ def main(args):
     log('INFO', f"Constructability analysis")
     target_types = analyze_blocking_missing_types(valid_stubs, objects, max_depth=6)
 
+    t_fill = 0
     if len(target_types) > 0:
         log('INFO', f"Filling {len(target_types)} types")
         s_fill = time.time()
@@ -95,7 +101,7 @@ def main(args):
     # Perform per-endpoint classification
     log('INFO', f"Classifying data")
     s_classify = time.time()
-    data_types, classifiers = classify_data(objects, functions, valid_stubs, usage)
+    data_types, classifiers = classify_data(meta.objects, meta.functions, meta.endpoints, usage)
     t_classify = time.time() - s_classify
     meta.data_types = data_types
     meta.endpoint_classifiers = classifiers
@@ -131,7 +137,7 @@ def main(args):
 def register(subparsers):
     scan_parser = subparsers.add_parser('run')
     scan_parser.add_argument('--info', type=str, default='info.json', help='Path to the project info file')
-    scan_parser.add_argument('--header', type=str, required=True)
+    scan_parser.add_argument('--headers', type=str, required=True, nargs='+', help='List of header files to scan')
     scan_parser.add_argument('--threads', type=int, default=1, help='Number of threads to use')
     scan_parser.add_argument('-o', '--output', type=str, required=True)
     scan_parser.set_defaults(func=main)
