@@ -345,7 +345,7 @@ impl Endpoint {
             let mut template_with_fuzz = template.clone();
 
             // Find all instances of FUZZ_PARAM_FILE() and replace them with gf_fuzz_param::write_to_temp_file($aN, 1024)
-            let matches = find_macro_invocations(&template, "FUZZ_PARAM_FILE");
+            let matches = find_macro_invocations(&template, "FUZZ_PARAM_FILENAME");
             for (start, end, arg) in matches {
                 args.push("uint32_t".to_string()); // size
                 args.push("unsigned char[4096]".to_string()); // data

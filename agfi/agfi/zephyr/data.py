@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from ..data.schema import Endpoint, Variable, VariableDir, Spec, Object
 from ..data.metadata import UsageTracker
 from .util import sample_generator
@@ -93,6 +93,8 @@ class ProjectMetadata(BaseModel):
 
     usage: UsageTracker = Field(description="The number of tokens used for each task", default=UsageTracker())
 
+    metadata: Dict[str, Any] = Field(description="Additional metadata", default={})
+
     def to_schema(self, hint_synthesis: int = 1000) -> Spec:
         schema = Spec(
             objects=[],
@@ -106,12 +108,15 @@ class ProjectMetadata(BaseModel):
 
         # Run each generator hint_synthesis times
         synthesized_data = {}
-        for generator in self.generators:
-            hints = sample_generator(generator.generator, n=hint_synthesis)
-            hints =  list(set(hints))
-            synthesized_data[generator.data_type] = [x.hex() for x in hints]
+        if self.generators is not None:
+            for generator in self.generators:
+                hints = sample_generator(generator.generator, n=hint_synthesis, allow_errors=True)
+                hints =  list(set(hints))
+                synthesized_data[generator.data_type] = [x.hex() for x in hints]
 
-        classifiers_by_name = {c.name: c for c in self.endpoint_classifiers}
+        classifiers_by_name = {}
+        if self.endpoint_classifiers is not None:
+            classifiers_by_name = {c.name: c for c in self.endpoint_classifiers}
 
         for func in self.endpoints:
             ep = func.to_endpoint()
@@ -124,3 +129,7 @@ class ProjectMetadata(BaseModel):
             schema.endpoints.append(ep)
 
         return schema
+
+
+class ProjectSynthMetadata(BaseModel):
+    endpoint_failures: List[FunctionImplError]

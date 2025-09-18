@@ -1,4 +1,4 @@
-from . import scan_objects, scan_functions, synth_functions, run, to_schema, data_classifier, build_generators
+from . import scan_objects, scan_functions, synth_functions, run, to_schema, data_classifier, build_generators, distill_agent, patcher, looper, fill
 
 def register(subparsers):
     zephyr_parser = subparsers.add_parser('zephyr')
@@ -10,3 +10,7 @@ def register(subparsers):
     to_schema.register(zephyr_subparsers)
     data_classifier.register(zephyr_subparsers)
     build_generators.register(zephyr_subparsers)
+    distill_agent.register(zephyr_subparsers)
+    patcher.register(zephyr_subparsers)
+    looper.register(zephyr_subparsers)
+    fill.register(zephyr_subparsers)

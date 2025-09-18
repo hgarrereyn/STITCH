@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 import json
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from ..data.metadata import UsageTracker, UsageTokens
 from .data import ObjectInfo, ProjectMetadata, FunctionImpl, FunctionInfo, FunctionClassifier, DataTypeInfo
@@ -20,7 +20,7 @@ class ClassificationResponse(BaseModel):
     new_data_types: List[DataTypeInfo]
 
 
-def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker) -> List[ObjectInfo]:
+def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker) -> Tuple[List[DataTypeInfo], List[FunctionClassifier]]:
     client = OpenAI()
 
     data_types: List[DataTypeInfo] = []

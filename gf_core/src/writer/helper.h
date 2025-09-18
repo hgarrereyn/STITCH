@@ -300,7 +300,7 @@ namespace gf_fuzz_param {
     const char *get_attr_str(T *var, const char *key) {
         auto it = gf_attrs_str->find(std::make_tuple(var, key));
         if (it != gf_attrs_str->end()) {
-            return it->second;
+            return it->second.c_str();
         }
         return "";
     }

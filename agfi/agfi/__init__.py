@@ -7,6 +7,7 @@ from .run_cover import register as register_run_cover
 from .utils.crash_repro import register as register_crash_repro
 # from .incremental import register as register_incremental
 from .zephyr import register as register_zephyr
+from .bucketizer import register as register_bucketizer
 
 def main():
     parser = argparse.ArgumentParser()
@@ -18,6 +19,7 @@ def main():
     register_run_cover(subparsers)
     register_crash_repro(subparsers)
     # register_incremental(subparsers)
+    register_bucketizer(subparsers)
     register_zephyr(subparsers)
 
     args = parser.parse_args()

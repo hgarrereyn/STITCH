@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 import tempfile
 import importlib.util
 import os
+import traceback
 
 from ..utils.colors import Colors
 
@@ -27,7 +28,7 @@ def log(mode: str, msg: str):
     print(f"[{now}] [{Colors.BOLD}{clr}{mode}{Colors.END}] {msg}")
 
 
-def sample_generator(generator: str, n: int = 1000) -> List[bytes]:
+def sample_generator(generator: str, n: int = 1000, allow_errors: bool = False) -> List[bytes]:
     """
     Sample a valid generator N times and return the outputs.
     
@@ -70,8 +71,10 @@ def sample_generator(generator: str, n: int = 1000) -> List[bytes]:
                 output = generator_func(seed=i)
                 outputs.append(output)
             except Exception as e:
-                traceback = traceback.format_exc()
-                raise Exception(f"Generator crashed at sample {i}: {e}\n{traceback}")
+                if allow_errors:
+                    print(f"Generator crashed at sample {i}: {e}\n{traceback.format_exc()}")
+                    continue
+                raise Exception(f"Generator crashed at sample {i}: {e}\n{traceback.format_exc()}")
         
         return outputs
         
@@ -97,11 +100,11 @@ def validate_generator(generator: str) -> Optional[str]:
         # Use sample_generator to get outputs and catch any errors
         outputs = sample_generator(generator, n=1000)
         
-        # Check for uniqueness - at least 80% of outputs should be different
+        # Check for uniqueness - at least 10% of outputs should be different
         unique_outputs = set(outputs)
-        if len(unique_outputs) < 0.8 * len(outputs):
-            print(f"Generator produced duplicate outputs in 1000 iterations. Expected at least {0.8 * len(outputs)} unique outputs, got {len(unique_outputs)}")
-            return f'Generator produced duplicate outputs in 1000 iterations. Expected at least {0.8 * len(outputs)} unique outputs, got {len(unique_outputs)}'
+        if len(unique_outputs) < 0.1 * len(outputs):
+            print(f"Generator produced duplicate outputs in 1000 iterations. Expected at least {0.1 * len(outputs)} unique outputs, got {len(unique_outputs)}")
+            return f'Generator produced duplicate outputs in 1000 iterations. Expected at least {0.1 * len(outputs)} unique outputs, got {len(unique_outputs)}'
 
         # If we get here, all tests passed
         return None

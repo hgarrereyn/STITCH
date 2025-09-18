@@ -69,7 +69,7 @@ def run_casr_gdb(cmd: List[str]) -> Optional[dict]:
         return None
 
 
-def observe_crash(cmd: List[str]) -> Optional[Tuple[str, str]]:
+def observe_crash(cmd: List[str]) -> Tuple[Optional[str], Optional[str]]:
     """Runs a command and returns the crash report and summary if a crash is observed.
     Returns None otherwise."""
     
@@ -87,14 +87,23 @@ def observe_crash(cmd: List[str]) -> Optional[Tuple[str, str]]:
         loc_san = report_san['CrashLine']
         typ_san = report_san['CrashSeverity']['ShortDescription']
 
+    # Did not crash...
     if loc_gdb is None and loc_san is None:
         return None, None
-    
+
+    # Detect FUZZ_ASSERT() errors and normalize them
+    if loc_gdb is not None and 'FUZZ_ASSERT() violation' in report_gdb['CrashSeverity']['Description']:
+        summary = report_gdb['CrashSeverity']['Description']
+        report_json = json.dumps(report_gdb, indent=2)
+        return report_json, summary
+
     # Choose which report/summary pair to use
     if loc_gdb is None:
+        # Use the sanitizer report (gdb is not available)
         report_json = json.dumps(report_san, indent=2)
         summary = f'{typ_san} in {loc_san}'
     elif loc_san is None:
+        # Use the gdb report (sanitizer is not available)
         report_json = json.dumps(report_gdb, indent=2)
         summary = f'{typ_gdb} in {loc_gdb}'
     else:

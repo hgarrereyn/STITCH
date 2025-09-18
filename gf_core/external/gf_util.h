@@ -166,7 +166,8 @@ namespace gf_fuzz_param {
 
     void check_assert(bool condition, const char *message) {
         if (!condition) {
-            throw std::runtime_error(message);
+            std::string msg = std::string("FUZZ_ASSERT() violation: ") + message;
+            throw std::runtime_error(msg);
         }
     }
 }

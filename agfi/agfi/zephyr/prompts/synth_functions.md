@@ -42,10 +42,11 @@
     - limitations: `T` must not be a pointer type or contain a pointer type
     - example: `int *x = *FUZZ_PARAM(int)`
     - for a range `[min, max]`, use `*FUZZ_PARAM(unsigned int) % (max - min + 1) + min`
-- `FUZZ_PARAM_STR()`: generates a random variable-size `std::string`
+- `FUZZ_PARAM_STR()`: generates a random variable-size `std::string` containing printable and/or non-printable characters
+    - use this for both buffer and string arguments (with post-processing if necessary to constrain the format or size)
     - example: `std::string s = FUZZ_PARAM_STR()`
     - use `s.c_str()` for a null-terminated string or `s.data()` for buffer arguments along with `s.size()`
-    - for fixed-size strings, use `FUZZ_PARAM(char[N])` instead
+    - generated strings will be between 1 and 4096 bytes long
     - if the string is expected to point to a file, use `FUZZ_PARAM_FILENAME()` instead
 - `FUZZ_PARAM_FILENAME()`: generates a random null-terminated filename pointing to a file filled with random data
     - example: `const char *path = FUZZ_PARAM_FILENAME(); char *data = read_file(path)`

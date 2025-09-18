@@ -1,4 +1,4 @@
-use gf_core::harness::Harness;
+use gf_core::harness::{Harness, InvokeResult};
 use gf_core::mutation::MutationContext;
 use gf_core::pspec::PSpec;
 use std::path::PathBuf;
@@ -228,6 +228,18 @@ fn execute_one(res: Options, gf_harness: Harness) {
 
     let res = gf_harness.invoke(&graph, None);
     println!("Execution result: {:?}", res);
+
+    match res {
+        InvokeResult::Success => {},
+        InvokeResult::Bailed(_) => {},
+        InvokeResult::AssertionViolation(_, msg) => {
+            // Raise an abort with the message
+            unsafe {
+                panic!("FUZZ_ASSERT() violation: {}", msg);
+            }
+        },
+        InvokeResult::LibraryException(_, _) => {},
+    }
 }
 
 fn write_one(res: Options, gf_harness: Harness) {
