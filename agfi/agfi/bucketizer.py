@@ -130,10 +130,11 @@ def minimize_crash(args):
             return
         
         # Check that it is the same crash summary
-        if not is_same_summary(crash_summary.strip(), summary.strip()):
-            print(f'[{Colors.RED}FAIL{Colors.END}] {crash_path.name} :: (new) {crash_summary.strip()} != (orig) {summary.strip()}')
-            (output_dir / '.minimized' / f'{crash_path.name}.fail').touch()
-            return
+        # TODO: this is a bit buggy with different levels of debug info between the two summaries
+        # if not is_same_summary(crash_summary.strip(), summary.strip()):
+        #     print(f'[{Colors.RED}FAIL{Colors.END}] {crash_path.name} :: (new) {crash_summary.strip()} != (orig) {summary.strip()}')
+        #     (output_dir / '.minimized' / f'{crash_path.name}.fail').touch()
+        #     return
         
         # 5. Write the external code
         (bucket_dir / 'repro' / f'{crash_path.name}.cpp').write_text(external_file.read_text())
@@ -145,11 +146,11 @@ def run_minimize(info, fuzzer, crashes_dir, output_dir, nproc):
     processed = set([f.stem for f in (output_dir / '.processed').iterdir() if f.is_file() and not f.name.startswith('.') and not f.name.endswith('.none')])
     minimized = set([f.stem for f in (output_dir / '.minimized').iterdir() if f.is_file() and not f.name.startswith('.')])
     new_processed = processed - minimized
-    
-    print(f'[{Colors.GREEN}*{Colors.END}] Minimizing {len(new_processed)} crashes')
 
     if len(new_processed) == 0:
         return
+
+    print(f'[{Colors.GREEN}*{Colors.END}] Minimizing {len(new_processed)} crashes')
 
     for crash in tqdm(new_processed, desc='Minimizing crashes'):
         minimize_crash((info, fuzzer, crashes_dir / crash, output_dir))

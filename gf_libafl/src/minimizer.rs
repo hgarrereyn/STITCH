@@ -1,7 +1,8 @@
-use std::time::Instant;
 use std::{rc::Rc, time};
 
-use libafl::{corpus::{Corpus, InMemoryCorpus}, events::{EventRestarter, SimpleRestartingEventManager}, executors::{Executor, ExitKind, InProcessExecutor}, feedbacks::CrashFeedback, inputs::Input, monitors::SimpleMonitor, schedulers::QueueScheduler, state::{HasSolutions, StdState}, Error, StdFuzzer};
+use libafl::events::SimpleEventManager;
+use libafl::executors::InProcessForkExecutor;
+use libafl::{corpus::InMemoryCorpus, executors::{Executor, ExitKind}, feedbacks::CrashFeedback, inputs::Input, monitors::SimpleMonitor, schedulers::QueueScheduler, state::StdState, StdFuzzer};
 use libafl_bolts::{rands::StdRand, shmem::{ShMemProvider, StdShMemProvider}, tuples::tuple_list};
 
 use crate::components::graph_input::GraphInput;
@@ -9,8 +10,6 @@ use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext};
 
 
 pub fn minimize(path: String, output: Option<String>, cycles: usize, minimize_timeout: usize, gf_harness: Harness, full_write: bool, ctx: Rc<MutationContext>) {
-    let inp = GraphInput::from_file(path).unwrap();
-
     let mut objective = CrashFeedback::new();
 
     let mut harness = |input: &GraphInput| {
@@ -27,71 +26,36 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, minimize_ti
         println!("Received signal: {:?}", s);
     });
 
-    let mut shmem_provider = StdShMemProvider::new().unwrap();
+    let mut mgr = SimpleEventManager::new(monitor);
+
+    let shmem_provider = StdShMemProvider::new().unwrap();
 
     let timeout = time::Duration::from_secs(10);
 
-    let (state, mut mgr) = match SimpleRestartingEventManager::<_,StdState<_,_,_,InMemoryCorpus<GraphInput>>,_>::launch(monitor, &mut shmem_provider)
-    {
-        // The restarting state will spawn the same process again as child, then restarted it each time it crashes.
-        Ok(res) => res,
-        Err(err) => match err {
-            Error::ShuttingDown => {
-                return;
-            }
-            _ => {
-                panic!("Failed to setup the restarter: {err}");
-            }
-        },
-    };
-
-    let (mut state, inp) = match state {
-        None => {
-            // First execution, use the provided input
-            let state = StdState::new(
-                StdRand::new(),
-                InMemoryCorpus::new(),
-                InMemoryCorpus::new(),
-                &mut (),
-                &mut objective,
-            )
-            .unwrap();
-            (state, inp)
-        }
-        Some(state) => {
-            let sol = state.solutions();
-            let min = sol.ids().map(
-                |id| {
-                    let size = sol.get(id).unwrap().borrow().input().as_ref().unwrap().graph.nodes.len();
-                    (id, size)
-                }
-            ).min_by_key(|x| x.1).unwrap().0;
-
-            let inp = sol.get(min).unwrap().borrow().input().as_ref().unwrap().clone();
-            (state, inp)
-        }
-    };
+    let mut state = StdState::new(
+        StdRand::new(),
+        InMemoryCorpus::new(),
+        InMemoryCorpus::new(),
+        &mut (),
+        &mut objective,
+    ).unwrap();
 
     let scheduler = QueueScheduler::new();
     let mut fuzzer = StdFuzzer::new(scheduler, (), objective);
 
-    let thresh = inp.graph.nodes.len();
-    println!("Current size: {:?}", thresh);
-    if full_write {
-        gf_harness.write(&inp.graph);
-    } else {
-        inp.graph.pprint();
-    }
-
     // Create the executor for an in-process function with one observer for edge coverage and one for the execution time
-    let mut executor = InProcessExecutor::with_timeout(
+    let mut executor = InProcessForkExecutor::new(
         &mut harness,
         tuple_list!(),
         &mut fuzzer,
         &mut state,
         &mut mgr,
         timeout,
+        shmem_provider.clone()
     ).unwrap();
+
+    let mut inp = GraphInput::from_file(path).unwrap();
+    let mut thresh = inp.graph.nodes.len();
 
     let start_time = time::Instant::now();
     for _ in 0..cycles {
@@ -102,17 +66,29 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, minimize_ti
 
         let mut g = inp.graph.clone();
         ctx.mutate_random(&mut g);
+        let new_size = g.nodes.len();
 
-        if g.nodes.len() < thresh {
+        if new_size < thresh {
             let i2 = GraphInput {
                 graph: g,
             };
-            let _ = executor.run_target(&mut fuzzer, &mut state, &mut mgr, &i2);
+            let res = executor.run_target(&mut fuzzer, &mut state, &mut mgr, &i2);
+            match res {
+                Ok(ExitKind::Crash) => {
+                    inp = i2;
+                    thresh = new_size;
+
+                    // Write the new input
+                    if full_write {
+                        gf_harness.write(&inp.graph);
+                    } else {
+                        inp.graph.pprint();
+                    }
+                }
+                _ => {}
+            }
         }
     }
-
-    println!("No new crashes");
-    mgr.send_exiting().unwrap();
 
     gf_harness.write(&inp.graph);
 

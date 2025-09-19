@@ -31,6 +31,7 @@ libafl_targets = { version = "0.14.1", features = [
     "libfuzzer",
     "sancov_cmplog",
     "sancov_pcguard_hitcounts",
+    "pointer_maps",
 ] }
 libafl_bolts = { version = "0.14.1" }
 

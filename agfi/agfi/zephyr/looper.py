@@ -83,7 +83,7 @@ def compile_harness(workdir: Path):
     subprocess.run(['agfi', 'build', 'full', workdir / 'fuzzer'])
 
 
-def run_campaign(campaign: Path, info: str):
+def run_campaign(campaign: Path, info: str, revise: bool):
     # Collect the list of known crashes
     reports = campaign / 'reports'
     known_crashes: dict[str, CrashInfo] = {}
@@ -134,6 +134,7 @@ def run_campaign(campaign: Path, info: str):
         '--rss-limit-mb', '0',
     ], cwd=workdir, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    # Keep output for bucketizer to help debug problems with crash reproduction
     p_bucketizer = RestartableProcess([
         'agfi', 'bucketizer',
         '--info', info,
@@ -142,7 +143,7 @@ def run_campaign(campaign: Path, info: str):
         '--output', str(bucketizer_buckets),
         '--nproc', '1',
         '--watch',
-    ], cwd=workdir, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ], cwd=workdir, start_new_session=True)
 
     crashes_seen_this_round = set()
     new_crash = None
@@ -159,7 +160,9 @@ def run_campaign(campaign: Path, info: str):
         p_fuzzer.launch()
         p_bucketizer.launch()
 
-        while new_crash is None:
+        # If revise is True, stop when we find a new crash
+        # If revise is False, continue indefinitely
+        while new_crash is None or (not revise):
             current_time = time.time()
             if current_time - last_status_check >= status_refresh:
                 # Read the last part of fuzzer.log
@@ -315,7 +318,13 @@ def main(args):
         print(f'{Colors.GREEN}[+]{Colors.END} Using existing campaign: {campaign}')
 
     # Run the campaign
-    run_campaign(campaign, info_path)
+    for revision in range(args.max_revisions):
+        print(f'{Colors.GREEN}[+]{Colors.END} Running campaign {revision + 1} of {args.max_revisions}')
+        run_campaign(campaign, info_path, revise=True)
+
+    # Final run without revisions
+    print(f'{Colors.GREEN}[+]{Colors.END} Running final campaign without revisions')
+    run_campaign(campaign, info_path, revise=False)
 
 
 def register(subparser: ArgumentParser):
@@ -323,5 +332,6 @@ def register(subparser: ArgumentParser):
     parser.add_argument('--info', type=str, default='info.json', help='Path to the project info')
     parser.add_argument('--harness', type=str, required=True, help='Path to the original harness')
     parser.add_argument('--campaign', type=str, required=True, help='Path to the campaign directory')
+    parser.add_argument('--max-revisions', type=int, default=10, help='Maximum number of revisions to run')
     parser.add_argument('--reset', action='store_true', help='Reset the campaign (if it exists)')
     parser.set_defaults(func=main)

@@ -1,4 +1,4 @@
-from . import scan_objects, scan_functions, synth_functions, run, to_schema, data_classifier, build_generators, distill_agent, patcher, looper, fill, campaign_info, harness_info
+from . import scan_objects, scan_functions, synth_functions, run, to_schema, data_classifier, build_generators, distill_agent, patcher, looper, fill, campaign_info, harness_info, replay
 
 def register(subparsers):
     zephyr_parser = subparsers.add_parser('zephyr')
@@ -16,3 +16,4 @@ def register(subparsers):
     fill.register(zephyr_subparsers)
     campaign_info.register(zephyr_subparsers)
     harness_info.register(zephyr_subparsers)
+    replay.register(zephyr_subparsers)
