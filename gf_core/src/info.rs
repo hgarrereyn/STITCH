@@ -2,18 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectInfo {
-    pub name: String,
-    pub codebase: String,
-    pub build: BuildInfo,
+    pub build_flags: Vec<String>,
     pub codegen: CodegenInfo,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct BuildInfo {
-    pub include_paths: Vec<String>,
-    pub lib_paths: Vec<String>,
-    pub libs: Vec<String>,
-    pub source_files: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -23,13 +13,13 @@ pub struct CodegenInfo {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct CodegenHeader {
-    pub name: String,
-    pub language: String,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct CodegenDefine {
     pub name: String,
     pub value: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CodegenHeader {
+    pub path: String,
+    pub language: String,
 }

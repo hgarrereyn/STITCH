@@ -40,16 +40,8 @@ def build_command(path: str, info: ProjectInfo, external: bool, verbose: bool = 
         str(path) + '.cpp',
     ]
 
-    for source in info.build.source_files:
-        cmd.append(source)
-    for include in info.build.include_paths:
-        cmd.append('-I' + include)
-    for lib_path in info.build.lib_paths:
-        cmd.append('-L' + lib_path)
-    for lib in info.build.libs:
-        cmd.append('-l' + lib)
-    if info.build.flags:
-        for flag in info.build.flags:
+    if info.build_flags:
+        for flag in info.build_flags:
             cmd.append(flag)
 
     if external:

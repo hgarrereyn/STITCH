@@ -1,6 +1,7 @@
 from typing import Dict, List
 from pydantic import BaseModel, Field
 from langchain_core.messages.ai import UsageMetadata
+from openai.types.responses.response_usage import ResponseUsage
 
 from ..utils.colors import Colors
 
@@ -28,6 +29,14 @@ class UsageTokens(BaseModel):
             input_tokens=usage['input_tokens'],
             output_tokens=usage['output_tokens'],
             total_tokens=usage['total_tokens'],
+        )
+
+    @staticmethod
+    def from_openai(usage: ResponseUsage):
+        return UsageTokens(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
         )
     
     def cost(self, input_price: float, output_price: float) -> float:
@@ -65,6 +74,13 @@ class UsageTracker(BaseModel):
         if task not in self.by_task:
             self.by_task[task] = UsageMetrics()
         self.by_task[task].add(usage)
+
+    def record_model(self, task: str, model: str, usage: UsageTokens):
+        if task not in self.by_task:
+            self.by_task[task] = UsageMetrics()
+        if model not in self.by_task[task].models:
+            self.by_task[task].models[model] = UsageTokens()
+        self.by_task[task].models[model].add(usage)
 
     def cost_by_task(self) -> Dict[str, float]:
         return {task: metrics.cost() for task, metrics in self.by_task.items()}

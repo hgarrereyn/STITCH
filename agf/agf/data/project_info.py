@@ -1,27 +1,10 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
-
-
-class BuildConfig(BaseModel):
-    # -I<name>
-    include_paths: List[str]
-
-    # -L<name>
-    lib_paths: List[str]
-
-    # -l<name>
-    libs: List[str]
-
-    # <source_file>
-    source_files: List[str]
-
-    # extra flags
-    flags: Optional[List[str]] = None
+from typing import List, Literal
 
 
 class CodegenHeader(BaseModel):
-    name: str
-    language: str
+    path: str
+    language: Literal['c', 'cpp']
 
 
 class CodegenDefine(BaseModel):
@@ -30,21 +13,16 @@ class CodegenDefine(BaseModel):
 
 
 class CodegenConfig(BaseModel):
-    headers: List[CodegenHeader]
+    # Target headers
+    headers: List[CodegenHeader] = Field(default_factory=list)
 
-    # Defines
-    defines: Optional[List[CodegenDefine]] = None
+    # Extra defines
+    defines: List[CodegenDefine] = Field(default_factory=list)
 
 
 class ProjectInfo(BaseModel):
-    # Name of the project
-    name: str
-
-    # Path to codebase
-    codebase: str
-
     # Build configuration
-    build: BuildConfig
+    build_flags: List[str] = Field(default_factory=list)
 
     # Codegen configuration
-    codegen: CodegenConfig
+    codegen: CodegenConfig = Field(default_factory=CodegenConfig)

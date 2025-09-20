@@ -16,7 +16,7 @@ from .pretty import pretty_print_code
 from ..data.metadata import UsageTracker, UsageTokens
 
 
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 10
 
 PROMPT_DISTILL_AGENT = open(os.path.join(os.path.dirname(__file__), 'prompts/distill_agent.md')).read()
 
@@ -66,7 +66,7 @@ def tool_test_compile(testcase: str) -> TestCompileOutput:
         with open(external_file_path, 'w') as f:
             f.write(testcase)
 
-        res = subprocess.run(['agfi', 'build', 'external', str(tmpdir / 'reproducer')], check=True, capture_output=True)
+        res = subprocess.run(['agfi', 'build', 'external', str(tmpdir / 'reproducer')], capture_output=True)
         if res.returncode != 0:
             return TestCompileOutput(res=CompileError(note='Failed to compile testcase', error=res.stderr.decode()))
         
@@ -163,7 +163,8 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
             input=ctx,
             tools=tools,
             reasoning={
-                "effort": "low"
+                "effort": "low",
+                "summary": "auto"
             }
         )
         usage.record_model('distill-agent', 'gpt-5', UsageTokens.from_openai(response.usage))

@@ -20,10 +20,10 @@ def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, e
     for header in info.codegen.headers:
         if header.language == 'c':
             code += 'extern "C" {\n'
-            code += '#include "%s"\n' % header.name
+            code += '#include "%s"\n' % header.path
             code += '}\n'
         elif header.language == 'cpp':
-            code += '#include "%s"\n' % header.name
+            code += '#include "%s"\n' % header.path
 
     if external:
         code += '#include "gf_util.h"\n'
@@ -92,6 +92,17 @@ def validate_function(function: str, info: ProjectInfo, verbose: bool = False) -
     code = f'''
 int main() {{
     printf("f: %p", {function});
+    return 0;
+}}
+'''
+
+    return format_and_check(code, info, verbose)
+
+
+def validate_setup(info: ProjectInfo, verbose: bool = False) -> Optional[str]:
+    """Check that the project can be built."""
+    code = f'''
+int main() {{
     return 0;
 }}
 '''

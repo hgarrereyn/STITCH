@@ -45,7 +45,7 @@ def do_test(args):
                 mounts=mounts, 
                 cmd='''
                     cd /fuzz/workspace &&
-                    agfi build test-obj int
+                    agfi build test-setup
                 ''', check=True)
             print(f'[{Colors.GREEN}+{Colors.END}] Codegen configuration test passed')
         except Exception as e:

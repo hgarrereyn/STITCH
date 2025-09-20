@@ -215,11 +215,11 @@ impl<'a> HarnessWriter<'a> {
         for header in &self.info.codegen.headers {
             match header.language.as_str() {
                 "c" => {
-                    let formatted = format_header(&header.name);
+                    let formatted = format_header(&header.path);
                     code.push_str(&format!("    printf(\"extern \\\"C\\\" {{\\n    {} \\n}}\\n\");\n", printf_escape(&formatted)));
                 }
                 "cpp" => {
-                    let formatted = format_header(&header.name);
+                    let formatted = format_header(&header.path);
                     code.push_str(&format!("    printf(\"{}\\n\");\n", printf_escape(&formatted)));
                 }
                 _ => {
@@ -288,11 +288,11 @@ impl<'a> HarnessWriter<'a> {
             match header.language.as_str() {
                 "c" => {
                     code.push_str("extern \"C\" {\n");
-                    code.push_str(&format!("    {}\n", format_header(&header.name)));
+                    code.push_str(&format!("    {}\n", format_header(&header.path)));
                     code.push_str("}\n");
                 }
                 "cpp" => {
-                    code.push_str(&format!("{}\n", format_header(&header.name)));
+                    code.push_str(&format!("{}\n", format_header(&header.path)));
                 }
                 _ => {
                     panic!("Unsupported language: {}", header.language);

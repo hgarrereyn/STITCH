@@ -3,7 +3,7 @@ import json
 
 from .buildcmd import build_command, synth_command, build_full
 from ..data.project_info import ProjectInfo
-from .validator import validate_function, validate_object
+from .validator import validate_function, validate_object, validate_setup
 
 
 def fn_build_full(args):
@@ -52,6 +52,12 @@ def fn_test_obj(args):
         exit(1)
 
 
+def fn_test_setup(args):
+    info = ProjectInfo.model_validate_json(open(args.info).read())
+    if validate_setup(info, verbose=True) is not None:
+        exit(1)
+
+
 def register(subparsers):
     sub = subparsers.add_parser('build')
     sub_sub = sub.add_subparsers()
@@ -86,3 +92,7 @@ def register(subparsers):
     parser_test_obj.add_argument('--info', type=str, default='info.json')
     parser_test_obj.add_argument('object', type=str)
     parser_test_obj.set_defaults(func=fn_test_obj)
+
+    parser_test_setup = sub_sub.add_parser('test-setup', help='Test the project setup')
+    parser_test_setup.add_argument('--info', type=str, default='info.json')
+    parser_test_setup.set_defaults(func=fn_test_setup)

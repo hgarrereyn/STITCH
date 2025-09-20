@@ -11,19 +11,15 @@ from ..data.metadata import UsageTracker
 CUSTOM_SECCOMP = (Path(__file__).parent.parent / 'seccomp.json').absolute()
 
 
-class ProjectConfig(BaseModel):
-    repo: Optional[str] = Field(default=None, description='The url of the project')
-    commit: Optional[str] = Field(default=None, description='The commit hash of the project')
-    repro_per_crash: int = Field(default=20, description='The number of reproducers to generate for each crash')
-    llm_min_per_crash: int = Field(default=1, description='Number of minimized test cases to generate for each crash')
+class BuildError(BaseModel):
+    stdout: str
+    stderr: str
 
-    @property
-    def name(self) -> str:
-        if self.repo is None:
-            return 'unknown'
-        name = self.repo.split('github.com/')[1].split('.git')[0].replace('/', '_').replace('.', '_').lower()
-        name = ''.join(x for x in name if x.isalnum() or x in ['_'])
-        return name
+
+class ProjectConfig(BaseModel):
+    name: str = Field(default='unknown', description='The name of the project')
+    repo: Optional[str] = Field(default=None, description='The url of the project')
+    commit: Optional[str] = Field(default=None, description='The commit hash of the project (or most recent commit if not specified)')
 
 
 class Harness:
@@ -39,15 +35,10 @@ class Harness:
     def harness_config(self) -> Path:
         return self.path / 'harness.json'
 
-    def output_dir(self) -> Path:
-        output_dir = self.path / 'output'
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return output_dir
-    
-    def asan_output_dir(self) -> Path:
-        output_dir = self.path / 'output_asan'
-        output_dir.mkdir(parents=True, exist_ok=True)
-        return output_dir
+    def campaign_dir(self) -> Path:
+        campaign_dir = self.path / 'campaign'
+        campaign_dir.mkdir(parents=True, exist_ok=True)
+        return campaign_dir
     
     def analysis_dir(self) -> Path:
         analysis_dir = self.path / 'analysis'
@@ -133,7 +124,7 @@ class Project:
         base_image += 'WORKDIR /fuzz/src\n'
         base_image += 'ENV DEBIAN_FRONTEND=noninteractive\n'
         base_image += 'ENV LD_LIBRARY_PATH=/fuzz/install/lib\n'
-        base_image += 'ENV ASAN_OPTIONS=hard_rss_limit_mb=256:detect_leaks=0\n'
+        base_image += 'ENV ASAN_OPTIONS=hard_rss_limit_mb=1024:detect_leaks=0\n'
         if build_coverage:
             base_image += 'ENV GRAPHFUZZ_BUILD_COVERAGE=1\n'
         if use_asan:
@@ -161,7 +152,31 @@ class Project:
                 str((self.path / 'config').absolute())
             ], check=True)
 
-    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False):
+    def build_docker_capture_errors(self, build_coverage: bool = False, use_asan: bool = False) -> Optional[BuildError]:
+        config = self.get_config()
+        base = self.base_image(build_coverage, use_asan)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            (temp_dir / 'base.Dockerfile').write_text(base)
+            subprocess.run([
+                'docker', 'build',
+                '-t', f'base_{config.name}',
+                '-f', temp_dir / 'base.Dockerfile',
+                str(temp_dir)
+            ], check=True)
+        
+            res = subprocess.run([
+                'docker', 'build',
+                '--build-arg', f'BASE_IMAGE=base_{config.name}',
+                '-t', f'main_{config.name}',
+                '-f', self.path / 'config' / 'Dockerfile',
+                str((self.path / 'config').absolute())
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if res.returncode != 0:
+                return BuildError(stdout=res.stdout, stderr=res.stderr)
+        return None
+
+    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False, **kwargs):
         """
         Invoke a command inside the main container (must be built first).
 
@@ -177,7 +192,7 @@ class Project:
             full_cmd += ['-v', f'{mount[0]}:{mount[1]}']
         full_cmd += ['--security-opt', f'seccomp={CUSTOM_SECCOMP}']
         full_cmd += [f'main_{self.get_config().name}', 'bash', '-c', cmd]
-        subprocess.run(full_cmd, check=check)
+        return subprocess.run(full_cmd, check=check, **kwargs)
 
     def next_harness_name(self) -> str:
         """

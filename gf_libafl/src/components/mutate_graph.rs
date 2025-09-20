@@ -106,7 +106,8 @@ where
         }
 
         let other_idx = state.rand_mut().below(NonZeroUsize::new(corpus_size).unwrap());
-        let other_input = state.corpus().get(CorpusId::from(other_idx)).unwrap();
+        let other_idx = state.corpus().nth(other_idx);
+        let other_input = state.corpus().get(other_idx).unwrap();
         let other_graph = other_input.borrow_mut().load_input(state.corpus()).unwrap().graph.clone();
         
         self.ctx.mutate_crossover(&mut input.graph, &other_graph);

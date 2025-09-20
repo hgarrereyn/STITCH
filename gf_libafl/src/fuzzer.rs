@@ -191,8 +191,6 @@ pub fn fuzz(
 
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &GraphInput| {
-        println!("Invoking harness with input: {:?}", input.graph);
-
         // Invoke the harness in the sandboxed environment
         let res = gf_harness.invoke(&input.graph, None);
 

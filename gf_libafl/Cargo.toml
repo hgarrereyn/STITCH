@@ -9,18 +9,18 @@ build = "build.rs"
 default = ["std"]
 std = []
 
-[profile.release]
-opt-level = 3
-debug = false
-overflow-checks = false
-lto = true
-codegen-units = 1
-
 # [profile.release]
-# opt-level = 1
-# debug = "full"
-# overflow-checks = true
-# lto = false
+# opt-level = 3
+# debug = false
+# overflow-checks = false
+# lto = true
+# codegen-units = 1
+
+[profile.release]
+opt-level = 1
+debug = "full"
+overflow-checks = true
+lto = false
 
 [dependencies]
 gf_core = { path = "../gf_core" }

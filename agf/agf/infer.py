@@ -42,7 +42,7 @@ def do_infer(args):
 
         shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
 
-        headers = [x.name for x in info.codegen.headers]
+        headers = [x.path for x in info.codegen.headers]
 
         env = [
             'OPENAI_API_KEY',

@@ -303,11 +303,14 @@ def main(args):
     harness = ProjectMetadata.model_validate_json(open(args.harness).read())
     campaign = Path(args.campaign).absolute()
 
-    if campaign.exists() and args.reset:
-        print(f'{Colors.GREEN}[+]{Colors.END} Clearing old campaign: {campaign}')
-        shutil.rmtree(campaign)
+    exists = campaign.exists() and (campaign / 'reports').exists() and (campaign / 'revisions').exists()
 
-    if not campaign.exists():
+    if exists and args.reset:
+        print(f'{Colors.GREEN}[+]{Colors.END} Clearing old campaign: {campaign}')
+        shutil.rmtree(campaign / 'reports')
+        shutil.rmtree(campaign / 'revisions')
+
+    if not exists or args.reset:
         print(f'{Colors.GREEN}[+]{Colors.END} Creating new campaign: {campaign}')
         campaign.mkdir(parents=True, exist_ok=True)
         (campaign / 'reports').mkdir(parents=True, exist_ok=True)
