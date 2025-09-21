@@ -108,7 +108,7 @@ class Project:
             return []
         return [Harness(x) for x in harness_path.iterdir() if x.is_dir()]
 
-    def base_image(self, build_coverage: bool = False, use_asan: bool = False) -> str:
+    def base_image(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None) -> str:
         """
         Builds the base image for the project.
         """
@@ -117,8 +117,8 @@ class Project:
         base_image = ''
         base_image += 'FROM gfafl_base\n'
         if config.repo is not None:
-            if config.commit is not None:
-                base_image += f'RUN git clone {config.repo} /fuzz/src && cd /fuzz/src && git checkout {config.commit} && git submodule update --init --remote --recursive\n'
+            if config.commit is not None or override_commit is not None:
+                base_image += f'RUN git clone {config.repo} /fuzz/src && cd /fuzz/src && git checkout {config.commit if override_commit is None else override_commit} && git submodule update --init --remote --recursive\n'
             else:
                 base_image += f'RUN git clone --depth 1 {config.repo} /fuzz/src && cd /fuzz/src && git submodule update --init --remote --recursive\n'
         base_image += 'WORKDIR /fuzz/src\n'
@@ -131,9 +131,9 @@ class Project:
             base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
         return base_image
 
-    def build_docker(self, build_coverage: bool = False, use_asan: bool = False) -> bool:
+    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None) -> bool:
         config = self.get_config()
-        base = self.base_image(build_coverage, use_asan)
+        base = self.base_image(build_coverage, use_asan, override_commit)
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)

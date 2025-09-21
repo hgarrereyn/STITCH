@@ -52,9 +52,9 @@ pub fn main() {
             //     "-loom_wrapper".to_string(),
             //     format!("-Wl,-rpath,{}", dir.display()),
             // ])
-            .add_args(&[
-                "-lseccomp",
-            ])
+            // .add_args(&[
+            //     "-lseccomp",
+            // ])
             .run()
             .expect("Failed to run the wrapped compiler")
         {

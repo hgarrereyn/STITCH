@@ -19,7 +19,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 pub mod components;
 pub mod fuzzer;
 pub mod minimizer;
-pub mod seccomp;
+// pub mod seccomp;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

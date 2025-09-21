@@ -51,11 +51,10 @@ def get_last_fuzzer_line(log_path: Path, last_chunk_size: int = 3000) -> str:
         chunk = f.read(last_chunk_size)
         chunk = chunk.decode('latin1').split('\n')
 
-        for line in chunk[::-1]:
-            if 'UserStats' in line:
-                return line
-
-    return None
+        if len(chunk) > 2:
+            return chunk[-2]
+        else:
+            return None
 
 
 def parse_fuzzer_stats(line: str) -> dict:
@@ -112,13 +111,19 @@ def run_campaign(campaign: Path, info: str, revise: bool):
         '--bypass-validation',
     ], cwd=workdir)
 
+    # Prepare seed inputs. If outputs/queue exists, copy it to inputs
+    (workdir / 'inputs').mkdir(parents=True, exist_ok=True)
+    if (workdir / 'outputs' / 'queue').exists():
+        print(f'{Colors.GREEN}[+]{Colors.END} Copying seed inputs from outputs/queue to inputs')
+        shutil.copytree(workdir / 'outputs' / 'queue', workdir / 'inputs', dirs_exist_ok=True)
+
     (workdir / 'outputs').mkdir(parents=True, exist_ok=True)
     (workdir / 'outputs' / 'crashes').mkdir(parents=True, exist_ok=True)
     (workdir / 'outputs' / 'queue').mkdir(parents=True, exist_ok=True)
     (workdir / 'buckets').mkdir(parents=True, exist_ok=True)
 
     fuzzer_bin = workdir / 'fuzzer'
-    fuzzer_inputs = workdir / 'outputs' / 'queue'
+    fuzzer_inputs = workdir / 'inputs'
     fuzzer_outputs = workdir / 'outputs'
     fuzzer_crashes = workdir / 'outputs' / 'crashes'
     fuzzer_log = workdir / 'fuzzer.log'
@@ -179,10 +184,10 @@ def run_campaign(campaign: Path, info: str, revise: bool):
                 print(f'{Colors.RED}[-]{Colors.END} Fuzzer crashed, restarting')
                 p_fuzzer.launch()
 
-            if len(line_buffer) == 4 and line_buffer[0] == line_buffer[-1]:
-                print(f'{Colors.YELLOW}[*]{Colors.END} Fuzzer is stuck, restarting')
-                p_fuzzer.terminate(signal.SIGKILL)
-                p_fuzzer.launch()
+            # if len(line_buffer) == 4 and line_buffer[0] == line_buffer[-1]:
+            #     print(f'{Colors.YELLOW}[*]{Colors.END} Fuzzer is stuck, restarting')
+            #     p_fuzzer.terminate(signal.SIGKILL)
+            #     p_fuzzer.launch()
 
             if not p_bucketizer.is_running():
                 print(f'{Colors.RED}[-]{Colors.END} Bucketizer crashed, restarting')

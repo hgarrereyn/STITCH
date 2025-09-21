@@ -4,7 +4,9 @@ use std::fs::File;
 use std::{cell::RefCell, fs::OpenOptions, path::PathBuf, process, rc::Rc, time::Duration};
 use std::io::Write;
 
-use gf_core::{harness::{Harness, InvokeResult}, mutation::MutationContext};
+use gf_core::{harness::{Harness, InvokeResult, BailInfo}, mutation::MutationContext};
+use libafl::schedulers::powersched::PowerSchedule;
+use libafl::schedulers::StdWeightedScheduler;
 use libafl::Evaluator;
 use libafl::{corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::SimpleEventManager, executors::{ExitKind, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, monitors::SimpleMonitor, mutators::{havoc_mutations_no_crossover, tokens_mutations, StdMOptMutator, Tokens}, observers::{CanTrack, HitcountsMapObserver, TimeObserver}, schedulers::QueueScheduler, stages::StdMutationalStage, state::{HasCorpus, StdState}, Error, Fuzzer, HasMetadata, StdFuzzer};
 use libafl_bolts::{current_time, AsSliceMut};
@@ -14,7 +16,8 @@ use libafl_targets::{std_edges_map_observer, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
-use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}, state_metadata::{StateMetadata, StateMode}};
+use crate::components::trimming::{IndexesBailedLenMinimizerScheduler, TrimmingStage};
+use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}};
 
 
 
@@ -93,10 +96,9 @@ pub fn fuzz(
     let monitor = SimpleMonitor::with_user_monitor(|s| {
         #[cfg(unix)]
         writeln!(&mut stdout_cpy, "{s}").unwrap();
-        #[cfg(windows)]
-        println!("{s}");
+
         writeln!(log.borrow_mut(), "{:?} {s}", current_time()).unwrap();
-        // println!("{s}")
+        log.borrow_mut().flush().unwrap();
     });
 
     // We need a shared map to store our state before a crash.
@@ -112,6 +114,14 @@ pub fn fuzz(
     unsafe{
         EDGES_MAP_PTR = shmem_buf.as_mut_ptr();
     }
+
+    // Setup shared memory for bail info (exactly the size needed)
+    // BailInfo is a fixed-size structure: bool + 2 usize = 1 + 8 + 8 = 17 bytes
+    let bail_info_size = std::mem::size_of::<BailInfo>();
+    let mut bail_info_shmem = shmem_provider.new_shmem(bail_info_size).unwrap();
+    let bail_info_shmem_buf = bail_info_shmem.as_slice_mut();
+
+    let shared_bail_info = Rc::new(RefCell::new(bail_info_shmem_buf));
 
     let obs = unsafe { std_edges_map_observer("edges") };
 
@@ -184,7 +194,11 @@ pub fn fuzz(
         GraphMutateBytes::new(ctx.clone(), mutator),
     );
 
-    let scheduler = QueueScheduler::new();
+    // let scheduler = QueueScheduler::new();
+    let scheduler = IndexesBailedLenMinimizerScheduler::new(
+        &edges_observer,
+        StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
+    );
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
@@ -193,6 +207,16 @@ pub fn fuzz(
     let mut harness = |input: &GraphInput| {
         // Invoke the harness in the sandboxed environment
         let res = gf_harness.invoke(&input.graph, None);
+
+        // Store the bail info in the shared memory
+        let bail_info = res.to_bail_info();
+        let bail_info_bytes = unsafe { 
+            std::slice::from_raw_parts(
+                &bail_info as *const BailInfo as *const u8,
+                std::mem::size_of::<BailInfo>()
+            )
+        };
+        (*shared_bail_info).borrow_mut().copy_from_slice(bail_info_bytes);
 
         match res {
             InvokeResult::Success => ExitKind::Ok,
@@ -218,9 +242,12 @@ pub fn fuzz(
         shmem_provider.clone()
     )?;
 
+    let trimming_stage = TrimmingStage::new(
+        shared_bail_info.clone()
+    );
+
     let mut stages = tuple_list!(
-        // mark,
-        // metadata_logger,
+        trimming_stage,
         graph_mutator,
         // tracing,
         // i2s,
@@ -271,35 +298,6 @@ pub fn fuzz(
 
     // reopen file to make sure we're at the end
     log.replace(OpenOptions::new().append(true).create(true).open(logfile)?);
-
-    // Enforce address space hard limit based on rss_limit_mb to avoid K8s OOM kills.
-    // Rely on LibAFL's in-process crash handlers for proper restart/crash reporting.
-    // if let Some(rss_limit_mb) = rss_limit_mb {
-    //     if (rss_limit_mb > 0) {
-    //         let limit_bytes: u64 = rss_limit_mb * 1024 * 1024;
-    //         let mut rlimit = libc::rlimit {
-    //             rlim_cur: limit_bytes as libc::rlim_t,
-    //             rlim_max: libc::RLIM_INFINITY,
-    //         };
-    //         let sr = unsafe { libc::setrlimit(libc::RLIMIT_AS, &rlimit) };
-    //         if sr != 0 {
-    //             eprintln!("Warning: setrlimit(RLIMIT_AS) failed: {}", std::io::Error::last_os_error());
-    //         }
-    //     }
-    // }
-
-    // log::info!("Installing seccomp trap");
-    // // Install seccomp trap
-    // unsafe { install_sigsys_bridge_to_sigusr2().unwrap(); }
-    // install_seccomp_trap(&[
-    //     "execve", "execveat",
-    //     "fork", "vfork",
-    //     "clone", "clone3",
-    //     "rt_sigaction",
-    //     // "rt_sigprocmask",
-    // ]).unwrap();
-
-    // log::info!("Seccomp trap installed");
 
     log::info!("Starting fuzzing loop");
     fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;

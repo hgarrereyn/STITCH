@@ -25,18 +25,55 @@ pub struct Harness {
     write_init_shim: WriteInitShim,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InvokeResult {
     Success,
-    Bailed(BailPoint), // FUZZ_BAIL() was called
-    AssertionViolation(BailPoint, String), // FUZZ_ASSERT() violation
-    LibraryException(BailPoint, String), // Library exception
+    Bailed(BailPoint),                      // FUZZ_BAIL() was called
+    AssertionViolation(BailPoint, String),  // FUZZ_ASSERT() violation
+    LibraryException(BailPoint, String),    // Library exception
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BailPoint {
     pub node_idx: usize,
     pub node_type: usize,
+}
+
+/// Simplified structure for tracking bail information in shared memory
+#[derive(Debug, Clone, Copy)]
+#[repr(C, packed)]
+pub struct BailInfo {
+    pub bailed: bool,
+    pub node_idx: usize,
+    pub node_type: usize,
+}
+
+impl InvokeResult {
+    /// Convert InvokeResult to simplified BailInfo for efficient shared memory storage
+    pub fn to_bail_info(&self) -> BailInfo {
+        match self {
+            InvokeResult::Success => BailInfo {
+                bailed: false,
+                node_idx: 0,
+                node_type: 0,
+            },
+            InvokeResult::Bailed(bail_point) => BailInfo {
+                bailed: true,
+                node_idx: bail_point.node_idx,
+                node_type: bail_point.node_type,
+            },
+            InvokeResult::AssertionViolation(bail_point, _) => BailInfo {
+                bailed: true,
+                node_idx: bail_point.node_idx,
+                node_type: bail_point.node_type,
+            },
+            InvokeResult::LibraryException(bail_point, _) => BailInfo {
+                bailed: true,
+                node_idx: bail_point.node_idx,
+                node_type: bail_point.node_type,
+            },
+        }
+    }
 }
 
 impl Harness {
