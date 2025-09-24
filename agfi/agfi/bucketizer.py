@@ -73,10 +73,10 @@ def run_bucketize(fuzzer, crashes_dir, output_dir, nproc) -> bool:
 
     print(f'[{Colors.GREEN}*{Colors.END}] Processing {len(new_crashes)} crashes')
 
-    for crash in tqdm(new_crashes[:50], desc='Processing crashes'):
+    for crash in tqdm(new_crashes[:10], desc='Processing crashes'):
         process_crash((fuzzer, crashes_dir / crash, output_dir))
     
-    return len(new_crashes) > 50
+    return len(new_crashes) > 10
 
 
 def minimize_crash(args):
@@ -154,10 +154,10 @@ def run_minimize(info, fuzzer, crashes_dir, output_dir, nproc) -> bool:
 
     print(f'[{Colors.GREEN}*{Colors.END}] Minimizing {len(new_processed)} crashes')
 
-    for crash in tqdm(new_processed[:50], desc='Minimizing crashes'):
+    for crash in tqdm(new_processed[:10], desc='Minimizing crashes'):
         minimize_crash((info, fuzzer, crashes_dir / crash, output_dir))
     
-    return len(new_processed) > 50
+    return len(new_processed) > 10
 
 
 def main(args):

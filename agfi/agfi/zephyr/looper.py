@@ -300,6 +300,13 @@ def run_campaign(campaign: Path, info: str, revise: bool):
         (campaign / 'revisions' / str(next_revision) / 'harness.json').write_text(new_harness.model_dump_json(indent=2))
 
         print(f'{Colors.GREEN}[+]{Colors.END} New revision created: {next_revision}')
+
+        # Clean up the old revision
+        (workdir / 'fuzzer').unlink(missing_ok=True)
+        (workdir / 'fuzzer.json').unlink(missing_ok=True)
+        (workdir / 'fuzzer.pspec').unlink(missing_ok=True)
+        (workdir / 'fuzzer.pspec.cache').unlink(missing_ok=True)
+
         return
 
 

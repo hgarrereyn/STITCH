@@ -3,7 +3,7 @@ import difflib
 from ..data.project_info import ProjectInfo
 from .looper import CrashInfo
 from pydantic import BaseModel
-from .distill_agent import CrashAssessment
+from .distill_agent import CrashAssessment, OldCrashAssessment
 from typing import Optional
 from .patcher import PatchInfo
 from ..utils.colors import Colors
@@ -13,7 +13,7 @@ from ..utils.crash_repro import build_and_observe_crash
 
 class BugReport(BaseModel):
     info: CrashInfo
-    assessment: Optional[CrashAssessment] = None
+    assessment: Optional[CrashAssessment | OldCrashAssessment] = None
     patch: Optional[PatchInfo] = None
 
 
@@ -31,7 +31,10 @@ def main(args):
             
             bug = BugReport(info=CrashInfo.model_validate_json(open(p_info).read()))
             if p_assessment.exists():
-                bug.assessment = CrashAssessment.model_validate_json(open(p_assessment).read())
+                try:
+                    bug.assessment = CrashAssessment.model_validate_json(open(p_assessment).read())
+                except:
+                    bug.assessment = OldCrashAssessment.model_validate_json(open(p_assessment).read())
             if p_patch.exists():
                 bug.patch = PatchInfo.model_validate_json(open(p_patch).read())
             crashes.append(bug)

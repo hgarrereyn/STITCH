@@ -42,6 +42,18 @@ class CrashAssessmentTest(BaseModel):
     result: TestCompileOutput
 
 
+# TODO: remove
+class OldCrashAssessment(BaseModel):
+    title: str
+    crash_type: str
+    crash_type_reasoning: str
+    minimized_testcase: str
+    explanation: str
+    can_patch_fuzzer: bool
+    patch_guidance: str
+    usage: Optional[UsageTracker] = Field(default_factory=UsageTracker)
+
+
 class CrashAssessment(BaseModel):
     title: str
     crash_type: str

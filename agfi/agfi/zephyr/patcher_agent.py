@@ -121,6 +121,16 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
                 },
                 "required": ["stubs"]
             }
+        },
+        {
+            "type": "function",
+            "name": "crash_pattern",
+            "description": "Note down the general crash pattern observed for future reference",
+            "parameters": {
+                "type": "object",
+                "properties": { "theme": { "type": "string", "description": "The general crash pattern observed" } },
+                "required": ["theme"]
+            }
         }
     ]
 
@@ -130,21 +140,22 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
             model='gpt-5',
             input=ctx,
             reasoning={
-                "effort": "low",
+                "effort": "medium",
                 "summary": "auto"
             },
-            tool_choice='required',
             tools=tools
         )
         ctx += response.output
         usage.record_model('patcher', 'gpt-5', UsageTokens.from_openai(response.usage))
 
+        did_tool_call = False
         for message in response.output:
             match message.type:
                 case 'reasoning':
                     if message.summary is not None and len(message.summary) > 0:
                         print(f'{Colors.PURPLE}[*]{Colors.END} Reasoning: {message.summary[0].text}')
                 case 'function_call':
+                    did_tool_call = True
                     match message.name:
                         case 'find_stubs':
                             args = json.loads(message.arguments)
@@ -227,8 +238,20 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
                                     "failed_patches": failed_stubs
                                 })
                             })
+                        case 'crash_pattern':
+                            args = json.loads(message.arguments)
+                            print(f'{Colors.GREEN}[+]{Colors.END} Crash pattern: {args["theme"]}')
+                            ctx.append({
+                                "type": "function_call_output",
+                                "call_id": message.call_id,
+                                "output": 'ack'
+                            })
                         case _:
                             print(f'{Colors.RED}[-]{Colors.END} Unknown tool call: {message.name}')
+
+        if not did_tool_call:
+            print(f'{Colors.RED}[-]{Colors.END} No tool call made, exiting')
+            break
 
     print(f'{Colors.GREEN}[+]{Colors.END} Patched fuzzer stubs: {len(submitted_patches)}')
 
