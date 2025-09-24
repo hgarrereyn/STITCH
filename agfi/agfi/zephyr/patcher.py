@@ -31,11 +31,13 @@ class PatcherResponse(BaseModel):
     stubs: List[FunctionImpl] = Field(description="The list of edited fuzzer stubs with new implementations")
 
 
-def run_patcher(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAssessment, threads: int) -> PatchInfo:
+def run_patcher_full_context(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAssessment, threads: int) -> PatchInfo:
     usage = UsageTracker()
     client = OpenAI()
 
-    p_harness = harness.model_dump()
+    p_objects = [o.model_dump_json() for o in harness.objects]
+    p_functions = [f.model_dump_json() for f in harness.functions]
+    p_endpoints = [e.model_dump_json() for e in harness.endpoints]
     p_assessment = assessment.model_dump()
     
     ctx = [
@@ -45,7 +47,7 @@ def run_patcher(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAs
         },
         {
             "role": "user",
-            "content": f'Existing fuzzer stubs:\n{json.dumps(p_harness)}\n\nCrash assessment:\n{json.dumps(p_assessment)}'
+            "content": f'Existing fuzzer stubs:\n{json.dumps(p_endpoints)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nObjects:\n{json.dumps(p_objects)}\n\nCrash assessment:\n{json.dumps(p_assessment)}'
         },
     ]
 
@@ -109,6 +111,13 @@ def run_patcher(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAs
 
     orig = [original_stubs[name] for name in modified_stubs]
     return PatchInfo(original_stubs=orig, modified_stubs=modified_stubs.values(), usage=usage)
+
+
+def run_patcher(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAssessment, threads: int) -> PatchInfo:
+    # If we have too many endpoints, use a more restricted context for patching
+    # Otherwise, we can use the full context
+    print('[INFO] Using full context for patching')
+    return run_patcher_full_context(info, harness, assessment, threads)
 
 
 def main(args):

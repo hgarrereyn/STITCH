@@ -43,6 +43,9 @@ The fuzzer configuration is a JSON object containing the following information:
     - `defines`: a list of extra defines to use when compiling the project. (most of the time, you can leave this empty)
         - `name`: the name of the define
         - `value`: the value of the define
+- Note: the headers listed in `codegen.headers` will be used to search for the public API, list _every_ header that contains public API functions.
+- Do not limit the headers to only the ones used in the test program.
+- Make sure the headers are listed in the correct order -- they will be copied in this order into generated fuzz harnesses.
 
 # Tools
 The following codebase search tools are provided to you:

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 import tempfile
 from pathlib import Path
@@ -19,17 +19,7 @@ from ..data.metadata import UsageTracker, UsageTokens
 MAX_ITERATIONS = 10
 
 PROMPT_DISTILL_AGENT = open(os.path.join(os.path.dirname(__file__), 'prompts/distill_agent.md')).read()
-
-
-class CrashAssessment(BaseModel):
-    title: str
-    crash_type: str
-    crash_type_reasoning: str
-    minimized_testcase: str
-    explanation: str
-    can_patch_fuzzer: bool
-    patch_guidance: str
-    usage: Optional[UsageTracker] = Field(default_factory=UsageTracker)
+PROMPT_DISTILL_AGENT_LAST = open(os.path.join(os.path.dirname(__file__), 'prompts/distill_agent_last.md')).read()
 
 
 class CompileError(BaseModel):
@@ -45,6 +35,26 @@ class ProcessResult(BaseModel):
 
 class TestCompileOutput(BaseModel):
     res: CompileError | ProcessResult
+
+
+class CrashAssessmentTest(BaseModel):
+    testcase: str
+    result: TestCompileOutput
+
+
+class CrashAssessment(BaseModel):
+    title: str
+    crash_type: str
+    crash_type_reasoning: str
+    minimized_testcase: str
+    explanation: str
+    can_patch_fuzzer: bool
+    patch_guidance: str
+    relevant_functions: List[str]
+
+    # Added later
+    usage: Optional[UsageTracker] = Field(default_factory=UsageTracker)
+    test_iterations: List[CrashAssessmentTest] = Field(default_factory=list)
 
 
 def pretty_print_compile_output(output: TestCompileOutput):
@@ -106,7 +116,18 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
 
     if report is None:
         print(f'{Colors.RED}[-]{Colors.END} No crash report found')
-        return CrashAssessment(title=summary, crash_type='unknown', crash_type_reasoning=None, minimized_testcase=testcase, explanation=summary, usage=usage, can_patch_fuzzer=False, patch_guidance=None)
+        return CrashAssessment(
+            title=summary,
+            crash_type='unknown',
+            crash_type_reasoning=None,
+            minimized_testcase=testcase,
+            explanation='',
+            usage=usage,
+            can_patch_fuzzer=False,
+            patch_guidance=None,
+            relevant_functions=fuzzer_stubs,
+            test_iterations=[]
+        )
 
     ctx = [
         {
@@ -149,12 +170,15 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
                     "minimized_testcase": { "type": "string", "description": "A minimized C++ testcase that demonstrates the crash" },
                     "explanation": { "type": "string", "description": "A detailed explanation of your assessment" },
                     "can_patch_fuzzer": { "type": "boolean", "description": "Whether the fuzzer can be patched to fix or avoid the crash" },
-                    "patch_guidance": { "type": "string", "description": "Detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`)" }
+                    "patch_guidance": { "type": "string", "description": "Detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`)" },
+                    "relevant_functions": { "type": "array", "description": "The list of functions which are relevant to the crash", "items": { "type": "string" } }
                 },
                 "required": ["title", "crash_type", "crash_type_reasoning", "minimized_testcase", "explanation", "can_patch_fuzzer", "patch_guidance"]
             }
         }
     ]
+
+    test_iterations = []
 
     for i in range(MAX_ITERATIONS):
         print(f'{Colors.GREEN}[+]{Colors.END} Iteration {i+1} of {MAX_ITERATIONS}')
@@ -188,6 +212,8 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
                         print(f'{Colors.GREEN}[+]{Colors.END} Test compile output:')
                         pretty_print_compile_output(output)
 
+                        test_iterations.append(CrashAssessmentTest(testcase=testcase, result=output))
+
                         ctx.append({
                             "type": "function_call_output",
                             "call_id": message.call_id,
@@ -196,13 +222,33 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
                     elif message.name == 'crash_assessment':
                         assessment = CrashAssessment.model_validate_json(message.arguments)
                         assessment.usage = usage
+                        assessment.test_iterations = test_iterations
                         print(f'{Colors.GREEN}[+]{Colors.END} Crash assessment: ({assessment.crash_type}) {assessment.title}')
                         return assessment
                     else:
                         print(f'{Colors.RED}[-]{Colors.END} Unknown tool call: {message.name}')
 
+        # If we are on the second to last iteration, tell the model to use the crash_assessment tool
+        if i == MAX_ITERATIONS - 2:
+            ctx.append({
+                "role": "user",
+                "content": PROMPT_DISTILL_AGENT_LAST
+            })
+            
+
     print(f'{Colors.RED}[-]{Colors.END} No crash assessment found')
-    return CrashAssessment(title=summary, crash_type='unknown', crash_type_reasoning=None, minimized_testcase=testcase, explanation=summary, usage=usage, can_patch_fuzzer=False, patch_guidance=None)
+    return CrashAssessment(
+        title=summary,
+        crash_type='unknown',
+        crash_type_reasoning=None,
+        minimized_testcase=testcase,
+        explanation='',
+        usage=usage,
+        can_patch_fuzzer=False,
+        patch_guidance=None,
+        relevant_functions=fuzzer_stubs,
+        test_iterations=test_iterations
+    )
 
 
 def main(args):

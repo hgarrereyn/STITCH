@@ -43,8 +43,8 @@ def run_validate_object(info: ProjectInfo, obj: ObjectInfo) -> List[ObjectInfo]:
     )]
 
 
-def run_validate_function_name(info: ProjectInfo, name: str) -> List[FunctionInfo]:
-    if validate_function(name, info) is None:
+def run_validate_function_name(info: ProjectInfo, name: str, verbose: bool = False) -> List[FunctionInfo]:
+    if validate_function(name, info, verbose) is None:
         return [name]
     return []
 

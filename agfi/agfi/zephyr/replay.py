@@ -36,12 +36,18 @@ def main(args):
                 bug.patch = PatchInfo.model_validate_json(open(p_patch).read())
             crashes.append(bug)
 
+    if args.bug_hash is not None:
+        crashes = [crash for crash in crashes if crash.info.bucket_hash == args.bug_hash]
+
     for crash in crashes:
         if crash.assessment is None:
             continue
 
         # print info about the crash summary and crash type
-        print(f'{Colors.GREEN}[+]{Colors.END} Crash: {crash.info.summary} ({crash.assessment.crash_type})')
+        print(f'{Colors.GREEN}[+]{Colors.END} Crash: ({crash.info.bucket_hash}) {crash.info.summary} ({crash.assessment.crash_type})')
+        print(f'    {Colors.CYAN}[+]{Colors.END} Bug report: {crash.assessment.crash_type_reasoning}')
+        print(f'    {Colors.CYAN}[+]{Colors.END} Description:')
+        pretty_print_code(crash.assessment.explanation, language="markdown")
         print(f'    {Colors.CYAN}[+]{Colors.END} Minimized testcase:')
         if args.raw:
             print(crash.assessment.minimized_testcase)
@@ -66,4 +72,5 @@ def register(subparsers):
     parser = subparsers.add_parser('replay')
     parser.add_argument('campaign', type=str, help='Path to the campaign directory')
     parser.add_argument('--raw', action='store_true', help='Print the raw crash report and summary')
+    parser.add_argument('-b', '--bug-hash', type=str, help='The hash of the bug to replay', default=None)
     parser.set_defaults(func=main)

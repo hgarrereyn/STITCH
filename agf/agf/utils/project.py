@@ -108,7 +108,7 @@ class Project:
             return []
         return [Harness(x) for x in harness_path.iterdir() if x.is_dir()]
 
-    def base_image(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None) -> str:
+    def base_image(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> str:
         """
         Builds the base image for the project.
         """
@@ -124,16 +124,16 @@ class Project:
         base_image += 'WORKDIR /fuzz/src\n'
         base_image += 'ENV DEBIAN_FRONTEND=noninteractive\n'
         base_image += 'ENV LD_LIBRARY_PATH=/fuzz/install/lib\n'
-        base_image += 'ENV ASAN_OPTIONS=hard_rss_limit_mb=1024:detect_leaks=0\n'
+        base_image += f'ENV ASAN_OPTIONS=hard_rss_limit_mb={hard_rss_limit_mb}:detect_leaks=0\n'
         if build_coverage:
             base_image += 'ENV GRAPHFUZZ_BUILD_COVERAGE=1\n'
         if use_asan:
             base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
         return base_image
 
-    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None) -> bool:
+    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> bool:
         config = self.get_config()
-        base = self.base_image(build_coverage, use_asan, override_commit)
+        base = self.base_image(build_coverage, use_asan, override_commit, hard_rss_limit_mb)
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)

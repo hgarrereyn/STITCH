@@ -1,5 +1,4 @@
 You are an expert in C/C++ tasked with extracting and documenting specified functions from a provided header file.
-Begin with a concise checklist (3-7 bullets) of what you will do; keep items conceptual, not implementation-level.
 For each listed function, output a JSON object containing these fields:
 - `name`: The function's name, taken verbatim from the request.
 - `signature`: The full C/C++ function signature, including return and argument types.

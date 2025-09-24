@@ -62,19 +62,21 @@ def process_crash(args):
             (bucket_dir / 'orig' / f'{crash_path.name}.graph').write_bytes(f.read())
 
 
-def run_bucketize(fuzzer, crashes_dir, output_dir, nproc):
+def run_bucketize(fuzzer, crashes_dir, output_dir, nproc) -> bool:
     """Run each unprocessed crash through the harness and collect the crash summary."""
     processed = set([f.stem for f in (output_dir / '.processed').iterdir() if f.is_file() and not f.name.startswith('.')])
     crashes = set([f.name for f in crashes_dir.iterdir() if f.is_file() and not f.name.startswith('.')])
-    new_crashes = crashes - processed
+    new_crashes = list(crashes - processed)
     
     if len(new_crashes) == 0:
-        return
+        return False
 
     print(f'[{Colors.GREEN}*{Colors.END}] Processing {len(new_crashes)} crashes')
 
-    for crash in tqdm(new_crashes, desc='Processing crashes'):
+    for crash in tqdm(new_crashes[:50], desc='Processing crashes'):
         process_crash((fuzzer, crashes_dir / crash, output_dir))
+    
+    return len(new_crashes) > 50
 
 
 def minimize_crash(args):
@@ -141,19 +143,21 @@ def minimize_crash(args):
         (output_dir / '.minimized' / f'{crash_path.name}.success').touch()
 
 
-def run_minimize(info, fuzzer, crashes_dir, output_dir, nproc):
+def run_minimize(info, fuzzer, crashes_dir, output_dir, nproc) -> bool:
     """For every processed crash, if the corresponding bucket has fewer than N reproducers, run the minimizer."""
     processed = set([f.stem for f in (output_dir / '.processed').iterdir() if f.is_file() and not f.name.startswith('.') and not f.name.endswith('.none')])
     minimized = set([f.stem for f in (output_dir / '.minimized').iterdir() if f.is_file() and not f.name.startswith('.')])
-    new_processed = processed - minimized
+    new_processed = list(processed - minimized)
 
     if len(new_processed) == 0:
-        return
+        return False
 
     print(f'[{Colors.GREEN}*{Colors.END}] Minimizing {len(new_processed)} crashes')
 
-    for crash in tqdm(new_processed, desc='Minimizing crashes'):
+    for crash in tqdm(new_processed[:50], desc='Minimizing crashes'):
         minimize_crash((info, fuzzer, crashes_dir / crash, output_dir))
+    
+    return len(new_processed) > 50
 
 
 def main(args):
@@ -172,13 +176,15 @@ def main(args):
     subprocess.run([fuzzer, '--bypass-validation'], capture_output=False)
 
     while True:
-        run_bucketize(fuzzer, crashes_dir, output_dir, nproc)
-        run_minimize(args.info, fuzzer, crashes_dir, output_dir, nproc)
+        has_more = False
+        has_more |= run_bucketize(fuzzer, crashes_dir, output_dir, nproc)
+        has_more |= run_minimize(args.info, fuzzer, crashes_dir, output_dir, nproc)
 
-        if not watch:
+        if not has_more:
+            time.sleep(5)
+
+        if not watch and not has_more:
             break
-
-        time.sleep(5)
 
 
 def register(subparsers: ArgumentParser):

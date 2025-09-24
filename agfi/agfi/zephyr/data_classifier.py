@@ -20,7 +20,7 @@ class ClassificationResponse(BaseModel):
     new_data_types: List[DataTypeInfo]
 
 
-def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker) -> Tuple[List[DataTypeInfo], List[FunctionClassifier]]:
+def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker, selective_context: bool = False) -> Tuple[List[DataTypeInfo], List[FunctionClassifier]]:
     client = OpenAI()
 
     data_types: List[DataTypeInfo] = []
@@ -41,24 +41,40 @@ def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endp
         print(f'Classifying data (step {i + 1} of {len(remaining_endpoints)})...')
         batch_endpoints = remaining_endpoints[i:i+BATCH_SIZE]
 
-        p_objects = [o.model_dump_json() for o in objects]
-        p_functions = [f.model_dump_json() for f in functions]
-        p_endpoints = [e.model_dump_json() for e in batch_endpoints]
-        p_data_types = [d.model_dump_json() for d in data_types]
+        ctx = [
+            {
+                "role": "developer",
+                "content": PROMPT_CLASSIFY_DATA
+            }
+        ]
+        if selective_context:
+            batch_endpoint_names = [e.name for e in batch_endpoints]
+            relevant_functions = [f for f in functions if f.name in batch_endpoint_names]
+
+            p_objects = [o.model_dump_json() for o in objects]
+            p_functions = [f.model_dump_json() for f in relevant_functions]
+            p_endpoints = [e.model_dump_json() for e in batch_endpoints]
+            p_data_types = [d.model_dump_json() for d in data_types]
+
+            ctx.append({
+                "role": "user",
+                "content": f'Objects: {json.dumps(p_objects)}\nFunctions: {json.dumps(p_functions)}\nTarget fuzzer stubs: {json.dumps(p_endpoints)}\nKnown data types: {json.dumps(p_data_types)}'
+            })
+        else:
+            p_objects = [o.model_dump_json() for o in objects]
+            p_functions = [f.model_dump_json() for f in functions]
+            p_endpoints = [e.model_dump_json() for e in batch_endpoints]
+            p_data_types = [d.model_dump_json() for d in data_types]
+            
+            ctx.append({
+                "role": "user",
+                "content": f'Objects: {json.dumps(p_objects)}\nFunctions: {json.dumps(p_functions)}\nTarget fuzzer stubs: {json.dumps(p_endpoints)}\nKnown data types: {json.dumps(p_data_types)}'
+            })
 
         response = client.responses.parse(
             model="gpt-5",
             reasoning={ "effort": "minimal" },
-            input=[
-                {
-                    "role": "developer",
-                    "content": PROMPT_CLASSIFY_DATA
-                },
-                {
-                    "role": "user",
-                    "content": f'Objects: {json.dumps(p_objects)}\nFunctions: {json.dumps(p_functions)}\nTarget fuzzer stubs: {json.dumps(p_endpoints)}\nKnown data types: {json.dumps(p_data_types)}'
-                },
-            ],
+            input=ctx,
             text_format=ClassificationResponse
         )
         usage.record_model('classify-data', 'gpt-5', UsageTokens.from_openai(response.usage))

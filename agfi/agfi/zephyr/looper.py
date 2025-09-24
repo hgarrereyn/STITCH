@@ -272,7 +272,7 @@ def run_campaign(campaign: Path, info: str, revise: bool):
         patch_path = tmpdir / 'patch.json'
         try:
             subprocess.run([
-                'agfi', 'zephyr', 'patcher',
+                'agfi', 'zephyr', 'patcher-agent',
                 '--info', info,
                 '--harness', str((workdir / 'harness.json').absolute()),
                 '--assessment', str(assessment_path),

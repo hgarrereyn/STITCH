@@ -17,7 +17,26 @@ from .pretty import pretty_print_code
 
 PROMPT_AGENT = open(Path(__file__).parent / 'prompt_agent.md').read()
 
-MAX_CYCLES = 10
+MAX_CYCLES = 15
+
+
+def _validate_path(root_path: str, relative_path: str) -> Optional[Path]:
+    """
+    Validate that the relative_path is within root_path to prevent directory traversal.
+    Returns the resolved Path if valid, None if invalid.
+    """
+    root = Path(root_path).resolve()
+    try:
+        # Resolve the path to handle any .. sequences
+        resolved_path = (root / relative_path).resolve()
+        # Check if the resolved path is within the root directory
+        if resolved_path.is_relative_to(root):
+            return resolved_path
+        else:
+            return None
+    except (OSError, ValueError):
+        # Handle invalid paths or permission errors
+        return None
 
 
 class FileResult(BaseModel):
@@ -25,10 +44,12 @@ class FileResult(BaseModel):
     error: Optional[str]
 
 def read_file(root_path: str, path: str, start_line: int, end_line: int) -> FileResult:
-    path = Path(root_path) / path
-    if not path.exists():
+    validated_path = _validate_path(root_path, path)
+    if validated_path is None:
+        return FileResult(content='', error='Invalid path: directory traversal not allowed')
+    if not validated_path.exists():
         return FileResult(content='', error='File path not found')
-    with open(path, 'r') as f:
+    with open(validated_path, 'r') as f:
         return FileResult(content='\n'.join(f.readlines()[start_line-1:end_line]), error=None)
 
 class FileInfo(BaseModel):
@@ -37,13 +58,17 @@ class FileInfo(BaseModel):
     is_dir: bool
 
 def list_dir(root_path: str, path: str) -> List[FileInfo]:
-    query_path = Path(root_path) / path
+    validated_path = _validate_path(root_path, path)
+    if validated_path is None:
+        return []
+    if not validated_path.exists() or not validated_path.is_dir():
+        return []
     return [
         FileInfo(
-            path=str(f.relative_to(query_path)),
+            path=str(f.relative_to(validated_path)),
             lines=len(f.read_text(encoding='utf-8', errors='ignore').splitlines()) if f.is_file() else None,
             is_dir=f.is_dir()
-        ) for f in query_path.glob('*') if f.is_file() or f.is_dir()
+        ) for f in validated_path.glob('*') if f.is_file() or f.is_dir()
     ]
 
 class ConfigurationError(BaseModel):

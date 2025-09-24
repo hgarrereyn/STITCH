@@ -56,7 +56,7 @@ def do_replay(args):
             mounts=mounts, 
             cmd=f'''
                 cd /fuzz/workspace &&
-                agfi zephyr replay /fuzz/campaign {'--raw' if args.raw else ''}
+                agfi zephyr replay /fuzz/campaign {'--raw' if args.raw else ''} {'--bug-hash ' + args.bug_hash if args.bug_hash else ''}
             '''
         )
 
@@ -68,4 +68,5 @@ def register(subparsers):
     subparser.add_argument('-c', '--commit', type=str, help='Test on a specific commit', default=None)
     subparser.add_argument('--raw', action='store_true', help='Print the raw crash report and summary', default=False)
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
+    subparser.add_argument('-b', '--bug-hash', type=str, help='The hash of the bug to replay', default=None)
     subparser.set_defaults(func=do_replay)

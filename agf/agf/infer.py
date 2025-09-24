@@ -54,7 +54,7 @@ def do_infer(args):
         mounts = [
             (str(tmpdir), '/fuzz/workspace')
         ]
-        cmd = f'cd /fuzz/workspace && agfi zephyr run --headers {" ".join(headers)} --output meta.json --threads {args.threads}'
+        cmd = f'cd /fuzz/workspace && agfi zephyr run --headers {" ".join(headers)} --output meta.json --threads {args.threads} {"--verbose" if args.verbose else ""}'
 
         project.invoke(env=env, mounts=mounts, cmd=cmd)
 
@@ -68,4 +68,5 @@ def register(subparsers):
     subparser.add_argument('--name', help='The name of the harness', default=None)
     subparser.add_argument('--force', action='store_true', help='Force overwrite existing harness')
     subparser.add_argument('--threads', type=int, default=1, help='Number of threads to use for inference')
+    subparser.add_argument('--verbose', action='store_true', help='Verbose output')
     subparser.set_defaults(func=do_infer)

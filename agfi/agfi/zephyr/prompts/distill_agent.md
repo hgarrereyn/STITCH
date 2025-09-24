@@ -62,3 +62,4 @@ You will also be provided with a list of fuzzer stubs that were involved in the 
     - `explanation`: a detailed explanation of your assessment
     - `can_patch_fuzzer`: whether the fuzzer can be patched to fix or avoid the crash
     - `patch_guidance`: detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`)
+    - `relevant_functions`: a list of all the function names which are involved with or relevant to the crash

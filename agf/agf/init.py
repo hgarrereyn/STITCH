@@ -1,6 +1,8 @@
 
 from pathlib import Path
 import shutil
+import requests
+import json
 
 from .utils.colors import Colors
 from .utils.project import Project, ProjectConfig
@@ -14,13 +16,52 @@ def get_repo_name(url):
     return None
 
 
+def get_latest_commit(url):
+    """
+    Get the latest commit hash from a GitHub repository URL.
+    This returns the commit that would be checked out by a simple git clone.
+    """
+    if not url.startswith('https://github.com/'):
+        raise ValueError(f"Invalid GitHub URL: {url}")
+    
+    # Extract owner and repo from URL
+    parts = url.rstrip('/').split('/')
+    if len(parts) < 5:
+        raise ValueError(f"Invalid GitHub URL format: {url}")
+    
+    owner = parts[3]
+    repo = parts[4].replace('.git', '')
+    
+    # Use GitHub API to get the default branch's latest commit
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
+    
+    try:
+        response = requests.get(api_url, params={'per_page': 1})
+        response.raise_for_status()
+        
+        commits = response.json()
+        if not commits:
+            raise ValueError(f"No commits found in repository {owner}/{repo}")
+        
+        return commits[0]['sha']
+        
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Failed to fetch latest commit from GitHub API: {e}")
+    except (KeyError, IndexError) as e:
+        raise RuntimeError(f"Unexpected response format from GitHub API: {e}")
+
+
 def do_init(args):
     repo_name = get_repo_name(args.url)
     if repo_name is None:
         print(f'[{Colors.RED}-{Colors.END}] Invalid github url: {args.url}')
         return
+
+    commit = args.commit if args.commit is not None else get_latest_commit(args.url)
+
+    print(f'[{Colors.GREEN}+{Colors.END}] Pinned commit: {commit}')
    
-    config = ProjectConfig(name=repo_name, repo=args.url, commit=args.commit)
+    config = ProjectConfig(name=repo_name, repo=args.url, commit=commit)
 
     # Default to the repo name unless we have a custom path
     path = Path(args.path) if args.path is not None else Path(repo_name)

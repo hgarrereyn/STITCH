@@ -41,7 +41,7 @@ def do_fuzz(args):
 
     check_env(['OPENAI_API_KEY'])
 
-    project.build_docker(use_asan=asan)
+    project.build_docker(use_asan=asan, hard_rss_limit_mb=args.hard_rss_limit_mb)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -75,4 +75,5 @@ def register(subparsers):
     subparser.add_argument('--max-revisions', type=int, help='The maximum number of revisions to run', default=10)
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('--reset', action='store_true', help='Reset the campaign', default=False)
+    subparser.add_argument('--hard-rss-limit-mb', type=int, help='The hard RSS limit in MB', default=1024)
     subparser.set_defaults(func=do_fuzz)

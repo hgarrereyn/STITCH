@@ -15,6 +15,7 @@ from ..utils.colors import Colors
 from .pretty import print_function_impl, pretty_print_error
 
 from openai import OpenAI
+import openai
 
 
 PROMPT_FILL_BATCH = open(os.path.join(os.path.dirname(__file__), 'prompts/fill_batch.md')).read()
@@ -100,66 +101,83 @@ class FillBatchResponse(BaseModel):
     endpoints: List[FunctionImpl]
 
 
-def prompt_fill_batch(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], usage: UsageTracker) -> List[FunctionImpl]:
+def prompt_fill_ctx(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], selective_context: bool = False, with_errors: bool = False) -> list[dict]:
+    ctx = [
+        {
+            "role": "developer",
+            "content": (PROMPT_FILL_BATCH + '\n' + PROMPT_WITH_ERRORS) if with_errors else PROMPT_FILL_BATCH
+        }
+    ]    
+    if selective_context:
+        # Identify just the endpoints/objects/functions that are likely relevant for this batch
+        
+        # Provide all objects (for context about types)
+        p_objects = [o.model_dump() for o in metadata.objects]
+
+        # Find existing endpoints that reference the target types
+        relevant_endpoints = [e for e in metadata.endpoints + valid_endpoints if any(io.type in batch_types for io in e.inputs + e.outputs)]
+        relevant_endpoint_names = [e.name for e in relevant_endpoints]
+
+        # Find functions that are referenced by the relevant endpoints
+        relevant_functions = [f for f in metadata.functions if f.name in relevant_endpoint_names]
+
+        # Provide the relevant endpoints/objects/functions
+        p_endpoints = [e.model_dump() for e in relevant_endpoints]
+        p_functions = [f.model_dump() for f in relevant_functions]
+
+        ctx.append({
+            "role": "user",
+            "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nEndpoints:\n{json.dumps(p_endpoints)}\n\nTarget types:\n{json.dumps(batch_types)}'
+        })
+    else:
+        # Provide all endpoints/objects/functions
+        p_endpoints = [e.model_dump() for e in metadata.endpoints + valid_endpoints]
+        p_objects = [o.model_dump() for o in metadata.objects]
+        p_functions = [f.model_dump() for f in metadata.functions]
+    
+        ctx.append({
+            "role": "user",
+            "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nEndpoints:\n{json.dumps(p_endpoints)}\n\nTarget types:\n{json.dumps(batch_types)}'
+        })
+    return ctx
+
+
+def prompt_fill_batch(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], usage: UsageTracker, selective_context: bool = False) -> List[FunctionImpl]:
     client = OpenAI()
-    
-    p_endpoints = [e.model_dump() for e in metadata.endpoints + valid_endpoints]
-    p_objects = [o.model_dump() for o in metadata.objects]
-    p_functions = [f.model_dump() for f in metadata.functions]
-    p_target_types = batch_types
-    
+
+    ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=False)
     res = client.responses.parse(
         model='gpt-5',
         reasoning={ "effort": "low" },
-        input=[
-            {
-                "role": "developer",
-                "content": PROMPT_FILL_BATCH
-            },
-            {
-                "role": "user",
-                "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nEndpoints:\n{json.dumps(p_endpoints)}\n\nTarget types:\n{json.dumps(p_target_types)}'
-            },
-        ],
+        input=ctx,
         text_format=FillBatchResponse
     )
     usage.record_model('fill-batch', 'gpt-5', UsageTokens.from_openai(res.usage))
     return res.output_parsed.endpoints
 
 
-def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], failed_endpoints: List[FunctionImplError], usage: UsageTracker) -> List[FunctionImpl]:
+def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], failed_endpoints: List[FunctionImplError], usage: UsageTracker, selective_context: bool = False) -> List[FunctionImpl]:
     client = OpenAI()
     
-    p_endpoints = [e.model_dump() for e in metadata.endpoints + valid_endpoints]
-    p_objects = [o.model_dump() for o in metadata.objects]
-    p_functions = [f.model_dump() for f in metadata.functions]
-    p_target_types = batch_types
+    ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=True)
+
     p_failed_endpoints = [e.model_dump() for e in failed_endpoints]
+    ctx.append({
+        "role": "user",
+        "content": f'Previous failure messages:\n{json.dumps(p_failed_endpoints)}'
+    })
 
     res = client.responses.parse(
         model='gpt-5',
         reasoning={ "effort": "low" },
-        input=[
-            {
-                "role": "developer",
-                "content": PROMPT_FILL_BATCH + '\n' + PROMPT_WITH_ERRORS
-            },
-            {
-                "role": "user",
-                "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nEndpoints:\n{json.dumps(p_endpoints)}\n\nTarget types:\n{json.dumps(p_target_types)}'
-            },
-            {
-                "role": "user",
-                "content": f'Previous failure messages:\n{json.dumps(p_failed_endpoints)}'
-            },
-        ],
+        input=ctx,
         text_format=FillBatchResponse
     )
     usage.record_model('fill-batch', 'gpt-5', UsageTokens.from_openai(res.usage))
     return res.output_parsed.endpoints
 
 
-def run_fill_batch(info: ProjectInfo, metadata: ProjectMetadata, target_types: List[str], usage: UsageTracker, threads: int) -> List[FunctionImpl]:
+def run_fill_batch(info: ProjectInfo, metadata: ProjectMetadata, target_types: List[str], usage: UsageTracker, threads: int, selective_context: bool = False) -> List[FunctionImpl]:
     """Ask the LLM to synthesize constructor endpoints for target object types; return new validated endpoints."""
     if len(target_types) == 0:
         return []
@@ -188,9 +206,15 @@ def run_fill_batch(info: ProjectInfo, metadata: ProjectMetadata, target_types: L
         # Query the LLM
         stubs = None
         if len(filtered_failed) > 0:
-            stubs = prompt_fill_batch_with_errors(metadata, valid_endpoints, target_types, filtered_failed, usage)
+            try:
+                stubs = prompt_fill_batch_with_errors(metadata, valid_endpoints, target_types, filtered_failed, usage, selective_context)
+            except openai.BadRequestError:
+                log('ERROR', f"Context too large in prompt_fill_batch_with_errors")
         else:
-            stubs = prompt_fill_batch(metadata, valid_endpoints, target_types, usage)
+            try:
+                stubs = prompt_fill_batch(metadata, valid_endpoints, target_types, usage, selective_context)
+            except openai.BadRequestError:
+                log('ERROR', f"Context too large in prompt_fill_batch")
 
         res: List[FunctionImpl] = stubs
         

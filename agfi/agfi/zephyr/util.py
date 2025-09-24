@@ -1,6 +1,6 @@
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Callable, TypeVar
 import tempfile
 import importlib.util
 import os
@@ -21,6 +21,10 @@ def parallel_run(threads: int, func: Any, inputs: List[Any]) -> List[Any]:
     # Flatten the list
     return [item for sublist in res for item in sublist]
 
+def parallel_run_raw(threads: int, func: Any, inputs: List[Any]) -> List[Any]:
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        res = list(executor.map(smash_fn, [(func, i) for i in inputs]))
+    return res
 
 def log(mode: str, msg: str):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
