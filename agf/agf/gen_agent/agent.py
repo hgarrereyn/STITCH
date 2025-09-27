@@ -99,14 +99,20 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         ]
 
         print(f'[{Colors.GREEN}+{Colors.END}] Testing test program...')
-        res = project.invoke(
-            mounts=mounts, 
-            cmd='''
-                cd /fuzz/workspace &&
-                agfi build external test &&
-                ./test
-            ''', stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True
-        )
+        try:
+            res = project.invoke(
+                mounts=mounts, 
+                cmd='''
+                    cd /fuzz/workspace &&
+                    agfi build external test &&
+                    ./test
+                ''', stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, timeout=20
+            )
+        except TimeoutError:
+            return ConfigurationError(error_type='Test program timed out', error={
+                'stdout': '',
+                'stderr': 'Test program timed out after 20 seconds (if it reads stdio or expects external input, this is expected)',
+            })
         
         if res.returncode != 0:
             return ConfigurationError(error_type='Test program did not compile or run correctly', error={

@@ -70,10 +70,38 @@ def main(args):
             print(f'{Colors.CYAN}[+]{Colors.END} crash summary:')
             print(summary)
 
+        if args.all:
+            match crash.assessment:
+                case CrashAssessment():
+                    i = 0
+                    for iteration in crash.assessment.test_iterations:
+                        i += 1
+                        print(f'{Colors.CYAN}[+]{Colors.END} iteration {i}')
+                        testcase = iteration.testcase
+                        if args.raw:
+                            print(testcase)
+                        else:
+                            pretty_print_code(testcase, language="cpp", title=f"testcase {i}")
+                        report, summary = build_and_observe_crash(str(testcase))
+                        if report is None:
+                            print(f'{Colors.RED}[-]{Colors.END} no crash observed for iteration {i}')
+                        else:
+                            print(f'{Colors.GREEN}[+]{Colors.END} crash observed for iteration {i}:')
+                            if args.raw:
+                                print(report)
+                            else:
+                                pretty_print_code(report, language="json", title="crash report")
+                            print(f'{Colors.CYAN}[+]{Colors.END} crash summary:')
+                            print(summary)
+                case _:
+                    # TODO: remove with older version
+                    print(f'{Colors.RED}[-]{Colors.END} no test iterations to replay')
+
 
 def register(subparsers):
     parser = subparsers.add_parser('replay')
     parser.add_argument('campaign', type=str, help='Path to the campaign directory')
     parser.add_argument('--raw', action='store_true', help='Print the raw crash report and summary')
     parser.add_argument('-b', '--bug-hash', type=str, help='The hash of the bug to replay', default=None)
+    parser.add_argument('-a', '--all', action='store_true', help='Replay all iterations of the testcase', default=False)
     parser.set_defaults(func=main)

@@ -159,21 +159,38 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
                     match message.name:
                         case 'find_stubs':
                             args = json.loads(message.arguments)
-                            stubs = find_stubs(args['pattern'], harness)
 
-                            print(f'{Colors.GREEN}[+]{Colors.END} Searching for stubs: "{args["pattern"]}" -> Found {len(stubs)} stubs')
+                            err = False
+                            stubs = []
+                            try:
+                                stubs = find_stubs(args['pattern'], harness)
+                            except Exception as e:
+                                print(f'{Colors.RED}[-]{Colors.END} Error searching for stubs: {e}')
+                                stubs = []
+                                err = True
 
-                            already_seen = [x.name for x in stubs if x.name in provided_stubs]
-                            new_stubs = [x.model_dump() for x in stubs if x.name not in already_seen]
-
-                            ctx.append({
-                                "type": "function_call_output",
-                                "call_id": message.call_id,
-                                "output": json.dumps({
-                                    "seen_matches": already_seen,
-                                    "new_matches": new_stubs
+                                ctx.append({
+                                    "type": "function_call_output",
+                                    "call_id": message.call_id,
+                                    "output": json.dumps({
+                                        "error": str(e)
+                                    })
                                 })
-                            })
+
+                            if not err:
+                                print(f'{Colors.GREEN}[+]{Colors.END} Searching for stubs: "{args["pattern"]}" -> Found {len(stubs)} stubs')
+
+                                already_seen = [x.name for x in stubs if x.name in provided_stubs]
+                                new_stubs = [x.model_dump() for x in stubs if x.name not in already_seen]
+
+                                ctx.append({
+                                    "type": "function_call_output",
+                                    "call_id": message.call_id,
+                                    "output": json.dumps({
+                                        "seen_matches": already_seen,
+                                        "new_matches": new_stubs
+                                    })
+                                })
                         case 'patch_stubs':
                             args = json.loads(message.arguments)
                             stubs = args['stubs']

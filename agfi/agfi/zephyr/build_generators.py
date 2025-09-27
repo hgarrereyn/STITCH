@@ -66,6 +66,7 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
             "content": f'Objects: {json.dumps(p_objects)}\nFunctions: {json.dumps(p_functions)}\nTarget fuzzer stubs: {json.dumps(p_endpoints)}\nKnown data types: {json.dumps(p_data_type)}'
         })
     
+    validated = False
     generator = None
     for i in range(REGEN_ATTEMPTS):
         print(f'[{Colors.GREEN}+{Colors.END}] Building generator for {data_type} (attempt {i+1})')
@@ -95,7 +96,12 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
             })
         else:
             print(f'[{Colors.GREEN}+{Colors.END}] Generator for {data_type} built successfully')
+            validated = True
             break
+
+    if not validated:
+        print(f'[{Colors.RED}-{Colors.END}] Failed to build generator for {data_type}')
+        return []
 
     gen = DataGenerator(data_type=data_type, generator=generator)
 
