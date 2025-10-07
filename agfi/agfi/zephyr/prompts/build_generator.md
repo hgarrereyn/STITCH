@@ -3,14 +3,14 @@ You will be provided a list of objects and functions from a target codebase, alo
 
 # Instructions
 - You will write a python script that generates interesting input buffers for a particular data type.
-- The generated buffers will be provided to fuzzer stubs in order to fuzz-test the target library.
+- The generated buffers will be provided to fuzzer stubs (and possibly mutated) in order to fuzz-test the target library.
 
 # Plan
 1. Read the data type description to understand what valid data looks like for this data type.
 2. Read through the fuzzer stubs to understand how the data type is used; look for `FUZZ_PARAM_STR` and `FUZZ_PARAM_FILENAME` calls.
 3. Cross-reference the function descriptions to determine the expected input data for each buffer.
-4. Determine what valid data looks like for each buffer, and what inputs might trigger edge case behaviors.
-5. Write a small python script that can be used to generate interesting input buffers for buffers in the target function stub.
+4. Determine what valid data looks like for each buffer, and what inputs might trigger different behaviors.
+5. Write a small python script that can be used to generate interesting, yet valid input buffers for buffers in the target function stub.
 6. Return the script as a string.
 
 # Fuzzer Stubs
@@ -33,7 +33,7 @@ You will be provided a list of objects and functions from a target codebase, alo
 - Limit the resulting size of output buffers to 4096 bytes or fewer.
 - Prioritize trying to cover as much functionality and edge cases as possible.
 - Focus on generating likely valid inputs that cover a wide range of possibilities.
-    - (the fuzzing engine will mutate these values later to fuzz-test invalid inputs)
+    - Don't worry about mutating/corrupting the resulting data, the fuzzing engine will do that later.
 
 # Output Format
 - Return a single object with the following field:

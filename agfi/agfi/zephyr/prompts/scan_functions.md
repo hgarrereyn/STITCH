@@ -16,6 +16,7 @@ In the `requirements`, list individual precise requirements that the caller of t
 - requirements on error handling (i.e. return values, exceptions, error parameters, etc...)
 - limitations on when the function can be called (i.e. exactly once, before all other functions, etc...)
 - any other requirements or restrictions on the function
+- do not guess at requirements, only list what is explicitly stated in comments, documentation, or inferred from the function's name and signature (and library naming patterns)
 
 This specification will be used to write fuzzing stubs for the function; using just this information provided, a developer should be able to accurately generate valid inputs for this function without violating any requirements or crashing the program. If there are any requirements that are not clear or missing, add more detail.
 If a specified function is not found in the header, return an object with its `name` and provide an error message in `error`.
