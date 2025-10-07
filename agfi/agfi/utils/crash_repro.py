@@ -130,6 +130,12 @@ def observe_crash(cmd: List[str]) -> Tuple[Optional[str], Optional[str]]:
             else:
                 summary = f'Assertion "{assert_msg}"'
 
+    # Segfault on null pointer refinement
+    if summary.startswith('SegFaultOnPcNearNull'):
+        # Pull out the origin location from the crash_loc
+        crash_line = report_gdb['CrashLine']
+        summary = f'SegFaultOnPcNearNull in {crash_line}'
+
     return report_json, strip_summary(summary)
 
 

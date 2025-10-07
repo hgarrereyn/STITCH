@@ -21,7 +21,7 @@ SYNTH_RETRIES = 3
 
 
 def process_header_functions(header_path: str, objects: List[ObjectInfo], info: ProjectInfo, threads: int, usage: UsageTracker) -> Tuple[List[FunctionInfo], List[FunctionImpl], List[FunctionImplError]]:
-    code = open(header_path).read()
+    code = open(header_path, 'rb').read().decode('utf-8', errors='ignore')
     
     log('INFO', f"Scanning header {header_path} for function names")
     function_names = scan_function_names(code, usage)
@@ -44,7 +44,8 @@ def main(args):
     merged_header = ''
     for header in args.headers:
         merged_header += f'<CODE FILE="{header}">\n'
-        merged_header += open(header).read()
+        with open(header, 'rb') as f:
+            merged_header += f.read().decode('utf-8', errors='ignore')
         merged_header += '</CODE>\n'
 
     usage = UsageTracker()
@@ -65,7 +66,7 @@ def main(args):
         # Scan for objects in each header individually
         log('INFO', f"Scanning header(s) for objects")
         s_objects = time.time()
-        objects = parallel_run(args.threads, scan_objects, [(open(header).read(), usage) for header in args.headers])
+        objects = parallel_run(args.threads, scan_objects, [(open(header, 'rb').read().decode('utf-8', errors='ignore'), usage) for header in args.headers])
         t_objects = time.time() - s_objects
         log('SCAN', f"Found {len(objects)} objects")
 

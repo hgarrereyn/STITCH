@@ -17,7 +17,7 @@ from .pretty import pretty_print_code
 
 PROMPT_AGENT = open(Path(__file__).parent / 'prompt_agent.md').read()
 
-MAX_CYCLES = 15
+MAX_CYCLES = 20
 
 
 def _validate_path(root_path: str, relative_path: str) -> Optional[Path]:
@@ -49,8 +49,9 @@ def read_file(root_path: str, path: str, start_line: int, end_line: int) -> File
         return FileResult(content='', error='Invalid path: directory traversal not allowed')
     if not validated_path.exists():
         return FileResult(content='', error='File path not found')
-    with open(validated_path, 'r') as f:
-        return FileResult(content='\n'.join(f.readlines()[start_line-1:end_line]), error=None)
+    with open(validated_path, 'rb') as f:
+        content = f.read().decode('utf-8', errors='ignore')
+        return FileResult(content='\n'.join(content.splitlines()[start_line-1:end_line]), error=None)
 
 class FileInfo(BaseModel):
     path: str

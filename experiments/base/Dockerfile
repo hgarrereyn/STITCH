@@ -27,7 +27,9 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN cargo install casr
 
-COPY /agf/requirements.txt /requirements.txt
+RUN curl -qsL 'https://install.pwndbg.re' | sh -s -- -t pwndbg-gdb
+
+COPY /agfi/requirements.txt /requirements.txt
 RUN pip install -r requirements.txt
 
 COPY rust-toolchain.toml /src/rust-toolchain.toml

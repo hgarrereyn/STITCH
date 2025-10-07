@@ -29,13 +29,22 @@ def do_bug(args):
             (str(tmpdir.absolute()), '/fuzz/workspace'),
         ]
 
-        project.invoke(
-            mounts=mounts, 
-            cmd=f'''
+        if args.debug:
+            cmd = f'''
+                cd /fuzz/workspace &&
+                agfi build external test &&
+                pwndbg ./test
+            '''
+        else:
+            cmd = f'''
                 cd /fuzz/workspace &&
                 agfi build external test &&
                 ./test
             '''
+
+        project.invoke(
+            mounts=mounts, 
+            cmd=cmd
         )
 
 
@@ -45,4 +54,5 @@ def register(subparsers):
     subparser.add_argument('-t', '--testcase', type=str, help='The path to the testcase (.cpp)', default=None)
     subparser.add_argument('-c', '--commit', type=str, help='Test on a specific commit', default=None)
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
+    subparser.add_argument('-d', '--debug', action='store_true', help='Spawn a shell', default=False)
     subparser.set_defaults(func=do_bug)

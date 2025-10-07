@@ -95,8 +95,8 @@ def tool_test_compile(testcase: str) -> TestCompileOutput:
         # Run the binary and get stdin/stdout
         res = subprocess.run([str(tmpdir / 'reproducer')], capture_output=True)
 
-        stdout = res.stdout.decode()
-        stderr = res.stderr.decode()
+        stdout = res.stdout.decode('utf-8', errors='ignore')
+        stderr = res.stderr.decode('utf-8', errors='ignore')
 
         crash_report, _crash_summary = observe_crash([str((tmpdir / 'reproducer').absolute())])
 
