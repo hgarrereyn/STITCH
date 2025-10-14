@@ -24,6 +24,9 @@ PROMPT_WITH_ERRORS = open(os.path.join(os.path.dirname(__file__), 'prompts/with_
 MAX_RETRIES = 3
 BATCH_SIZE = 20
 
+# max number of characters for an error message before it is truncated
+MAX_ERROR_SIZE = 4000
+
 
 def analyze_blocking_missing_types(endpoints: List[FunctionImpl], objects: List[ObjectInfo], max_depth: int = 6) -> Set[str]:
     """Return only the missing object types that block some endpoint input.
@@ -161,7 +164,15 @@ def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: Li
     
     ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=True)
 
-    p_failed_endpoints = [e.model_dump() for e in failed_endpoints]
+    truncated_failed_endpoints = []
+    for e in failed_endpoints:
+        if len(e.error) > MAX_ERROR_SIZE:
+            truncated_failed_endpoints.append(FunctionImplError(stub=e.stub, type=e.type, error=e.error[:MAX_ERROR_SIZE]))
+        else:
+            truncated_failed_endpoints.append(e)
+
+    p_failed_endpoints = [e.model_dump() for e in truncated_failed_endpoints]
+
     ctx.append({
         "role": "user",
         "content": f'Previous failure messages:\n{json.dumps(p_failed_endpoints)}'

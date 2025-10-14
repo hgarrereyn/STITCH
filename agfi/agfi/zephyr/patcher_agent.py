@@ -136,15 +136,20 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
 
     for i in range(MAX_STEPS):
         print(f'{Colors.GREEN}[+]{Colors.END} Patching fuzzer stubs (step {i+1} of {MAX_STEPS})')
-        response = client.responses.parse(
-            model='gpt-5',
-            input=ctx,
-            reasoning={
-                "effort": "medium",
-                "summary": "auto"
-            },
-            tools=tools
-        )
+        try:
+            response = client.responses.parse(
+                model='gpt-5',
+                input=ctx,
+                reasoning={
+                    "effort": "medium",
+                    "summary": "auto"
+                },
+                tools=tools
+            )
+        except Exception as e:
+            print(f'{Colors.RED}[-]{Colors.END} Error: {e}')
+            break
+
         ctx += response.output
         usage.record_model('patcher', 'gpt-5', UsageTokens.from_openai(response.usage))
 

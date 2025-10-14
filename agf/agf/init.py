@@ -3,20 +3,37 @@ from pathlib import Path
 import shutil
 import requests
 import json
+import tempfile
+import subprocess
 
 from .utils.colors import Colors
 from .utils.project import Project, ProjectConfig
 
 
 def get_repo_name(url):
+    # https://github.com/chromium/chromium -> chromium_chromium
     if url.startswith('https://github.com/'):
         org_name = url.split('/')[3]
         repo_name = url.split('/')[4].split('.git')[0]
         return f'{org_name}_{repo_name}'.lower()
-    return None
+    # https://chromium.googlesource.com/chromiumos/third_party/libdrm -> chromiumos_third_party_libdrm
+    if url.startswith('https://chromium.googlesource.com/'):
+        parts = url.split('https://chromium.googlesource.com/')[1].rstrip('/').split('/')
+        return '_'.join(parts)
+    
+    # otherwise, convert the whole url into a name
+    # https://aomedia.googlesource.com/aom -> aomedia_googlesource_com_aom
+    parts = url.split('//')[1].rstrip('/').split('/')
+    return '_'.join(parts).replace('.', '_').lower()
 
 
 def get_latest_commit(url):
+    if url.startswith('https://github.com/'):
+        return get_latest_commit_github(url)
+    return get_latest_commit_clone(url)
+
+
+def get_latest_commit_github(url):
     """
     Get the latest commit hash from a GitHub repository URL.
     This returns the commit that would be checked out by a simple git clone.
@@ -49,6 +66,19 @@ def get_latest_commit(url):
         raise RuntimeError(f"Failed to fetch latest commit from GitHub API: {e}")
     except (KeyError, IndexError) as e:
         raise RuntimeError(f"Unexpected response format from GitHub API: {e}")
+
+
+def get_latest_commit_clone(url):
+    """
+    Get the latest commit hash from a clone of a repository.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        tmpdir.mkdir(parents=True, exist_ok=True)
+        subprocess.run(['git', 'clone', '--depth', '1', url, tmpdir], check=True)
+
+        # figure out what commit we are on
+        return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=tmpdir).decode('utf-8').strip()
 
 
 def do_init(args):

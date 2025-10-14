@@ -37,7 +37,7 @@ Ensure that you include all the necessary headers from the library.
 The fuzzer configuration is a JSON object containing the following information:
 - `build_flags`: a list of compilation flags to use when building the project (passed directly to `clang` or `clang++`). Specifically include any library paths, include paths, and library names required.
 - `codegen`: a JSON object containing the following information:
-    - `headers`: a list of header files containing the public API of the library that should be used when compiling fuzz harnesses.
+    - `headers`: a list of header files containing the public API of the library
         - `path`: the path to the header file (full path, e.g. `/fuzz/install/include/<header_file>.h`)
         - `language`: the language of the header file (`c` or `cpp`) to determine if we need to include `extern "C"` wrappers.
     - `defines`: a list of extra defines to use when compiling the project. (most of the time, you can leave this empty)
@@ -60,10 +60,15 @@ Once you have a good understanding of the codebase, test your artifacts with:
 
 # Plan
 1. Read through the codebase to understand the project and its dependencies.
-2. Produce the Dockerfile, test program, and configuration file.
-3. Test the configuration by building the project and running the test program.
-4. If the test program fails, refine the configuration and test again.
-5. Once the configuration is correct, return the artifacts.
+2. Identify the public API of the library.
+3. Produce the Dockerfile, test program, and configuration file -- listing all the public API headers.
+4. Test the test program and configuration with the `test_configuration` tool.
+5. If the test program or build configuration fails, refine the configuration and test again.
+6. Once the configuration is correct, return the artifacts.
+
+# Tips
+- It's important to include all of the public API headers in the build configuration, even if they are not used in the test program.
+- Include headers that *seem* public even if you are not sure, and if there are build errors, you can always remove them later.
 
 # Guidelines
 - Most projects have a simple, uniform build system like `cmake` or `./configure && make`.

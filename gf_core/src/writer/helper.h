@@ -78,6 +78,24 @@ std::string generate_fundamental_initializer(const T& value) {
             // Non-printable and not in the predefined escape list, output as numeric
             return std::to_string(static_cast<int>(static_cast<unsigned char>(value)));
         }
+    } else if constexpr (std::is_floating_point_v<T>) {
+        // Handle special floating-point values
+        if (std::isnan(value)) {
+            return std::is_same_v<T, float> ? "NAN" : "NAN";
+        } else if (std::isinf(value)) {
+            if (value < 0) {
+                return std::is_same_v<T, float> ? "-INFINITY" : "-INFINITY";
+            } else {
+                return std::is_same_v<T, float> ? "INFINITY" : "INFINITY";
+            }
+        } else {
+            std::string result = std::to_string(value);
+            // Add 'f' suffix for float types
+            if constexpr (std::is_same_v<T, float>) {
+                result += "f";
+            }
+            return result;
+        }
     } else {
         return std::to_string(value);
     }

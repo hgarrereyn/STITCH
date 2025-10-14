@@ -38,6 +38,11 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
                 by_type[dt] = []
             by_type[dt].append(endpoints_by_name[name])
 
+    # Bail early if this data type is not used
+    if data_type not in by_type:
+        print(f'[{Colors.RED}-{Colors.END}] Data type {Colors.YELLOW}{data_type}{Colors.END} not used, skipping...')
+        return []
+
     ctx = [
         {
             "role": "developer",

@@ -41,7 +41,7 @@ def do_gen(args):
             subprocess.run(['git', 'clone', config.repo, src])
 
         usage = UsageTracker()
-        res = run_agent(config, str(src), usage)
+        res = run_agent(config, str(src), usage, args.extra)
 
         print(f'[{Colors.GREEN}+{Colors.END}] Usage: {usage.cost_by_task()}')
 
@@ -64,4 +64,5 @@ def register(subparsers):
     subparser = subparsers.add_parser('gen', help='Autogenerate a build configuration')
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('-f', '--force', action='store_true', help='Overwrite the build configuration if it already exists')
+    subparser.add_argument('-e', '--extra', type=str, help='Extra context to pass to the agent', default=None)
     subparser.set_defaults(func=do_gen)

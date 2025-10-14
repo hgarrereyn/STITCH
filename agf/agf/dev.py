@@ -53,8 +53,8 @@ def do_infer(args):
             (str(tmpdir.absolute()), '/fuzz/workspace')
         ]
         if not args.base:
-            output_dir = harness.asan_output_dir() if args.asan else harness.output_dir()
-            mounts.append((str(output_dir.absolute()), '/fuzz/output'))
+            campaign_dir = harness.campaign_dir()
+            mounts.append((str(campaign_dir.absolute()), '/fuzz/campaign:ro'))
             if args.coverage:
                 mounts.append((str(harness.coverage_dir().absolute()), '/fuzz/coverage'))
         if args.edit:
@@ -64,25 +64,14 @@ def do_infer(args):
             'OPENAI_API_KEY'
         ]
 
-        if args.base:
-            project.invoke(
-                env=env,
-                mounts=mounts, 
-                cmd='''
-                cd /fuzz/workspace &&
-                bash
-                '''
-            )
-        else:
-            project.invoke(
-                env=env,
-                mounts=mounts, 
-                cmd='''
-                    cd /fuzz/workspace &&
-                    agfi inc to-schema --meta harness.json --output test.json &&
-                    agfi build full test &&
-                    bash
-                ''')
+        project.invoke(
+            env=env,
+            mounts=mounts, 
+            cmd='''
+            cd /fuzz/workspace &&
+            bash
+            '''
+        )
 
 def register(subparsers):
     subparser = subparsers.add_parser('dev', help='Launch a shell inside the main container')

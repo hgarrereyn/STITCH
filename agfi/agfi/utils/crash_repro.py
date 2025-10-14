@@ -29,7 +29,10 @@ class ReproducedCrash(BaseModel):
 def strip_summary(s: str) -> str:
     if not ' in ' in s:
         return s
-    pre, post = s.split(' in ')
+    parts = s.split(' in ')
+    if len(parts) != 2:
+        return s
+    pre, post = parts
     # remove anything matching " (.*) " from pre
     pre = re.sub(r' \(([^\)]*)\)', ' (...)', pre)
     post = re.sub(r'/tmp/[^/]+', '<tmpdir>', post)

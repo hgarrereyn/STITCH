@@ -19,6 +19,8 @@ PROMPT_AGENT = open(Path(__file__).parent / 'prompt_agent.md').read()
 
 MAX_CYCLES = 20
 
+MAX_ERROR_SIZE = 8000
+
 
 def _validate_path(root_path: str, relative_path: str) -> Optional[Path]:
     """
@@ -49,6 +51,8 @@ def read_file(root_path: str, path: str, start_line: int, end_line: int) -> File
         return FileResult(content='', error='Invalid path: directory traversal not allowed')
     if not validated_path.exists():
         return FileResult(content='', error='File path not found')
+    if not validated_path.is_file():
+        return FileResult(content='', error='Path is not a file')
     with open(validated_path, 'rb') as f:
         content = f.read().decode('utf-8', errors='ignore')
         return FileResult(content='\n'.join(content.splitlines()[start_line-1:end_line]), error=None)
@@ -118,7 +122,7 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         if res.returncode != 0:
             return ConfigurationError(error_type='Test program did not compile or run correctly', error={
                 'stdout': res.stdout,
-                'stderr': res.stderr,
+                'stderr': res.stderr[:MAX_ERROR_SIZE],
             })
 
         print(f'[{Colors.GREEN}+{Colors.END}] Test program test passed')
@@ -137,7 +141,7 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         if res.returncode != 0:
             return ConfigurationError(error_type='Codegen configuration did not compile', error={
                 'stdout': res.stdout,
-                'stderr': res.stderr,
+                'stderr': res.stderr[:MAX_ERROR_SIZE],
             })
 
         print(f'[{Colors.GREEN}+{Colors.END}] Codegen configuration test passed')
@@ -161,7 +165,7 @@ class AutogenResult(BaseModel):
     info: ProjectInfo
 
 
-def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker) -> Optional[AutogenResult]:
+def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra: Optional[str]) -> Optional[AutogenResult]:
     client = OpenAI()
 
     # Find a README.md if it exists
@@ -253,6 +257,12 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker) -> Opt
             'content': f'Project: {config.name}\nRepo: {config.repo}' + (f'\nReadme: {readme}' if readme is not None else '')
         }
     ]
+
+    if extra is not None:
+        ctx.append({
+            'role': 'user',
+            'content': '# User provided extra context\n' + extra
+        })
 
     final_configuration = None
     for _ in range(MAX_CYCLES):

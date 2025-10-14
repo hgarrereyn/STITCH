@@ -21,6 +21,9 @@ from openai import OpenAI
 
 RETRIES = 3
 
+# max number of characters for an error message before it is truncated
+MAX_ERROR_SIZE = 4000
+
 PROMPT_SYNTH_FUNCTIONS = open(os.path.join(os.path.dirname(__file__), 'prompts/synth_functions.md')).read()
 PROMPT_WITH_ERRORS = open(os.path.join(os.path.dirname(__file__), 'prompts/with_errors.md')).read()
 
@@ -64,7 +67,15 @@ def synth_functions_with_errors(objects: List[ObjectInfo], functions: List[Funct
     p_functions = [f.model_dump() for f in functions]
     p_target_functions = target_functions
     p_existing_stubs = [s.model_dump() for s in existing_stubs]
-    p_failed_stubs = [s.model_dump() for s in failed_stubs]
+
+    truncated_failed_stubs = []
+    for fs in failed_stubs:
+        if len(fs.error) > MAX_ERROR_SIZE:
+            truncated_failed_stubs.append(FunctionImplError(stub=fs.stub, type=fs.type, error=fs.error[:MAX_ERROR_SIZE]))
+        else:
+            truncated_failed_stubs.append(fs)
+
+    p_failed_stubs = [s.model_dump() for s in truncated_failed_stubs]    
 
     response = client.responses.parse(
         model="gpt-5",
