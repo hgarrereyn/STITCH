@@ -17,7 +17,7 @@ from .pretty import pretty_print_code
 
 PROMPT_AGENT = open(Path(__file__).parent / 'prompt_agent.md').read()
 
-MAX_CYCLES = 20
+MAX_CYCLES = 30
 
 MAX_ERROR_SIZE = 8000
 
@@ -42,46 +42,73 @@ def _validate_path(root_path: str, relative_path: str) -> Optional[Path]:
 
 
 class FileResult(BaseModel):
+    path: str
     content: str
     error: Optional[str]
 
 def read_file(root_path: str, path: str, start_line: int, end_line: int) -> FileResult:
     validated_path = _validate_path(root_path, path)
     if validated_path is None:
-        return FileResult(content='', error='Invalid path: directory traversal not allowed')
+        return FileResult(path=path, content='', error='Invalid path: directory traversal not allowed')
     if not validated_path.exists():
-        return FileResult(content='', error='File path not found')
+        return FileResult(path=path, content='', error='File path not found')
     if not validated_path.is_file():
-        return FileResult(content='', error='Path is not a file')
+        return FileResult(path=path, content='', error='Path is not a file')
     with open(validated_path, 'rb') as f:
         content = f.read().decode('utf-8', errors='ignore')
-        return FileResult(content='\n'.join(content.splitlines()[start_line-1:end_line]), error=None)
+        return FileResult(path=path, content='\n'.join(content.splitlines()[start_line-1:end_line]), error=None)
 
 class FileInfo(BaseModel):
-    path: str
+    name: str
     lines: Optional[int]
     is_dir: bool
 
-def list_dir(root_path: str, path: str) -> List[FileInfo]:
+class DirResult(BaseModel):
+    path: str
+    files: List[FileInfo]
+    error: Optional[str]
+
+def list_dir(root_path: str, path: str) -> DirResult:
     validated_path = _validate_path(root_path, path)
     if validated_path is None:
-        return []
+        return DirResult(path=path, files=[], error='Invalid path: directory traversal not allowed')
     if not validated_path.exists() or not validated_path.is_dir():
-        return []
-    return [
+        return DirResult(path=path, files=[], error='Path is not a directory')
+    
+    files = [
         FileInfo(
-            path=str(f.relative_to(validated_path)),
+            name=str(f.relative_to(validated_path)),
             lines=len(f.read_text(encoding='utf-8', errors='ignore').splitlines()) if f.is_file() else None,
             is_dir=f.is_dir()
         ) for f in validated_path.glob('*') if f.is_file() or f.is_dir()
     ]
+    files.sort(key=lambda x: x.name)
+    
+    return DirResult(path=path, files=files, error=None)
 
 class ConfigurationError(BaseModel):
-    error_type: str
-    error: Any
+    error_message: str
+    stdout: str
+    stderr: str
 
-def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str, info: ProjectInfo) -> Optional[ConfigurationError]:
+class TestResult(BaseModel):
+    success: bool
+    message: str
+    error: Optional[ConfigurationError] = None
+
+class ConfigurationResult(BaseModel):
+    dockerfile_result: TestResult
+    test_program_result: TestResult
+    codegen_result: TestResult
+
+def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str, info: ProjectInfo) -> ConfigurationResult:
     print(f'{Colors.GREEN}[+]{Colors.END} Testing configuration...')
+
+    result = ConfigurationResult(
+        dockerfile_result=TestResult(success=False, message='(not tested)'),
+        test_program_result=TestResult(success=False, message='(not tested)'),
+        codegen_result=TestResult(success=False, message='(not tested)')
+    )
 
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -97,7 +124,12 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         project = Project(tmpdir)
         docker_err = project.build_docker_capture_errors(use_asan=True)
         if docker_err is not None:
-            return ConfigurationError(error_type='Dockerfile did not build', error=docker_err.model_dump())
+            stdout = docker_err.stdout if len(docker_err.stdout) <= MAX_ERROR_SIZE else docker_err.stdout[:MAX_ERROR_SIZE] + '\n... (truncated)'
+            stderr = docker_err.stderr if len(docker_err.stderr) <= MAX_ERROR_SIZE else docker_err.stderr[:MAX_ERROR_SIZE] + '\n... (truncated)'
+            result.dockerfile_result = TestResult(success=False, message='Dockerfile did not build', error=ConfigurationError(error_message='Dockerfile did not build', stdout=stdout, stderr=stderr))
+            return result
+        else:
+            result.dockerfile_result = TestResult(success=True, message='Dockerfile built successfully')
 
         mounts = [
             (str(config_path.absolute()), '/fuzz/workspace'),
@@ -111,19 +143,19 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
                     cd /fuzz/workspace &&
                     agfi build external test &&
                     ./test
-                ''', stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, timeout=20
+                ''', stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, timeout=120
             )
         except TimeoutError:
-            return ConfigurationError(error_type='Test program timed out', error={
-                'stdout': '',
-                'stderr': 'Test program timed out after 20 seconds (if it reads stdio or expects external input, this is expected)',
-            })
-        
+            result.test_program_result = TestResult(success=False, message='Test program timed out')
+            return result
+
         if res.returncode != 0:
-            return ConfigurationError(error_type='Test program did not compile or run correctly', error={
-                'stdout': res.stdout,
-                'stderr': res.stderr[:MAX_ERROR_SIZE],
-            })
+            stdout = res.stdout if len(res.stdout) <= MAX_ERROR_SIZE else res.stdout[:MAX_ERROR_SIZE] + '\n... (truncated)'
+            stderr = res.stderr if len(res.stderr) <= MAX_ERROR_SIZE else res.stderr[:MAX_ERROR_SIZE] + '\n... (truncated)'
+            result.test_program_result = TestResult(success=False, message='Test program did not compile or run correctly', error=ConfigurationError(error_message='Test program did not compile or run correctly', stdout=stdout, stderr=stderr))
+            return result
+        else:
+            result.test_program_result = TestResult(success=True, message='Test program compiled and ran correctly')
 
         print(f'[{Colors.GREEN}+{Colors.END}] Test program test passed')
         print(f'[{Colors.GREEN}+{Colors.END}] Test program output:')
@@ -139,14 +171,16 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         )
 
         if res.returncode != 0:
-            return ConfigurationError(error_type='Codegen configuration did not compile', error={
-                'stdout': res.stdout,
-                'stderr': res.stderr[:MAX_ERROR_SIZE],
-            })
+            stdout = res.stdout if len(res.stdout) <= MAX_ERROR_SIZE else res.stdout[:MAX_ERROR_SIZE] + '\n... (truncated)'
+            stderr = res.stderr if len(res.stderr) <= MAX_ERROR_SIZE else res.stderr[:MAX_ERROR_SIZE] + '\n... (truncated)'
+            result.codegen_result = TestResult(success=False, message='External codegen failed', error=ConfigurationError(error_message='External codegen failed', stdout=stdout, stderr=stderr))
+            return result
+        else:
+            result.codegen_result = TestResult(success=True, message='External codegen succeeded')
 
         print(f'[{Colors.GREEN}+{Colors.END}] Codegen configuration test passed')
 
-        return None
+        return result
         
 
 def find_readme(project_src: str) -> Optional[str]:
@@ -294,6 +328,10 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
                             start_line = args['start_line']
                             end_line = args['end_line']
                             content = read_file(str(code_src), path, start_line, end_line)
+                            if content.error is not None:
+                                print(f'{Colors.RED}[-]{Colors.END} Error: {content.error}')
+                            else:
+                                print(f'{Colors.CYAN}  -{Colors.END} {content.path} ({len(content.content.splitlines())} lines)')
                             output = json.dumps(content.model_dump())
                             ctx.append({
                                 "type": "function_call_output",
@@ -303,11 +341,14 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
                         case 'list_dir':
                             args = json.loads(message.arguments)
                             path = args['path']
-                            files = list_dir(str(code_src), path)
+                            dir_result = list_dir(str(code_src), path)
                             print(f'{Colors.GREEN}[+]{Colors.END} Listing directory: {args["path"]}:')
-                            for file in sorted(files, key=lambda x: x.path):
-                                print(f'{Colors.CYAN}  -{Colors.END} {file.path} ({file.lines} lines)' if file.lines is not None else f'{Colors.CYAN}  -{Colors.END} {file.path} (directory)')
-                            output = json.dumps([x.model_dump() for x in files])
+                            if dir_result.error is not None:
+                                print(f'{Colors.RED}[-]{Colors.END} Error: {dir_result.error}')
+                            else:
+                                for file in dir_result.files:
+                                    print(f'{Colors.CYAN}  -{Colors.END} {file.name} ({file.lines} lines)' if file.lines is not None else f'{Colors.CYAN}  -{Colors.END} {file.name} (directory)')
+                            output = json.dumps(dir_result.model_dump())
                             ctx.append({
                                 "type": "function_call_output",
                                 "call_id": message.call_id,
@@ -324,8 +365,9 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
                             pretty_print_code(test_program, language="cpp", title="Test Program")
                             pretty_print_code(info.model_dump_json(indent=2), language="json", title="Configuration")
 
-                            output = test_configuration(config, dockerfile, test_program, info)
-                            if output is None:
+                            config_result = test_configuration(config, dockerfile, test_program, info)
+
+                            if config_result.dockerfile_result.success and config_result.test_program_result.success and config_result.codegen_result.success:
                                 print(f'{Colors.GREEN}[+]{Colors.END} Configuration test passed')
                                 final_configuration = AutogenResult(
                                     dockerfile=dockerfile,
@@ -333,15 +375,42 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
                                     info=info
                                 )
                                 break
+
+                            # Otherwise print successes and/or failures
+                            if config_result.dockerfile_result.success:
+                                print(f'{Colors.GREEN}[+]{Colors.END} Dockerfile test passed')
                             else:
-                                print(f'{Colors.RED}[-]{Colors.END} Configuration test failed')
-                                print(f'{Colors.RED}[-]{Colors.END} Error:')
-                                pretty_print_code(output.model_dump_json(indent=2), language="json", title="Error")
+                                print(f'{Colors.RED}[-]{Colors.END} Dockerfile test failed')
+                                if config_result.dockerfile_result.error is not None:
+                                    print(f'{Colors.RED}[-]{Colors.END} Error:')
+                                    pretty_print_code(config_result.dockerfile_result.error.error_message, language="markdown", title="Error")
+                                    pretty_print_code(config_result.dockerfile_result.error.stdout, language="text", title="stdout")
+                                    pretty_print_code(config_result.dockerfile_result.error.stderr, language="text", title="stderr")
+                            
+                            if config_result.test_program_result.success:
+                                print(f'{Colors.GREEN}[+]{Colors.END} Test program test passed')
+                            else:
+                                print(f'{Colors.RED}[-]{Colors.END} Test program test failed')
+                                if config_result.test_program_result.error is not None:
+                                    print(f'{Colors.RED}[-]{Colors.END} Error:')
+                                    pretty_print_code(config_result.test_program_result.error.error_message, language="markdown", title="Error")
+                                    pretty_print_code(config_result.test_program_result.error.stdout, language="text", title="stdout")
+                                    pretty_print_code(config_result.test_program_result.error.stderr, language="text", title="stderr")
+                            
+                            if config_result.codegen_result.success:
+                                print(f'{Colors.GREEN}[+]{Colors.END} Codegen test passed')
+                            else:
+                                print(f'{Colors.RED}[-]{Colors.END} Codegen test failed')
+                                if config_result.codegen_result.error is not None:
+                                    print(f'{Colors.RED}[-]{Colors.END} Error:')
+                                    pretty_print_code(config_result.codegen_result.error.error_message, language="markdown", title="Error")
+                                    pretty_print_code(config_result.codegen_result.error.stdout, language="text", title="stdout")
+                                    pretty_print_code(config_result.codegen_result.error.stderr, language="text", title="stderr")
 
                             ctx.append({
                                 "type": "function_call_output",
                                 "call_id": message.call_id,
-                                "output": output.model_dump_json()
+                                "output": config_result.model_dump_json()
                             })
                         case _:
                             print(f'{Colors.RED}[-]{Colors.END} Unknown function call: {message.name}')

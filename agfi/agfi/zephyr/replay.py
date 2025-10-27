@@ -58,7 +58,12 @@ def main(args):
             pretty_print_code(crash.assessment.minimized_testcase)
 
         # Recompile the minimized test program and see if it still crashes
-        report, summary = build_and_observe_crash(str(crash.assessment.minimized_testcase))
+        obs, stdout, stderr = build_and_observe_crash(str(crash.assessment.minimized_testcase), with_output=True)
+        report, summary = obs
+        if stdout != '':
+            pretty_print_code(stdout, language="text", title="stdout")
+        if stderr != '':
+            pretty_print_code(stderr, language="text", title="stderr")
         if report is None:
             print(f'{Colors.RED}[-]{Colors.END} no crash observed')
         else:
@@ -82,7 +87,12 @@ def main(args):
                             print(testcase)
                         else:
                             pretty_print_code(testcase, language="cpp", title=f"testcase {i}")
-                        report, summary = build_and_observe_crash(str(testcase))
+                        obs, stdout, stderr = build_and_observe_crash(str(testcase), with_output=True)
+                        report, summary = obs
+                        if stdout != '':
+                            pretty_print_code(stdout, language="text", title="stdout")
+                        if stderr != '':
+                            pretty_print_code(stderr, language="text", title="stderr")
                         if report is None:
                             print(f'{Colors.RED}[-]{Colors.END} no crash observed for iteration {i}')
                         else:

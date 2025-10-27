@@ -177,7 +177,7 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
                 "type": "object",
                 "properties": {
                     "title": { "type": "string", "description": "A short single sentence title of what the crash is (e.g. '<thing> in <xyz> caused by <abc>')" },
-                    "crash_type": { "type": "string", "description": "The type of the crash (`valid-crit`, `valid-high`, `valid-med`, `valid-impl`, `invalid-doc`, `invalid-fuzzer`, `unknown`)" },
+                    "crash_type": { "type": "string", "description": "The type of the crash (`<validity>-<reachability>-<severity>` or `invalid`)" },
                     "crash_type_reasoning": { "type": "string", "description": "A concise reasoning for why you made this assessment" },
                     "minimized_testcase": { "type": "string", "description": "A minimized C++ testcase that demonstrates the crash" },
                     "explanation": { "type": "string", "description": "A detailed explanation of your assessment" },

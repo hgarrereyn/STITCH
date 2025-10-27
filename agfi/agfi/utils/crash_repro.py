@@ -142,7 +142,7 @@ def observe_crash(cmd: List[str]) -> Tuple[Optional[str], Optional[str]]:
     return report_json, strip_summary(summary)
 
 
-def build_and_observe_crash(testcase: str) -> Optional[Tuple[str, str]]:
+def build_and_observe_crash(testcase: str, with_output: bool = False) -> Optional[Tuple[str, str]]:
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         external_file_path = tmpdir / 'reproducer.cpp'
@@ -150,11 +150,15 @@ def build_and_observe_crash(testcase: str) -> Optional[Tuple[str, str]]:
             f.write(testcase)
 
         try:
-            subprocess.run(['agfi', 'build', 'external', str(tmpdir / 'reproducer')], check=True, capture_output=False)
+            res = subprocess.run(['agfi', 'build', 'external', str(tmpdir / 'reproducer')], check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            return None, None
+            return None
         
-        return observe_crash([str(tmpdir / 'reproducer')])
+        obs = observe_crash([str(tmpdir / 'reproducer')])
+        if with_output:
+            return obs, res.stdout.decode(errors="ignore"), res.stderr.decode(errors="ignore")
+        else:
+            return obs
 
 
 def try_get_crash_result(fuzzer: str, crash_file: Path) -> Optional[CrashResult]:
