@@ -50,13 +50,14 @@ def do_replay(args):
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace'),
             (str(harness.campaign_dir().absolute()), '/fuzz/campaign'),
+            (str(project.bugs_dir().absolute()), '/fuzz/bugs'),
         ]
 
         project.invoke(
             mounts=mounts, 
             cmd=f'''
                 cd /fuzz/workspace &&
-                agfi zephyr replay /fuzz/campaign {'--raw' if args.raw else ''} {'--bug-hash ' + args.bug_hash if args.bug_hash else ''} {'--all' if args.all else ''}
+                agfi zephyr replay /fuzz/campaign /fuzz/bugs {'--raw' if args.raw else ''} {'--bug-hash ' + args.bug_hash if args.bug_hash else ''} {'--all' if args.all else ''} {'--save ' + str(args.save) if args.save is not None else ''}
             '''
         )
 
@@ -70,4 +71,5 @@ def register(subparsers):
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('-b', '--bug-hash', type=str, help='The hash of the bug to replay', default=None)
     subparser.add_argument('-a', '--all', action='store_true', help='Replay all iterations of the testcase', default=False)
+    subparser.add_argument('-s', '--save', type=int, default=None, help='If specified, save the testcase to disk.')
     subparser.set_defaults(func=do_replay)

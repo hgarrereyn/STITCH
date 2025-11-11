@@ -93,7 +93,10 @@ def tool_test_compile(testcase: str) -> TestCompileOutput:
             return TestCompileOutput(res=CompileError(note='Failed to compile testcase', error=res.stderr.decode()))
         
         # Run the binary and get stdin/stdout
-        res = subprocess.run([str(tmpdir / 'reproducer')], capture_output=True)
+        try:
+            res = subprocess.run([str(tmpdir / 'reproducer')], capture_output=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            return TestCompileOutput(res=CompileError(note='Testcase timed out', error='Testcase timed out'))
 
         stdout = res.stdout.decode('utf-8', errors='ignore')
         stderr = res.stderr.decode('utf-8', errors='ignore')

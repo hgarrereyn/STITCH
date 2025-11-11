@@ -55,4 +55,5 @@ def register(subparsers):
     subparser.add_argument('-c', '--commit', type=str, help='Test on a specific commit', default=None)
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('-d', '--debug', action='store_true', help='Spawn a shell', default=False)
+    subparser.add_argument('-r', '--report', action='store_true', help='Generate a markdown report', default=False)
     subparser.set_defaults(func=do_bug)

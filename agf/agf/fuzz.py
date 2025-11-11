@@ -72,7 +72,7 @@ def register(subparsers):
     subparser = subparsers.add_parser('fuzz', help='Run the fuzzer')
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('-n','--name', help='The name of the harness', default=None)
-    subparser.add_argument('--max-revisions', type=int, help='The maximum number of revisions to run', default=10)
+    subparser.add_argument('--max-revisions', type=int, help='The maximum number of revisions to run', default=30)
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('--reset', action='store_true', help='Reset the campaign', default=False)
     subparser.add_argument('--hard-rss-limit-mb', type=int, help='The hard RSS limit in MB', default=1024)

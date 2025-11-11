@@ -45,6 +45,8 @@ class RestartableProcess:
 
 def get_last_fuzzer_line(log_path: Path, last_chunk_size: int = 3000) -> str:
     '''Read last 3000 bytes'''
+    if not log_path.exists():
+        return None
     with open(log_path, 'rb') as f:
         f.seek(0, os.SEEK_END)
         f.seek(max(0, f.tell() - last_chunk_size), os.SEEK_SET)

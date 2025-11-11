@@ -15,16 +15,16 @@ def get_repo_name(url):
     if url.startswith('https://github.com/'):
         org_name = url.split('/')[3]
         repo_name = url.split('/')[4].split('.git')[0]
-        return f'{org_name}_{repo_name}'.lower()
+        return f'{org_name}_{repo_name}'.lower().replace('-', '_')
     # https://chromium.googlesource.com/chromiumos/third_party/libdrm -> chromiumos_third_party_libdrm
     if url.startswith('https://chromium.googlesource.com/'):
         parts = url.split('https://chromium.googlesource.com/')[1].rstrip('/').split('/')
-        return '_'.join(parts)
+        return '_'.join(parts).replace('-', '_').lower()
     
     # otherwise, convert the whole url into a name
     # https://aomedia.googlesource.com/aom -> aomedia_googlesource_com_aom
     parts = url.split('//')[1].rstrip('/').split('/')
-    return '_'.join(parts).replace('.', '_').lower()
+    return '_'.join(parts).replace('.', '_').replace('-', '_').lower()
 
 
 def get_latest_commit(url):

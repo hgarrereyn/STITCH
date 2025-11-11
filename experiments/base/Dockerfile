@@ -19,6 +19,12 @@ RUN apt-get update && \
         apt-utils apt-transport-https ca-certificates joe curl && \
     wget https://apt.llvm.org/llvm.sh && chmod +x llvm.sh && ./llvm.sh 17
 
+# Common build dependencies
+# bazel
+RUN curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64" \
+    && chmod +x bazelisk-linux-amd64 \
+    && mv bazelisk-linux-amd64 /usr/local/bin/bazel
+
 ENV TERM xterm-256color
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
