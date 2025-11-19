@@ -13,3 +13,4 @@
 /build/
 **/queue
 **/crashes
+sync.sh

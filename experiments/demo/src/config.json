@@ -1,8 +1,0 @@
-{
-    "headers": [
-        {"CppHeader": "lib.h"}
-    ],
-    "include_paths": [
-        "/fuzz/src/"
-    ]
-}

@@ -1,1 +1,0 @@
-{"types":[{"name":"Foo*","idx":0}],"endpoints":[{"name":"Foo()","idx":0,"inputs":[],"outputs":[0],"context_size":null},{"name":"Foo::write(char val)","idx":1,"inputs":[0],"outputs":[0],"context_size":null},{"name":"Foo::check()","idx":2,"inputs":[0],"outputs":[0],"context_size":null},{"name":"~Foo()","idx":3,"inputs":[0],"outputs":[],"context_size":null}]}
