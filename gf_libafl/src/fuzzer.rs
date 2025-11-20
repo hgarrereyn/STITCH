@@ -1,25 +1,49 @@
 use std::fs;
 #[cfg(unix)]
 use std::fs::File;
-use std::{cell::RefCell, fs::OpenOptions, path::PathBuf, process, rc::Rc, time::Duration};
 use std::io::Write;
+use std::{cell::RefCell, fs::OpenOptions, path::PathBuf, process, rc::Rc, time::Duration};
 
-use gf_core::{harness::{Harness, InvokeResult, BailInfo}, mutation::MutationContext};
+use gf_core::{
+    harness::{BailInfo, Harness, InvokeResult},
+    mutation::MutationContext,
+};
 use libafl::schedulers::powersched::PowerSchedule;
 use libafl::schedulers::StdWeightedScheduler;
 use libafl::Evaluator;
-use libafl::{corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus}, events::SimpleEventManager, executors::{ExitKind, InProcessForkExecutor}, feedback_or, feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback}, monitors::SimpleMonitor, mutators::{havoc_mutations_no_crossover, tokens_mutations, StdMOptMutator, Tokens}, observers::{CanTrack, HitcountsMapObserver, TimeObserver}, schedulers::QueueScheduler, stages::StdMutationalStage, state::{HasCorpus, StdState}, Error, Fuzzer, HasMetadata, StdFuzzer};
-use libafl_bolts::{current_time, AsSliceMut};
+use libafl::{
+    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus},
+    events::SimpleEventManager,
+    executors::{ExitKind, InProcessForkExecutor},
+    feedback_or,
+    feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
+    monitors::SimpleMonitor,
+    mutators::{havoc_mutations_no_crossover, tokens_mutations, StdMOptMutator, Tokens},
+    observers::{CanTrack, HitcountsMapObserver, TimeObserver},
+    schedulers::QueueScheduler,
+    stages::StdMutationalStage,
+    state::{HasCorpus, StdState},
+    Error, Fuzzer, HasMetadata, StdFuzzer,
+};
 use libafl_bolts::shmem::{ShMemProvider, StdShMemProvider};
-use libafl_bolts::{rands::StdRand, tuples::{tuple_list, Merge}};
+use libafl_bolts::{current_time, AsSliceMut};
+use libafl_bolts::{
+    rands::StdRand,
+    tuples::{tuple_list, Merge},
+};
 use libafl_targets::{std_edges_map_observer, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP_PTR};
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
 use crate::components::trimming::{IndexesBailedLenMinimizerScheduler, TrimmingStage};
-use crate::components::{graph_input::GraphInput, mutate_bytes::GraphMutateBytes, mutate_graph::{GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent, GraphMutateRegenerate, GraphMutatorSelector}};
-
-
+use crate::components::{
+    graph_input::GraphInput,
+    mutate_bytes::GraphMutateBytes,
+    mutate_graph::{
+        GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent,
+        GraphMutateRegenerate, GraphMutatorSelector,
+    },
+};
 
 /// The actual fuzzer
 pub fn fuzz(
@@ -33,11 +57,13 @@ pub fn fuzz(
     timeout: Duration,
     rss_limit_mb: Option<u64>,
     keep_stdout: bool,
-    verbose: bool
-) -> Result<(), Error>
-{
+    verbose: bool,
+) -> Result<(), Error> {
     if verbose {
-        SimpleLogger::new().with_level(LevelFilter::Info).init().unwrap();
+        SimpleLogger::new()
+            .with_level(LevelFilter::Info)
+            .init()
+            .unwrap();
     }
 
     // Read raw inputs into the ctx
@@ -106,12 +132,15 @@ pub fn fuzz(
     let mut shmem_provider = StdShMemProvider::new()?;
 
     let mut shmem;
-    unsafe{
-        println!("Allocating shared memory for edges map: {}", EDGES_MAP_ALLOCATED_SIZE);
+    unsafe {
+        println!(
+            "Allocating shared memory for edges map: {}",
+            EDGES_MAP_ALLOCATED_SIZE
+        );
         shmem = shmem_provider.new_shmem(EDGES_MAP_ALLOCATED_SIZE).unwrap();
     }
     let shmem_buf = shmem.as_slice_mut();
-    unsafe{
+    unsafe {
         EDGES_MAP_PTR = shmem_buf.as_mut_ptr();
     }
 
@@ -176,47 +205,121 @@ pub fn fuzz(
         5,
     )?;
 
-    let graph_mutator = StdMutationalStage::new(
-        GraphMutatorSelector::new(
-            0.01,
-            3,
-            tuple_list!(
-                GraphMutateDeleteOne::new(ctx.clone()),
-                GraphMutateIsolateComponent::new(ctx.clone()),
-                GraphMutateRegenerate::new(ctx.clone()),
-                GraphMutateAddOne::new(ctx.clone()),
-                GraphMutateCrossover::new(ctx.clone()),
-            )
-        )
-    );
+    let graph_mutator = StdMutationalStage::new(GraphMutatorSelector::new(
+        0.01,
+        3,
+        tuple_list!(
+            GraphMutateDeleteOne::new(ctx.clone()),
+            GraphMutateIsolateComponent::new(ctx.clone()),
+            GraphMutateRegenerate::new(ctx.clone()),
+            GraphMutateAddOne::new(ctx.clone()),
+            GraphMutateCrossover::new(ctx.clone()),
+        ),
+    ));
 
-    let context_stage = StdMutationalStage::new(
-        GraphMutateBytes::new(ctx.clone(), mutator),
-    );
+    let context_stage = StdMutationalStage::new(GraphMutateBytes::new(ctx.clone(), mutator));
 
     // let scheduler = QueueScheduler::new();
     let scheduler = IndexesBailedLenMinimizerScheduler::new(
         &edges_observer,
-        StdWeightedScheduler::with_schedule(&mut state, &edges_observer, Some(PowerSchedule::fast())),
+        StdWeightedScheduler::with_schedule(
+            &mut state,
+            &edges_observer,
+            Some(PowerSchedule::fast()),
+        ),
     );
 
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
+
+    let debug_viz = std::env::var("AGF_DEBUG_VIZ").is_ok();
+    let viz_log_path = out_dir.join("viz_stats.jsonl");
 
     // The wrapped harness function, calling out to the LLVM-style harness
     let mut harness = |input: &GraphInput| {
         // Invoke the harness in the sandboxed environment
         let res = gf_harness.invoke(&input.graph, None);
 
+        if debug_viz {
+            let hash = input.graph.hash_structure();
+            let (result, bail_node_idx, bail_node_type) = match &res {
+                InvokeResult::Success => ("success", None, None),
+                InvokeResult::Bailed(bp) => ("bailed", Some(bp.node_idx), Some(bp.node_type)),
+                InvokeResult::AssertionViolation(bp, _) => {
+                    ("assertion_violation", Some(bp.node_idx), Some(bp.node_type))
+                }
+                InvokeResult::LibraryException(bp, _) => {
+                    ("library_exception", Some(bp.node_idx), Some(bp.node_type))
+                }
+            };
+
+            let node_types: Vec<usize> = input.graph.nodes.iter().map(|n| n.typ).collect();
+
+            // Track executed, bailed, and skipped endpoints using invocation_order
+            let invocation_order = input.graph.get_invocation_order();
+            let mut executed_endpoints = Vec::new();
+            let mut bailed_endpoint: Option<usize> = None;
+            let mut skipped_endpoints = Vec::new();
+
+            if let Some(bail_idx) = bail_node_idx {
+                // Find where the bail happened in the invocation order
+                let bail_position = invocation_order.iter().position(|&idx| idx == bail_idx);
+
+                if let Some(bail_pos) = bail_position {
+                    // Endpoints before bail_pos were executed successfully
+                    for i in 0..bail_pos {
+                        let node_idx = invocation_order[i];
+                        executed_endpoints.push(input.graph.nodes[node_idx].typ);
+                    }
+
+                    // The endpoint at bail_pos bailed
+                    bailed_endpoint = Some(input.graph.nodes[invocation_order[bail_pos]].typ);
+
+                    // Endpoints after bail_pos were skipped
+                    for i in (bail_pos + 1)..invocation_order.len() {
+                        let node_idx = invocation_order[i];
+                        skipped_endpoints.push(input.graph.nodes[node_idx].typ);
+                    }
+                }
+            } else {
+                // No bail - all endpoints were executed successfully
+                for &node_idx in &invocation_order {
+                    executed_endpoints.push(input.graph.nodes[node_idx].typ);
+                }
+            }
+
+            let json = serde_json::json!({
+                "type": "graph_exec",
+                "hash": hash,
+                "result": result,
+                "bail_node_idx": bail_node_idx,
+                "bail_node_type": bail_node_type,
+                "node_types": node_types,
+                "executed_endpoints": executed_endpoints,
+                "bailed_endpoint": bailed_endpoint,
+                "skipped_endpoints": skipped_endpoints
+            });
+
+            if let Ok(mut file) = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&viz_log_path)
+            {
+                let _ = writeln!(file, "{}", json.to_string());
+            }
+        }
+
         // Store the bail info in the shared memory
         let bail_info = res.to_bail_info();
-        let bail_info_bytes = unsafe { 
+        let bail_info_bytes = unsafe {
             std::slice::from_raw_parts(
                 &bail_info as *const BailInfo as *const u8,
-                std::mem::size_of::<BailInfo>()
+                std::mem::size_of::<BailInfo>(),
             )
         };
-        (*shared_bail_info).borrow_mut().copy_from_slice(bail_info_bytes);
+        (*shared_bail_info)
+            .borrow_mut()
+            .copy_from_slice(bail_info_bytes);
 
         match res {
             InvokeResult::Success => ExitKind::Ok,
@@ -226,7 +329,7 @@ pub fn fuzz(
                 unsafe {
                     panic!("{}", msg);
                 }
-            },
+            }
             InvokeResult::LibraryException(_, _) => ExitKind::Ok,
         }
     };
@@ -239,12 +342,10 @@ pub fn fuzz(
         &mut state,
         &mut mgr,
         timeout,
-        shmem_provider.clone()
+        shmem_provider.clone(),
     )?;
 
-    let trimming_stage = TrimmingStage::new(
-        shared_bail_info.clone()
-    );
+    let trimming_stage = TrimmingStage::new(shared_bail_info.clone());
 
     let mut stages = tuple_list!(
         trimming_stage,

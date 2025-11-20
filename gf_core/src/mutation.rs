@@ -425,6 +425,7 @@ impl MutationContext {
     pub fn generate(&self) -> Graph {
         let mut graph = Graph {
             nodes: Vec::new(),
+            invocation_order: None,
         };
 
         let cache = self.cache.borrow();
@@ -448,6 +449,7 @@ impl MutationContext {
     pub fn generate_seeded(&self, idx: usize) -> Graph {
         let mut graph = Graph {
             nodes: Vec::new(),
+            invocation_order: None,
         };
         
         let endpoint = &self.pspec.endpoints[idx];

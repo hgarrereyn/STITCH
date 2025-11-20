@@ -1,6 +1,6 @@
 import argparse
 
-from . import init, infer, info, gen, dev, fuzz, triage, test, cover, stats, replay, run, save, report, status, multi
+from . import init, infer, info, gen, dev, fuzz, triage, test, cover, stats, replay, run, save, report, status, multi, monitor, execute, clear
 
 def main():
     parser = argparse.ArgumentParser()
@@ -22,6 +22,9 @@ def main():
     report.register(subparsers)
     status.register(subparsers)
     multi.register(subparsers)
+    monitor.register(subparsers)
+    execute.register(subparsers)
+    clear.register(subparsers)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

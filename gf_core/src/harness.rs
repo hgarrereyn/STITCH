@@ -5,17 +5,32 @@ use crate::{graph::Graph, runtime_metadata::RuntimeMetadataView};
 
 use super::graph::NodeRefType;
 
-
 extern "C" {
     // Defined in the fuzz target generated code.
-    fn GRAPHFUZZ_TARGET_INFO(exec_shim_ptr: &mut *const c_void, write_shim_ptr: &mut *const c_void, shim_size_ptr: &mut *const c_void, shim_arg_offsets_ptr: &mut *const c_void, num_shims: &mut usize, write_init_shim_ptr: &mut *const c_void);
-    fn GRAPHFUZZ_INVOKE_SHIM(shim: *const c_void, in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8, bailed: &mut usize, exit_buffer: *mut u8, exit_buffer_size: usize);
+    fn GRAPHFUZZ_TARGET_INFO(
+        exec_shim_ptr: &mut *const c_void,
+        write_shim_ptr: &mut *const c_void,
+        shim_size_ptr: &mut *const c_void,
+        shim_arg_offsets_ptr: &mut *const c_void,
+        num_shims: &mut usize,
+        write_init_shim_ptr: &mut *const c_void,
+    );
+    fn GRAPHFUZZ_INVOKE_SHIM(
+        shim: *const c_void,
+        in_ref: *const *const c_void,
+        out_ref: *const *const c_void,
+        context: *const u8,
+        bailed: &mut usize,
+        exit_buffer: *mut u8,
+        exit_buffer_size: usize,
+    );
     fn GRAPHFUZZ_PRE_INIT();
     fn GRAPHFUZZ_POST_INIT();
 }
 
 type WriteInitShim = unsafe fn();
-type Shim = unsafe fn(in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8);
+type Shim =
+    unsafe fn(in_ref: *const *const c_void, out_ref: *const *const c_void, context: *const u8);
 
 pub struct Harness {
     exec_shims: Vec<Shim>,
@@ -28,9 +43,9 @@ pub struct Harness {
 #[derive(Debug, Clone)]
 pub enum InvokeResult {
     Success,
-    Bailed(BailPoint),                      // FUZZ_BAIL() was called
-    AssertionViolation(BailPoint, String),  // FUZZ_ASSERT() violation
-    LibraryException(BailPoint, String),    // Library exception
+    Bailed(BailPoint),                     // FUZZ_BAIL() was called
+    AssertionViolation(BailPoint, String), // FUZZ_ASSERT() violation
+    LibraryException(BailPoint, String),   // Library exception
 }
 
 #[derive(Debug, Clone)]
@@ -87,13 +102,27 @@ impl Harness {
         let mut write_init_shim_ptr: *const c_void = std::ptr::null();
         let mut num_shims: usize = 0;
         unsafe {
-            GRAPHFUZZ_TARGET_INFO(&mut exec_shim_ptr, &mut write_shim_ptr, &mut shim_size_ptr, &mut shim_arg_offsets_ptr, &mut num_shims, &mut write_init_shim_ptr);
+            GRAPHFUZZ_TARGET_INFO(
+                &mut exec_shim_ptr,
+                &mut write_shim_ptr,
+                &mut shim_size_ptr,
+                &mut shim_arg_offsets_ptr,
+                &mut num_shims,
+                &mut write_init_shim_ptr,
+            );
         }
 
-        let exec_shims = unsafe { std::slice::from_raw_parts(exec_shim_ptr as *const Shim, num_shims).to_vec() };
-        let write_shims = unsafe { std::slice::from_raw_parts(write_shim_ptr as *const Shim, num_shims).to_vec() };
-        let shim_sizes = unsafe { std::slice::from_raw_parts(shim_size_ptr as *const u32, num_shims).to_vec() };
-        let shim_arg_offsets_ptrs = unsafe { std::slice::from_raw_parts(shim_arg_offsets_ptr as *const *const u32, num_shims).to_vec() };
+        let exec_shims =
+            unsafe { std::slice::from_raw_parts(exec_shim_ptr as *const Shim, num_shims).to_vec() };
+        let write_shims = unsafe {
+            std::slice::from_raw_parts(write_shim_ptr as *const Shim, num_shims).to_vec()
+        };
+        let shim_sizes =
+            unsafe { std::slice::from_raw_parts(shim_size_ptr as *const u32, num_shims).to_vec() };
+        let shim_arg_offsets_ptrs = unsafe {
+            std::slice::from_raw_parts(shim_arg_offsets_ptr as *const *const u32, num_shims)
+                .to_vec()
+        };
         let write_init_shim = unsafe { std::mem::transmute(write_init_shim_ptr) };
 
         let mut shim_arg_offsets = Vec::new();
@@ -112,14 +141,18 @@ impl Harness {
             write_shims,
             shim_sizes,
             shim_arg_offsets,
-            write_init_shim
+            write_init_shim,
         }
     }
 
-    pub fn invoke(&self, graph: &Graph, mut metadata: Option<&mut RuntimeMetadataView>) -> InvokeResult {
+    pub fn invoke(
+        &self,
+        graph: &Graph,
+        mut metadata: Option<&mut RuntimeMetadataView>,
+    ) -> InvokeResult {
         let slots = vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
-        
-        let order = graph.topological_sort();
+
+        let order = graph.get_invocation_order();
 
         unsafe {
             GRAPHFUZZ_PRE_INIT();
@@ -127,11 +160,14 @@ impl Harness {
 
         for idx in order.iter() {
             let node = &graph.nodes[*idx];
-            let in_ref = node.in_ref.iter().map(
-                |x| match x {
+            let in_ref = node
+                .in_ref
+                .iter()
+                .map(|x| match x {
                     NodeRefType::Connected(ref y) => slots[y.node_idx][y.conn_idx],
                     NodeRefType::Disconnected => panic!("Disconnected node reference"),
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             let out_ref = slots[node.index].as_ptr();
 
             let mut exit_type = 0;
@@ -139,27 +175,44 @@ impl Harness {
 
             let start = Instant::now();
             unsafe {
-                GRAPHFUZZ_INVOKE_SHIM(self.exec_shims[node.typ] as *const c_void, in_ref.as_ptr(), out_ref, node.context.as_ptr(), &mut exit_type, exit_buffer.as_mut_ptr(), 1024);
+                GRAPHFUZZ_INVOKE_SHIM(
+                    self.exec_shims[node.typ] as *const c_void,
+                    in_ref.as_ptr(),
+                    out_ref,
+                    node.context.as_ptr(),
+                    &mut exit_type,
+                    exit_buffer.as_mut_ptr(),
+                    1024,
+                );
             }
             let end = Instant::now();
             let millis = end.duration_since(start).as_millis() as f64;
 
             match exit_type {
-                0 => { // Normal exit
+                0 => {
+                    // Normal exit
                     if let Some(metadata) = &mut metadata {
                         metadata.endpoint_stats_mut(node.typ).mark_success(millis);
                     }
                 }
-                1 => { // Libary exception 
+                1 => {
+                    // Libary exception
                     unsafe {
                         GRAPHFUZZ_POST_INIT();
                     }
-                    return InvokeResult::LibraryException(BailPoint {
-                        node_idx: node.index,
-                        node_type: node.typ,
-                    }, String::from_utf8_lossy(&exit_buffer[..exit_buffer.iter().position(|&x| x == 0).unwrap()]).to_string());
+                    return InvokeResult::LibraryException(
+                        BailPoint {
+                            node_idx: node.index,
+                            node_type: node.typ,
+                        },
+                        String::from_utf8_lossy(
+                            &exit_buffer[..exit_buffer.iter().position(|&x| x == 0).unwrap()],
+                        )
+                        .to_string(),
+                    );
                 }
-                2 => { // FUZZ_BAIL() was called
+                2 => {
+                    // FUZZ_BAIL() was called
                     if let Some(metadata) = &mut metadata {
                         metadata.endpoint_stats_mut(node.typ).mark_failure();
                     }
@@ -171,14 +224,21 @@ impl Harness {
                         node_type: node.typ,
                     });
                 }
-                3 => { // FUZZ_ASSERT() violation
+                3 => {
+                    // FUZZ_ASSERT() violation
                     unsafe {
                         GRAPHFUZZ_POST_INIT();
                     }
-                    return InvokeResult::AssertionViolation(BailPoint {
-                        node_idx: node.index,
-                        node_type: node.typ,
-                    }, String::from_utf8_lossy(&exit_buffer[..exit_buffer.iter().position(|&x| x == 0).unwrap()]).to_string());
+                    return InvokeResult::AssertionViolation(
+                        BailPoint {
+                            node_idx: node.index,
+                            node_type: node.typ,
+                        },
+                        String::from_utf8_lossy(
+                            &exit_buffer[..exit_buffer.iter().position(|&x| x == 0).unwrap()],
+                        )
+                        .to_string(),
+                    );
                 }
                 _ => {
                     panic!("Invalid exit type: {}", exit_type);
@@ -205,19 +265,23 @@ impl Harness {
         // flush stdout
         std::io::stdout().flush().unwrap();
 
-        let mut slots = vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
-        
+        let mut slots =
+            vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
+
         let order = graph.topological_sort();
 
         let mut vidx = 0;
 
         for idx in order.iter() {
             let node = &graph.nodes[*idx];
-            let in_ref = node.in_ref.iter().map(
-                |x| match x {
+            let in_ref = node
+                .in_ref
+                .iter()
+                .map(|x| match x {
                     NodeRefType::Connected(ref y) => slots[y.node_idx][y.conn_idx],
                     NodeRefType::Disconnected => panic!("Disconnected node reference"),
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             let out_ref = slots[node.index].as_ptr();
 
             // Fill out ref with new indices
@@ -239,4 +303,3 @@ impl Harness {
         std::io::stdout().flush().unwrap();
     }
 }
-

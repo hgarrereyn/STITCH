@@ -1,15 +1,15 @@
-You are an expert in C/C++ tasked with writing a script to generate interesting input buffers to exercise functionality in specified fuzzing stubs.
+You are an expert in C/C++ tasked with writing a script to generate valid input buffers to exercise functionality in specified fuzzing stubs.
 You will be provided a list of objects and functions from a target codebase, along with a list of fuzzer stubs that use a particular data type in the libary and a description of the data type.
 
 # Instructions
-- You will write a python script that generates interesting input buffers for a particular data type.
-- The generated buffers will be provided to fuzzer stubs (and possibly mutated) in order to fuzz-test the target library.
+- You will write a python script that generates valid input buffers for a particular data type.
+- The generated buffers will be provided to fuzzer stubs in order to fuzz-test the target library.
 
 # Plan
 1. Read the data type description to understand what valid data looks like for this data type.
 2. Read through the fuzzer stubs to understand how the data type is used; look for `FUZZ_PARAM_STR` and `FUZZ_PARAM_FILENAME` calls.
 3. Cross-reference the function descriptions to determine the expected input data for each buffer.
-4. Determine what valid data looks like for each buffer, and what inputs might trigger different behaviors.
+4. Determine what valid data looks like for each buffer, and what valid inputs might trigger different behaviors.
 5. Write a small python script that can be used to generate interesting, yet valid input buffers for buffers in the target function stub.
 6. Return the script as a string.
 
@@ -29,11 +29,10 @@ You will be provided a list of objects and functions from a target codebase, alo
 - Do not include any `if __name__ == "__main__"` or `main` functions.
 
 # Guidance
-- Try to be as comprehensive and wide-scope as possible.
+- Try to be as comprehensive and wide-scope as possible with features in the target format.
 - Limit the resulting size of output buffers to 4096 bytes or fewer.
-- Prioritize trying to cover as much functionality and edge cases as possible.
-- Focus on generating likely valid inputs that cover a wide range of possibilities.
-    - Don't worry about mutating/corrupting the resulting data, the fuzzing engine will do that later.
+- Prioritize trying to cover as much functionality as possible.
+- Do NOT apply any fuzz-like mutators to post-process your generated data; the outputs your generator produces should be likely _valid_ inputs, NOT mutated or malformed inputs.
 
 # Output Format
 - Return a single object with the following field:

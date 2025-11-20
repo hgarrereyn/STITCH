@@ -32,7 +32,12 @@ impl Input for GraphInput {
         P: AsRef<std::path::Path>,
     {
         log::error!("Writing graph to file: {}", path.as_ref().display());
-        libafl_bolts::fs::write_file_atomic(path, &serde_json::to_vec(self).unwrap())
+        
+        // Ensure invocation order is computed before serialization
+        let mut graph_with_order = self.clone();
+        graph_with_order.graph.ensure_invocation_order();
+        
+        libafl_bolts::fs::write_file_atomic(path, &serde_json::to_vec(&graph_with_order).unwrap())
     }
     
     fn from_file<P>(path: P) -> Result<Self, libafl::Error>

@@ -153,7 +153,10 @@ impl SGraph {
             });
         }
 
-        Graph { nodes }
+        Graph { 
+            nodes,
+            invocation_order: None,
+        }
     }
 }
 

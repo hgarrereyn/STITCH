@@ -32,6 +32,10 @@ def do_gen(args):
 
     print(f'[{Colors.GREEN}+{Colors.END}] Autogenerating build configuration...')
 
+    # Build the base image
+    print(f'[{Colors.GREEN}+{Colors.END}] Building base image...')
+    project.build_base_image('stitch')
+
     with tempfile.TemporaryDirectory() as tmpdir:
         src = Path(tmpdir) / 'src'
         if config.commit is not None:

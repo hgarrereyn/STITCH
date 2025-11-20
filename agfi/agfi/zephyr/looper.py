@@ -76,6 +76,51 @@ def parse_fuzzer_stats(line: str) -> dict:
     }
 
 
+def index_corpus_file(corpus_path: Path) -> set:
+    """Return the set of endpoint names used in a corpus file."""
+    import json
+    try:
+        with open(corpus_path, 'r') as f:
+            data = json.load(f)
+            endpoints = set()
+            if 'graph' in data and 'nodes' in data['graph']:
+                for node in data['graph']['nodes']:
+                    endpoints.add(node['typ'])
+            return endpoints
+    except Exception:
+        return set()
+
+
+def copy_compatible_corpus(prev_revision_dir: Path, next_revision_dir: Path, 
+                           modified_endpoints: set) -> int:
+    """Copy corpus files from previous revision that don't use modified endpoints.
+    Returns the number of files copied."""
+    prev_queue = prev_revision_dir / 'outputs' / 'queue'
+    if not prev_queue.exists():
+        return 0
+    
+    next_inputs = next_revision_dir / 'inputs'
+    next_inputs.mkdir(parents=True, exist_ok=True)
+    
+    copied = 0
+    for corpus_file in prev_queue.iterdir():
+        if not corpus_file.is_file() or corpus_file.name.startswith('.'):
+            continue
+        
+        try:
+            used_endpoints = index_corpus_file(corpus_file)
+            # Only copy if none of the modified endpoints are used
+            if not used_endpoints.intersection(modified_endpoints):
+                shutil.copy(corpus_file, next_inputs / corpus_file.name)
+                copied += 1
+        except Exception as e:
+            # If we can't parse the file, skip it
+            print(f'{Colors.YELLOW}[!]{Colors.END} Could not index {corpus_file.name}: {e}')
+            continue
+    
+    return copied
+
+
 def compile_harness(workdir: Path):
     print(f'{Colors.GREEN}[+]{Colors.END} Converting harness: {workdir}')
     subprocess.run(['agfi', 'zephyr', 'to-schema', '--meta', workdir / 'harness.json', '--output', workdir / 'fuzzer.json'])
@@ -84,7 +129,7 @@ def compile_harness(workdir: Path):
     subprocess.run(['agfi', 'build', 'full', workdir / 'fuzzer'])
 
 
-def run_campaign(campaign: Path, info: str, revise: bool):
+def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool = False):
     # Collect the list of known crashes
     reports = campaign / 'reports'
     known_crashes: dict[str, CrashInfo] = {}
@@ -298,8 +343,18 @@ def run_campaign(campaign: Path, info: str, revise: bool):
         new_harness.endpoints = list(stubs.values())
 
         next_revision = current_revision + 1
-        (campaign / 'revisions' / str(next_revision)).mkdir(parents=True, exist_ok=True)
-        (campaign / 'revisions' / str(next_revision) / 'harness.json').write_text(new_harness.model_dump_json(indent=2))
+        next_revision_dir = campaign / 'revisions' / str(next_revision)
+        next_revision_dir.mkdir(parents=True, exist_ok=True)
+        (next_revision_dir / 'harness.json').write_text(new_harness.model_dump_json(indent=2))
+
+        # Copy compatible corpus files from previous revision
+        if not no_corpus_copy:
+            modified_endpoint_names = {stub.name for stub in patch_info.modified_stubs}
+            print(f'{Colors.GREEN}[+]{Colors.END} Copying compatible corpus files (excluding endpoints: {", ".join(modified_endpoint_names)})')
+            copied_count = copy_compatible_corpus(workdir, next_revision_dir, modified_endpoint_names)
+            print(f'{Colors.GREEN}[+]{Colors.END} Copied {copied_count} compatible corpus files to new revision')
+        else:
+            print(f'{Colors.YELLOW}[*]{Colors.END} Corpus copy disabled, new revision will start from scratch')
 
         print(f'{Colors.GREEN}[+]{Colors.END} New revision created: {next_revision}')
 
@@ -337,11 +392,11 @@ def main(args):
     # Run the campaign
     for revision in range(args.max_revisions):
         print(f'{Colors.GREEN}[+]{Colors.END} Running campaign {revision + 1} of {args.max_revisions}')
-        run_campaign(campaign, info_path, revise=True)
+        run_campaign(campaign, info_path, revise=True, no_corpus_copy=args.no_corpus_copy)
 
     # Final run without revisions
     print(f'{Colors.GREEN}[+]{Colors.END} Running final campaign without revisions')
-    run_campaign(campaign, info_path, revise=False)
+    run_campaign(campaign, info_path, revise=False, no_corpus_copy=args.no_corpus_copy)
 
 
 def register(subparser: ArgumentParser):
@@ -351,4 +406,5 @@ def register(subparser: ArgumentParser):
     parser.add_argument('--campaign', type=str, required=True, help='Path to the campaign directory')
     parser.add_argument('--max-revisions', type=int, default=10, help='Maximum number of revisions to run')
     parser.add_argument('--reset', action='store_true', help='Reset the campaign (if it exists)')
+    parser.add_argument('--no-corpus-copy', action='store_true', help='Do not copy compatible corpus files between revisions')
     parser.set_defaults(func=main)
