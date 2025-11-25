@@ -36,7 +36,7 @@ def process_queue_item(args):
         ], env=env, capture_output=not verbose)
 
         subprocess.run([
-            'llvm-profdata-14', 'merge', '-sparse', str(tmp_dir / 'coverage.profdata'), '-o', str(coverage_dir / f'{name}.profdata')
+            'llvm-profdata-17', 'merge', '-sparse', str(tmp_dir / 'coverage.profdata'), '-o', str(coverage_dir / f'{name}.profdata')
         ], capture_output=not verbose)
 
 
@@ -75,7 +75,7 @@ def run_cover(args):
     print(f'[{Colors.GREEN}*{Colors.END}] Merging {len(profdata_files)} profdata files')
     # Merge all profdata files into a single profdata file
     subprocess.run([
-        'llvm-profdata-14', 'merge', '-sparse', *profdata_files, '-o', str(coverage_dir / 'merged.profdata')
+        'llvm-profdata-17', 'merge', '-sparse', *profdata_files, '-o', str(coverage_dir / 'merged.profdata')
     ], capture_output=True)
 
 
@@ -88,10 +88,11 @@ def run_cover(args):
     # Generate an html report
     try:
         cmd = [
-            'llvm-cov-14', 'show', str(fuzzer),
+            'llvm-cov-17', 'show', str(fuzzer),
             '-format=html', '-output-dir', str(cov_html),
             '-instr-profile', str(coverage_dir / 'merged.profdata'),
             '-show-line-counts-or-regions',
+            '-ignore-filename-regex', r'^/fuzz/workspace',
             # '-path-equivalence', '/fuzz/src,.'
         ]
         for obj in objs:
@@ -106,9 +107,10 @@ def run_cover(args):
     # Generate a JSON report
     try:
         cmd = [
-            'llvm-cov-14', 'export', str(fuzzer),
+            'llvm-cov-17', 'export', str(fuzzer),
             '-instr-profile', str(coverage_dir / 'merged.profdata'),
             '-format=text',
+            '-ignore-filename-regex', r'^/fuzz/workspace',
             # '-path-equivalence', '/fuzz/src,.'
         ]
         for obj in objs:
