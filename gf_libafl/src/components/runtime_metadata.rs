@@ -23,6 +23,7 @@ pub struct EndpointMetadata {
     pub name: String,
     pub success_count: usize,
     pub failure_count: usize,
+    pub skipped_count: usize,
     pub executions: usize,
     pub average_millis: f64,
 }
@@ -41,6 +42,7 @@ impl FuzzerRuntimeMetadata {
                 name: pspec.endpoints[i].name.clone(),
                 success_count: stats.success_count,
                 failure_count: stats.failure_count,
+                skipped_count: stats.skipped_count,
                 executions: stats.executions,
                 average_millis: stats.average_millis,
             });

@@ -1,12 +1,11 @@
 use std::fs;
-#[cfg(unix)]
-use std::fs::File;
 use std::io::Write;
 use std::{cell::RefCell, fs::OpenOptions, path::PathBuf, process, rc::Rc, time::Duration};
 
 use gf_core::{
     harness::{BailInfo, Harness, InvokeResult},
     mutation::MutationContext,
+    runtime_metadata::RuntimeMetadata,
 };
 use libafl::schedulers::powersched::PowerSchedule;
 use libafl::schedulers::StdWeightedScheduler;
@@ -20,7 +19,6 @@ use libafl::{
     monitors::SimpleMonitor,
     mutators::{havoc_mutations_no_crossover, tokens_mutations, StdMOptMutator, Tokens},
     observers::{CanTrack, HitcountsMapObserver, TimeObserver},
-    schedulers::QueueScheduler,
     stages::StdMutationalStage,
     state::{HasCorpus, StdState},
     Error, Fuzzer, HasMetadata, StdFuzzer,
@@ -35,6 +33,7 @@ use libafl_targets::{std_edges_map_observer, EDGES_MAP_ALLOCATED_SIZE, EDGES_MAP
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
+use crate::components::runtime_metadata::MetadataLoggerStage;
 use crate::components::trimming::{IndexesBailedLenMinimizerScheduler, TrimmingStage};
 use crate::components::{
     graph_input::GraphInput,
@@ -55,7 +54,7 @@ pub fn fuzz(
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
     timeout: Duration,
-    rss_limit_mb: Option<u64>,
+    _rss_limit_mb: Option<u64>,
     keep_stdout: bool,
     verbose: bool,
 ) -> Result<(), Error> {
@@ -98,25 +97,18 @@ pub fn fuzz(
 
         // If we are debugging, re-enable target stderror.
         if std::env::var("LIBAFL_FUZZBENCH_DEBUG").is_ok() {
-            // # Safety
             // Nobody else uses the new stderror here.
-            unsafe {
-                use std::{io, os::fd::AsRawFd};
-                libafl_bolts::os::dup2(new_stderr, io::stderr().as_raw_fd())?;
-            }
+            use std::{io, os::fd::AsRawFd};
+            libafl_bolts::os::dup2(new_stderr, io::stderr().as_raw_fd())?;
         }
 
-        // # Safety
-        // The new stdout is open at this point, and we will don't use it anywhere else.
         #[cfg(unix)]
-        unsafe {
+        {
             use std::{fs::File, os::fd::FromRawFd};
-            File::from_raw_fd(new_stdout)
+            // The new stdout is open at this point, and we will not use it anywhere else.
+            unsafe { File::from_raw_fd(new_stdout) }
         }
     };
-
-    #[cfg(unix)]
-    let file_null = File::open("/dev/null").unwrap();
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = SimpleMonitor::with_user_monitor(|s| {
@@ -131,14 +123,11 @@ pub fn fuzz(
     // This way, we are able to continue fuzzing afterwards.
     let mut shmem_provider = StdShMemProvider::new()?;
 
-    let mut shmem;
-    unsafe {
-        println!(
-            "Allocating shared memory for edges map: {}",
-            EDGES_MAP_ALLOCATED_SIZE
-        );
-        shmem = shmem_provider.new_shmem(EDGES_MAP_ALLOCATED_SIZE).unwrap();
-    }
+    println!(
+        "Allocating shared memory for edges map: {}",
+        EDGES_MAP_ALLOCATED_SIZE
+    );
+    let mut shmem = shmem_provider.new_shmem(EDGES_MAP_ALLOCATED_SIZE).unwrap();
     let shmem_buf = shmem.as_slice_mut();
     unsafe {
         EDGES_MAP_PTR = shmem_buf.as_mut_ptr();
@@ -151,6 +140,19 @@ pub fn fuzz(
     let bail_info_shmem_buf = bail_info_shmem.as_slice_mut();
 
     let shared_bail_info = Rc::new(RefCell::new(bail_info_shmem_buf));
+
+    // Setup shared memory for runtime metadata (per-endpoint stats).
+    // This buffer is read/written by the harness on each execution, and periodically
+    // snapshotted to disk by a LibAFL stage outside the hot loop.
+    let mut metadata_shmem = shmem_provider
+        .new_shmem(RuntimeMetadata::compute_size(ctx.pspec.endpoints.len()))
+        .unwrap();
+    let metadata_shmem_buf = metadata_shmem.as_slice_mut();
+    // Start from a clean slate for all counters and timing data.
+    metadata_shmem_buf.fill(0);
+    let runtime_metadata = Rc::new(RefCell::new(gf_core::runtime_metadata::RuntimeMetadataView::new(
+        metadata_shmem_buf,
+    )));
 
     let obs = unsafe { std_edges_map_observer("edges") };
 
@@ -232,80 +234,35 @@ pub fn fuzz(
     // A fuzzer with feedbacks and a corpus scheduler
     let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-    let debug_viz = std::env::var("AGF_DEBUG_VIZ").is_ok();
-    let viz_log_path = out_dir.join("viz_stats.jsonl");
-
     // The wrapped harness function, calling out to the LLVM-style harness
+    let runtime_metadata_for_harness = runtime_metadata.clone();
+
     let mut harness = |input: &GraphInput| {
         // Invoke the harness in the sandboxed environment
-        let res = gf_harness.invoke(&input.graph, None);
+        let mut local_view = runtime_metadata_for_harness.borrow_mut();
+        let res = gf_harness.invoke(&input.graph, Some(&mut *local_view));
 
-        if debug_viz {
-            let hash = input.graph.hash_structure();
-            let (result, bail_node_idx, bail_node_type) = match &res {
-                InvokeResult::Success => ("success", None, None),
-                InvokeResult::Bailed(bp) => ("bailed", Some(bp.node_idx), Some(bp.node_type)),
-                InvokeResult::AssertionViolation(bp, _) => {
-                    ("assertion_violation", Some(bp.node_idx), Some(bp.node_type))
+        // Classify this execution in terms of endpoint outcomes, using the
+        // invocation order. This lets us distinguish successes, failures, and
+        // endpoints that were *skipped* because an earlier endpoint failed.
+        let bail_node_idx = match &res {
+            InvokeResult::Success => None,
+            InvokeResult::Bailed(bp) => Some(bp.node_idx),
+            InvokeResult::AssertionViolation(bp, _) => Some(bp.node_idx),
+            InvokeResult::LibraryException(bp, _) => Some(bp.node_idx),
+        };
+
+        let invocation_order = input.graph.get_invocation_order();
+        if let Some(bail_idx) = bail_node_idx {
+            // Find where the bail happened in the invocation order
+            if let Some(bail_pos) = invocation_order.iter().position(|&idx| idx == bail_idx) {
+                // Endpoints after bail_pos were skipped; update shared runtime stats.
+                for i in (bail_pos + 1)..invocation_order.len() {
+                    let node_idx = invocation_order[i];
+                    let ep_idx = input.graph.nodes[node_idx].typ;
+                    // Mark this endpoint as skipped in the runtime metadata.
+                    local_view.endpoint_stats_mut(ep_idx).mark_skipped();
                 }
-                InvokeResult::LibraryException(bp, _) => {
-                    ("library_exception", Some(bp.node_idx), Some(bp.node_type))
-                }
-            };
-
-            let node_types: Vec<usize> = input.graph.nodes.iter().map(|n| n.typ).collect();
-
-            // Track executed, bailed, and skipped endpoints using invocation_order
-            let invocation_order = input.graph.get_invocation_order();
-            let mut executed_endpoints = Vec::new();
-            let mut bailed_endpoint: Option<usize> = None;
-            let mut skipped_endpoints = Vec::new();
-
-            if let Some(bail_idx) = bail_node_idx {
-                // Find where the bail happened in the invocation order
-                let bail_position = invocation_order.iter().position(|&idx| idx == bail_idx);
-
-                if let Some(bail_pos) = bail_position {
-                    // Endpoints before bail_pos were executed successfully
-                    for i in 0..bail_pos {
-                        let node_idx = invocation_order[i];
-                        executed_endpoints.push(input.graph.nodes[node_idx].typ);
-                    }
-
-                    // The endpoint at bail_pos bailed
-                    bailed_endpoint = Some(input.graph.nodes[invocation_order[bail_pos]].typ);
-
-                    // Endpoints after bail_pos were skipped
-                    for i in (bail_pos + 1)..invocation_order.len() {
-                        let node_idx = invocation_order[i];
-                        skipped_endpoints.push(input.graph.nodes[node_idx].typ);
-                    }
-                }
-            } else {
-                // No bail - all endpoints were executed successfully
-                for &node_idx in &invocation_order {
-                    executed_endpoints.push(input.graph.nodes[node_idx].typ);
-                }
-            }
-
-            let json = serde_json::json!({
-                "type": "graph_exec",
-                "hash": hash,
-                "result": result,
-                "bail_node_idx": bail_node_idx,
-                "bail_node_type": bail_node_type,
-                "node_types": node_types,
-                "executed_endpoints": executed_endpoints,
-                "bailed_endpoint": bailed_endpoint,
-                "skipped_endpoints": skipped_endpoints
-            });
-
-            if let Ok(mut file) = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&viz_log_path)
-            {
-                let _ = writeln!(file, "{}", json.to_string());
             }
         }
 
@@ -317,18 +274,14 @@ pub fn fuzz(
                 std::mem::size_of::<BailInfo>(),
             )
         };
-        (*shared_bail_info)
-            .borrow_mut()
-            .copy_from_slice(bail_info_bytes);
+        (*shared_bail_info).borrow_mut().copy_from_slice(bail_info_bytes);
 
         match res {
             InvokeResult::Success => ExitKind::Ok,
             InvokeResult::Bailed(_) => ExitKind::Ok,
             InvokeResult::AssertionViolation(_, msg) => {
-                // abort with the message
-                unsafe {
-                    panic!("{}", msg);
-                }
+                // Abort with the message. This will be caught by LibAFL's crash handling.
+                panic!("{}", msg);
             }
             InvokeResult::LibraryException(_, _) => ExitKind::Ok,
         }
@@ -347,13 +300,20 @@ pub fn fuzz(
 
     let trimming_stage = TrimmingStage::new(shared_bail_info.clone());
 
-    let mut stages = tuple_list!(
-        trimming_stage,
-        graph_mutator,
-        // tracing,
-        // i2s,
-        context_stage,
+    // Periodically dump aggregated runtime metadata to `runtime_stats.json` in the
+    // output directory. This runs outside the hot execution loop and avoids
+    // per-execution file I/O.
+    let metadata_logger = MetadataLoggerStage::new(
+        runtime_metadata,
+        ctx.clone(),
+        out_dir
+            .join("runtime_stats.json")
+            .to_string_lossy()
+            .to_string(),
+        Duration::from_secs(2),
     );
+
+    let mut stages = tuple_list!(metadata_logger, trimming_stage, graph_mutator, context_stage,);
 
     // Read tokens
     if state.metadata_map().get::<Tokens>().is_none() {

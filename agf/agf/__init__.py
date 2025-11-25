@@ -18,7 +18,6 @@ from . import (
     report,
     status,
     multi,
-    monitor,
     execute,
     clear,
 )
@@ -45,7 +44,6 @@ def main():
     report.register(subparsers)
     status.register(subparsers)
     multi.register(subparsers)
-    monitor.register(subparsers)
     execute.register(subparsers)
     clear.register(subparsers)
 

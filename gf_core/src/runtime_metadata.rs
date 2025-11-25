@@ -6,6 +6,7 @@ use bytemuck::{Pod, Zeroable};
 pub struct EndpointStats {
     pub success_count: usize,
     pub failure_count: usize,
+    pub skipped_count: usize,
     pub executions: usize,
     pub average_millis: f64,
 }
@@ -22,6 +23,13 @@ impl EndpointStats {
         self.failure_count += 1;
         self.executions += 1;
         // println!("Marking failure, success_count: {}, failure_count: {}, executions: {}, average_millis: {}", self.success_count, self.failure_count, self.executions, self.average_millis);
+    }
+
+    /// Mark that this endpoint was *scheduled* to run but skipped because an earlier
+    /// endpoint in the graph failed. This should not affect the execution count or
+    /// average runtime, since the endpoint never actually ran.
+    pub fn mark_skipped(&mut self) {
+        self.skipped_count += 1;
     }
 }
 

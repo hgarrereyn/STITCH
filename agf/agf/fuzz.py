@@ -71,15 +71,6 @@ def do_fuzz(args):
             'OPENAI_API_KEY',
         ]
 
-        if args.debug:
-            import os
-            os.environ['AGF_DEBUG_VIZ'] = '1'
-            env.append('AGF_DEBUG_VIZ')
-            print(
-                f'[{Colors.GREEN}+{Colors.END}] Debug mode enabled. '
-                f'Run {Colors.CYAN}agf monitor{Colors.END} to visualize the process.'
-            )
-
         project.invoke(
             env=env,
             mounts=mounts,
@@ -99,7 +90,6 @@ def register(subparsers):
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('--reset', action='store_true', help='Reset the campaign', default=False)
     subparser.add_argument('--hard-rss-limit-mb', type=int, help='The hard RSS limit in MB', default=1024)
-    subparser.add_argument('--debug', action='store_true', help='Enable debug visualization', default=False)
     subparser.add_argument(
         '--no-corpus-copy',
         action='store_true',

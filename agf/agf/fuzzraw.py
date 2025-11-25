@@ -69,15 +69,6 @@ def do_fuzz_raw(args):
         ]
 
         env = []
-        if args.debug:
-            import os
-
-            os.environ['AGF_DEBUG_VIZ'] = '1'
-            env.append('AGF_DEBUG_VIZ')
-            print(
-                f'[{Colors.GREEN}+{Colors.END}] Debug mode enabled. '
-                f'Run {Colors.CYAN}agf monitor{Colors.END} to visualize the process.'
-            )
 
         # Roughly mirror what the looper does internally, but without bucketizer/patching:
         #   agfi zephyr to-schema --meta harness.json --output fuzzer.json
@@ -124,7 +115,6 @@ def register(subparsers):
         help='The hard RSS limit in MB (propagated via ASAN_OPTIONS in the Docker image)',
         default=1024,
     )
-    raw.add_argument('--debug', action='store_true', help='Enable debug visualization', default=False)
     raw.set_defaults(func=do_fuzz_raw)
 
 
