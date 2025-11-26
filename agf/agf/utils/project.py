@@ -155,17 +155,6 @@ class Project:
 
     def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> bool:
         config = self.get_config()
-        # If the main image already exists, assume it is usable and skip
-        # rebuilding. This avoids races when multiple infer jobs try to build
-        # the same image concurrently.
-        existing = subprocess.run(
-            ['docker', 'image', 'inspect', f'main_{config.name}'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if existing.returncode == 0:
-            return True
-
         self.build_base_image('stitch')
         base = self.base_image(build_coverage, use_asan, override_commit, hard_rss_limit_mb)
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -178,13 +167,31 @@ class Project:
                 str(temp_dir)
             ], check=True)
 
-            subprocess.run([
-                'docker', 'build',
-                '--build-arg', f'BASE_IMAGE=base_{config.name}',
-                '-t', f'main_{config.name}',
-                '-f', self.path / 'config' / 'Dockerfile',
-                str((self.path / 'config').absolute())
-            ], check=True)
+            # Build the main image. If another concurrent build has already
+            # produced and tagged the image, Docker may emit an "already
+            # exists" error; treat that specific case as success so that
+            # multiple infer jobs can proceed without racing.
+            res = subprocess.run(
+                [
+                    'docker',
+                    'build',
+                    '--build-arg',
+                    f'BASE_IMAGE=base_{config.name}',
+                    '-t',
+                    f'main_{config.name}',
+                    '-f',
+                    self.path / 'config' / 'Dockerfile',
+                    str((self.path / 'config').absolute()),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            if res.returncode != 0:
+                stderr = res.stderr or ''
+                if 'already exists' not in stderr:
+                    # Real failure: surface it.
+                    res.check_returncode()
         return True
 
     def external_base_image(self, override_commit: str = None) -> str:
@@ -249,15 +256,6 @@ class Project:
 
     def build_docker_capture_errors(self, build_coverage: bool = False, use_asan: bool = False) -> Optional[BuildError]:
         config = self.get_config()
-        # Reuse an existing main image if available, to avoid build races.
-        existing = subprocess.run(
-            ['docker', 'image', 'inspect', f'main_{config.name}'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if existing.returncode == 0:
-            return None
-
         base = self.base_image(build_coverage, use_asan)
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
@@ -277,7 +275,9 @@ class Project:
                 str((self.path / 'config').absolute())
             ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode != 0:
-                return BuildError(stdout=res.stdout, stderr=res.stderr)
+                stderr = res.stderr or ''
+                if 'already exists' not in stderr:
+                    return BuildError(stdout=res.stdout, stderr=res.stderr)
         return None
 
     def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False, **kwargs):
