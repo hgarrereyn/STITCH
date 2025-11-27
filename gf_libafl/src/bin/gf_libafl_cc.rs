@@ -16,16 +16,24 @@ pub fn main() {
 
         dir.pop();
 
-        // Must be always present, even without --libafl
-        args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
+        // Determine whether we're building a coverage-only binary.
+        // In coverage mode, we rely on llvm-cov style instrumentation
+        // (-fprofile-instr-generate/-fcoverage-mapping) and *do not*
+        // inject sanitizer-based coverage, which would otherwise
+        // require the sanitizer runtime and can lead to unresolved
+        // symbols like __sanitizer_cov_trace_pc_guard_init.
+        let build_coverage = env::var("GRAPHFUZZ_BUILD_COVERAGE").unwrap_or("0".to_string());
+
+        // For normal fuzzing builds (build_coverage == "0"), always
+        // enable sanitizer coverage so LibAFL can observe coverage.
+        if build_coverage != "1" {
+            args.push("-fsanitize-coverage=trace-pc-guard,trace-cmp".into());
+        }
 
         let use_asan = env::var("GRAPHFUZZ_USE_ASAN").unwrap_or("0".to_string());
         if use_asan == "1" {
             args.push("-fsanitize=address".into());
         }
-
-        // Get the GRAPHFUZZ_BUILD_COVERAGE environment variable
-        let build_coverage = env::var("GRAPHFUZZ_BUILD_COVERAGE").unwrap_or("0".to_string());
         if build_coverage == "1" {
             args.push("-fprofile-instr-generate".into());
             args.push("-fcoverage-mapping".into());

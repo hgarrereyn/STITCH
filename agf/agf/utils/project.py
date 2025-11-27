@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional, List, Tuple, Dict
 from pydantic import BaseModel, Field
 import os
+import sys
 import tempfile
 import subprocess
 import json
@@ -125,6 +126,7 @@ class Project:
         REPO_PATH = (Path(__file__).parent.parent.parent.parent).absolute()
         subprocess.run([
             'docker', 'build',
+            '--platform', 'linux/amd64',
             '-t', f'{name}_base',
             '-f', str(REPO_PATH / 'agf' / 'agf' / 'docker' / f'{name}.Dockerfile'),
             str(REPO_PATH)
@@ -162,6 +164,7 @@ class Project:
             (temp_dir / 'base.Dockerfile').write_text(base)
             subprocess.run([
                 'docker', 'build',
+                '--platform', 'linux/amd64',
                 '-t', f'base_{config.name}',
                 '-f', temp_dir / 'base.Dockerfile',
                 str(temp_dir)
@@ -170,11 +173,15 @@ class Project:
             # Build the main image. If another concurrent build has already
             # produced and tagged the image, Docker may emit an "already
             # exists" error; treat that specific case as success so that
-            # multiple infer jobs can proceed without racing.
+            # multiple infer jobs can proceed without racing. For any other
+            # failure, surface Docker's stdout/stderr so callers (e.g. cover)
+            # can see the root cause in their logs.
             res = subprocess.run(
                 [
                     'docker',
                     'build',
+                    '--platform',
+                    'linux/amd64',
                     '--build-arg',
                     f'BASE_IMAGE=base_{config.name}',
                     '-t',
@@ -189,9 +196,21 @@ class Project:
             )
             if res.returncode != 0:
                 stderr = res.stderr or ''
-                if 'already exists' not in stderr:
-                    # Real failure: surface it.
-                    res.check_returncode()
+                if 'already exists' in stderr:
+                    # Benign race: another worker finished the same build.
+                    # Treat as success.
+                    return True
+
+                # Real failure: print Docker output to stderr so it shows up in
+                # caller logs (e.g. stitch-bench cover.log), then raise.
+                print('[agf] docker build failed for main image:', file=sys.stderr)
+                if res.stdout:
+                    print('--- docker stdout ---', file=sys.stderr)
+                    print(res.stdout, file=sys.stderr)
+                if res.stderr:
+                    print('--- docker stderr ---', file=sys.stderr)
+                    print(res.stderr, file=sys.stderr)
+                res.check_returncode()
         return True
 
     def external_base_image(self, override_commit: str = None) -> str:
@@ -248,6 +267,7 @@ class Project:
                 print(f'{base}')
             subprocess.run([
                 'docker', 'build',
+                '--platform', 'linux/amd64',
                 '-t', tag,
                 '-f', temp_dir / 'base.Dockerfile',
                 str(temp_dir)
@@ -262,6 +282,7 @@ class Project:
             (temp_dir / 'base.Dockerfile').write_text(base)
             subprocess.run([
                 'docker', 'build',
+                '--platform', 'linux/amd64',
                 '-t', f'base_{config.name}',
                 '-f', temp_dir / 'base.Dockerfile',
                 str(temp_dir)
@@ -269,6 +290,7 @@ class Project:
 
             res = subprocess.run([
                 'docker', 'build',
+                '--platform', 'linux/amd64',
                 '--build-arg', f'BASE_IMAGE=base_{config.name}',
                 '-t', f'main_{config.name}',
                 '-f', self.path / 'config' / 'Dockerfile',
@@ -284,12 +306,23 @@ class Project:
         """
         Invoke a command inside the main container (must be built first).
 
+        When running in an interactive terminal, we request a TTY from Docker
+        (`-it`) so command output behaves like a normal shell session. When
+        stdin is not a TTY (e.g. background workers or CI) we avoid `-t` to
+        prevent Docker from failing with \"the input device is not a TTY\".
+
         Args:
             env: List of environment variables to copy from the host
             mounts: List of tuples of (host_path, container_path)
             cmd: Command to run
         """
-        full_cmd = ['docker', 'run', '-it', '--rm']
+        full_cmd = ['docker', 'run', '--rm']
+
+        # Only request a TTY when our own stdin is a TTY. This keeps interactive
+        # usage unchanged while allowing non-interactive callers (like
+        # stitch-bench workers) to redirect or detach stdin safely.
+        if sys.stdin.isatty():
+            full_cmd.insert(2, '-it')
         for e in env:
             full_cmd += ['-e', f'{e}={os.environ.get(e, "")}']
         for mount in mounts:

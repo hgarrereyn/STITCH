@@ -244,7 +244,13 @@ def validate_dockerfile(config: AutogenConfig, dockerfile: str, test_program: st
             f.write(base_image)
 
         # Base image is written by us, this should never fail
-        subprocess.run(['docker', 'build', '-t', f'base_{config.name}', '-f', base_image_path, str(temp_dir)])
+        subprocess.run([
+            'docker', 'build',
+            '--platform', 'linux/amd64',
+            '-t', f'base_{config.name}',
+            '-f', base_image_path,
+            str(temp_dir)
+        ])
 
         # Try to build the provided dockerfile
         dockerfile_path = temp_dir / 'main.dockerfile'
@@ -253,6 +259,7 @@ def validate_dockerfile(config: AutogenConfig, dockerfile: str, test_program: st
 
         res = subprocess.run([
             'docker', 'build',
+            '--platform', 'linux/amd64',
             '--build-arg', f'BASE_IMAGE=base_{config.name}',
             '-t', f'main_{config.name}',
             '-f', dockerfile_path,
@@ -312,6 +319,7 @@ def validate_dockerfile(config: AutogenConfig, dockerfile: str, test_program: st
         res = subprocess.run(
             [
                 'docker', 'build',
+                '--platform', 'linux/amd64',
                 '-t', f'builder_{config.name}',
                 '-f', builder_path,
                 str(temp_dir)
