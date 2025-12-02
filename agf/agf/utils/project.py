@@ -427,7 +427,16 @@ class Project:
         # and the tag of the main image so callers can invoke it explicitly.
         return None, main_tag
 
-    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False, image: Optional[str] = None, **kwargs):
+    def invoke(
+        self,
+        env: List[str] = [],
+        mounts: List[Tuple[str, str]] = [],
+        cmd: str = 'bash',
+        check: bool = False,
+        image: Optional[str] = None,
+        run_as_host_user: bool = True,
+        **kwargs,
+    ):
         """
         Invoke a command inside the main container (must be built first).
 
@@ -440,6 +449,10 @@ class Project:
             env: List of environment variables to copy from the host
             mounts: List of tuples of (host_path, container_path)
             cmd: Command to run
+            run_as_host_user: If True, run the container as the invoking host
+                UID:GID so that files created in mounted directories are owned
+                by the caller. Set to False to fall back to the image's default
+                user.
         """
         full_cmd = ['docker', 'run', '--rm']
         full_cmd += ['--platform', 'linux/amd64']
@@ -449,6 +462,23 @@ class Project:
         # stitch-bench workers) to redirect or detach stdin safely.
         if sys.stdin.isatty():
             full_cmd.insert(2, '-it')
+
+        # Decide whether to run the container as the host user. By default we
+        # map the current process's UID/GID into the container so that files
+        # created in mounted directories are owned by the caller. Callers can
+        # opt out by setting run_as_host_user=False.
+        if run_as_host_user:
+            uid = getattr(os, 'getuid', lambda: None)()
+            gid = getattr(os, 'getgid', lambda: None)()
+            if uid is not None and gid is not None:
+                full_cmd += ['--user', f'{uid}:{gid}']
+            else:
+                print(
+                    '[agf] Warning: unable to determine host UID/GID; '
+                    'running container as its default user',
+                    file=sys.stderr,
+                )
+
         for e in env:
             full_cmd += ['-e', f'{e}={os.environ.get(e, "")}']
         for mount in mounts:

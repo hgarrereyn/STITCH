@@ -56,10 +56,19 @@ def do_infer(args):
         ]
         cmd = f'cd /fuzz/workspace && agfi zephyr run --headers {" ".join(headers)} --output meta.json --threads {args.threads} {"--verbose" if args.verbose else ""}'
 
-        project.invoke(env=env, mounts=mounts, image=image_tag, cmd=cmd)
+        project.invoke(
+            env=env,
+            mounts=mounts,
+            image=image_tag,
+            cmd=cmd,
+        )
 
         # Save the results
-        shutil.copy(tmpdir / 'meta.json', harness.path / 'harness.json')
+        meta_path = tmpdir / 'meta.json'
+        if not meta_path.exists():
+            print(f'[{Colors.RED}-{Colors.END}] Inference did not produce meta.json in {meta_path}')
+            return
+        shutil.copy(meta_path, harness.path / 'harness.json')
 
 
 def register(subparsers):
