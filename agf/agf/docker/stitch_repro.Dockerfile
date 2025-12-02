@@ -26,5 +26,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-RUN cargo install casr && \
-    chmod -R a+rX /root/.cargo
+# Install casr into a globally accessible prefix; the binaries will be placed
+# under /usr/local/bin, which is already on PATH for all users.
+RUN cargo install casr --root /usr/local
