@@ -53,7 +53,7 @@ def do_fuzz_raw(args):
         print(f'[{Colors.GREEN}+{Colors.END}] Using ASAN')
 
     # For raw fuzzing we don't need OPENAI access; we're using an existing harness.
-    project.build_docker(use_asan=asan, hard_rss_limit_mb=args.hard_rss_limit_mb)
+    image_tag = project.build_docker(use_asan=asan, hard_rss_limit_mb=args.hard_rss_limit_mb)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -70,6 +70,24 @@ def do_fuzz_raw(args):
 
         env = []
 
+        # Optional time limit applied to the fuzzer process *inside* the
+        # container. This ensures that expensive steps like Docker image
+        # builds happen outside the fuzzing time budget, while still
+        # enforcing a strict limit on how long the fuzzer itself runs.
+        timeout_prefix = ""
+        if getattr(args, "time_limit_seconds", None):
+            try:
+                limit = int(args.time_limit_seconds)
+                if limit > 0:
+                    # Use coreutils `timeout` so we don't have to assume any
+                    # particular fuzzer CLI; this simply bounds wall-clock time
+                    # for ./fuzzer. If `timeout` is not available in the image,
+                    # this will fail fast with a clear non-zero exit code.
+                    timeout_prefix = f"timeout {limit}s "
+            except Exception:
+                # If parsing fails, just run without an in-container timeout.
+                timeout_prefix = ""
+
         # Roughly mirror what the looper does internally, but without bucketizer/patching:
         #   agfi zephyr to-schema --meta harness.json --output fuzzer.json
         #   agfi build full fuzzer
@@ -77,13 +95,14 @@ def do_fuzz_raw(args):
         project.invoke(
             env=env,
             mounts=mounts,
-            cmd='''
+            image=image_tag,
+            cmd=f'''
                 set -e
                 cd /fuzz/workspace &&
                 agfi zephyr to-schema --meta harness.json --output fuzzer.json &&
                 agfi build full fuzzer &&
                 mkdir -p /fuzz/out/inputs /fuzz/out/queue /fuzz/out/crashes &&
-                ./fuzzer -i /fuzz/out/inputs -o /fuzz/out --bypass-validation --logfile /fuzz/out/fuzzer.log --rss-limit-mb 0
+                {timeout_prefix}./fuzzer -i /fuzz/out/inputs -o /fuzz/out --bypass-validation --logfile /fuzz/out/fuzzer.log --rss-limit-mb 0
             ''',
         )
 
@@ -114,6 +133,12 @@ def register(subparsers):
         type=int,
         help='The hard RSS limit in MB (propagated via ASAN_OPTIONS in the Docker image)',
         default=1024,
+    )
+    raw.add_argument(
+        '--time-limit-seconds',
+        type=int,
+        help='Optional wall-clock time limit (in seconds) applied to the fuzzer process inside the container.',
+        default=None,
     )
     raw.set_defaults(func=do_fuzz_raw)
 

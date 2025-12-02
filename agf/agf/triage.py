@@ -38,7 +38,7 @@ def do_triage(args):
     check_env(['OPENAI_API_KEY'])
     
     # First, triage non-ASAN crashes
-    project.build_docker(use_asan=False)
+    non_asan_image = project.build_docker(use_asan=False)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         tmpdir.mkdir(parents=True, exist_ok=True)
@@ -60,6 +60,7 @@ def do_triage(args):
         project.invoke(
             env=env,
             mounts=mounts, 
+            image=non_asan_image,
             cmd=f'''
                 cd /fuzz/workspace &&
                 agfi inc to-schema --meta harness.json --output test.json &&
@@ -68,7 +69,7 @@ def do_triage(args):
             ''')
 
     # Then, triage ASAN crashes (if any)
-    project.build_docker(use_asan=True)
+    asan_image = project.build_docker(use_asan=True)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         tmpdir.mkdir(parents=True, exist_ok=True)
@@ -90,6 +91,7 @@ def do_triage(args):
         project.invoke(
             env=env,
             mounts=mounts, 
+            image=asan_image,
             cmd=f'''
                 cd /fuzz/workspace &&
                 agfi inc to-schema --meta harness.json --output test.json &&

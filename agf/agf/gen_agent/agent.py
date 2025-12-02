@@ -122,7 +122,7 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         (config_path / 'info.json').write_text(info.model_dump_json(indent=4))
 
         project = Project(tmpdir)
-        docker_err = project.build_docker_capture_errors(use_asan=True)
+        docker_err, image_tag = project.build_docker_capture_errors(use_asan=True)
         if docker_err is not None:
             stdout = docker_err.stdout if len(docker_err.stdout) <= MAX_ERROR_SIZE else docker_err.stdout[:MAX_ERROR_SIZE] + '\n... (truncated)'
             stderr = docker_err.stderr if len(docker_err.stderr) <= MAX_ERROR_SIZE else docker_err.stderr[:MAX_ERROR_SIZE] + '\n... (truncated)'
@@ -138,7 +138,8 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         print(f'[{Colors.GREEN}+{Colors.END}] Testing test program...')
         try:
             res = project.invoke(
-                mounts=mounts, 
+                mounts=mounts,
+                image=image_tag,
                 cmd='''
                     cd /fuzz/workspace &&
                     agfi build external test &&
@@ -163,7 +164,8 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
 
         print(f'[{Colors.GREEN}+{Colors.END}] Testing codegen configuration...')
         res = project.invoke(
-            mounts=mounts, 
+            mounts=mounts,
+            image=image_tag,
             cmd='''
                 cd /fuzz/workspace &&
                 agfi build test-setup

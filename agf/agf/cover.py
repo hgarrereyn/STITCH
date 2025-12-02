@@ -94,7 +94,7 @@ def do_cover(args):
         print(f'[{Colors.GREEN}+{Colors.END}] Using queue from revision {latest_rev.name}')
 
     # Build coverage-instrumented image
-    project.build_docker(build_coverage=True)
+    image_tag = project.build_docker(build_coverage=True)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -122,6 +122,7 @@ def do_cover(args):
 
         project.invoke(
             mounts=mounts,
+            image=image_tag,
             cmd=f'''
                 cd /fuzz/workspace &&
                 agfi zephyr to-schema --meta harness.json --output fuzzer.json &&

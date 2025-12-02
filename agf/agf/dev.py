@@ -35,7 +35,7 @@ def do_infer(args):
             print(f'[{Colors.RED}-{Colors.END}] Harness {harness.name} does not exist')
             return
 
-    project.build_docker(args.coverage, args.asan)
+    image_tag = project.build_docker(args.coverage, args.asan)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         if args.persist:
@@ -67,6 +67,7 @@ def do_infer(args):
         project.invoke(
             env=env,
             mounts=mounts, 
+            image=image_tag,
             cmd='''
             cd /fuzz/workspace &&
             bash

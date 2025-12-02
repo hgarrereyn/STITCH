@@ -41,7 +41,7 @@ def do_exec(args):
     if asan:
         print(f'[{Colors.GREEN}+{Colors.END}] Using ASAN')
 
-    project.build_docker(use_asan=asan, override_commit=args.commit)
+    image_tag = project.build_docker(use_asan=asan, override_commit=args.commit)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -64,6 +64,7 @@ def do_exec(args):
 
         project.invoke(
             mounts=mounts, 
+            image=image_tag,
             cmd=cmd
         )
 

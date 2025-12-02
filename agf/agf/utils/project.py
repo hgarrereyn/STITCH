@@ -113,6 +113,85 @@ class Project:
         with open(self.path / 'agf.json', 'w') as f:
             f.write(config.model_dump_json(indent=2))
 
+    # ------------------------------------------------------------------
+    # Docker image tagging helpers
+    # ------------------------------------------------------------------
+    def _docker_variant_suffix(
+        self,
+        *,
+        build_coverage: bool = False,
+        use_asan: bool = False,
+        override_commit: str = None,
+        hard_rss_limit_mb: int = 1024,
+    ) -> str:
+        """
+        Compute a deterministic, compact suffix that captures the \"shape\" of a
+        build so that:
+          - Different build configurations (coverage vs non-coverage, ASAN vs
+            non-ASAN, commit override, RSS limit) do NOT clobber each other's
+            tags.
+          - Identical configurations reuse the same tag across runs so Docker
+            layer cache remains effective and disk usage stays bounded.
+
+        This does *not* encode the entire Dockerfile contents; if you change
+        the project Dockerfile, Docker's content-addressed layers will still
+        force a rebuild even under the same tag.
+        """
+        import hashlib
+
+        config = self.get_config()
+        commit = override_commit or (config.commit or 'HEAD')
+
+        # Include the on-disk project path so that two different projects with
+        # the same logical name don't accidentally share tags.
+        key = {
+            'project_name': config.name,
+            'project_path': str(self.path.absolute()),
+            'repo': config.repo or '',
+            'commit': commit,
+            'build_coverage': bool(build_coverage),
+            'use_asan': bool(use_asan),
+            'hard_rss_limit_mb': int(hard_rss_limit_mb),
+        }
+
+        raw = json.dumps(key, sort_keys=True).encode('utf-8')
+        digest = hashlib.sha256(raw).hexdigest()[:12]
+        return digest
+
+    def _base_image_tag(
+        self,
+        *,
+        build_coverage: bool = False,
+        use_asan: bool = False,
+        override_commit: str = None,
+        hard_rss_limit_mb: int = 1024,
+    ) -> str:
+        suffix = self._docker_variant_suffix(
+            build_coverage=build_coverage,
+            use_asan=use_asan,
+            override_commit=override_commit,
+            hard_rss_limit_mb=hard_rss_limit_mb,
+        )
+        config = self.get_config()
+        return f'base_{config.name}:{suffix}'
+
+    def _main_image_tag(
+        self,
+        *,
+        build_coverage: bool = False,
+        use_asan: bool = False,
+        override_commit: str = None,
+        hard_rss_limit_mb: int = 1024,
+    ) -> str:
+        suffix = self._docker_variant_suffix(
+            build_coverage=build_coverage,
+            use_asan=use_asan,
+            override_commit=override_commit,
+            hard_rss_limit_mb=hard_rss_limit_mb,
+        )
+        config = self.get_config()
+        return f'main_{config.name}:{suffix}'
+
     def has_build_config(self) -> bool:
         return (self.path / 'config').exists()
 
@@ -155,20 +234,49 @@ class Project:
             base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
         return base_image
 
-    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> bool:
-        config = self.get_config()
+    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> str:
         self.build_base_image('stitch')
         base = self.base_image(build_coverage, use_asan, override_commit, hard_rss_limit_mb)
+
+        base_tag = self._base_image_tag(
+            build_coverage=build_coverage,
+            use_asan=use_asan,
+            override_commit=override_commit,
+            hard_rss_limit_mb=hard_rss_limit_mb,
+        )
+        main_tag = self._main_image_tag(
+            build_coverage=build_coverage,
+            use_asan=use_asan,
+            override_commit=override_commit,
+            hard_rss_limit_mb=hard_rss_limit_mb,
+        )
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)
-            subprocess.run([
+            print('[agf] building base image:', file=sys.stdout)
+            print(base, file=sys.stdout)
+            sys.stdout.flush()
+            res = subprocess.run([
                 'docker', 'build',
                 '--platform', 'linux/amd64',
-                '-t', f'base_{config.name}',
+                '-t', base_tag,
                 '-f', temp_dir / 'base.Dockerfile',
                 str(temp_dir)
-            ], check=True)
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            print('[agf] docker build result:', file=sys.stdout)
+            print('--- docker stdout ---', file=sys.stdout)
+            print(res.stdout, file=sys.stdout)
+            print('--- docker stderr ---', file=sys.stdout)
+            print(res.stderr, file=sys.stdout)
+            sys.stdout.flush()
+            if res.returncode != 0:
+                stderr = res.stderr or ''
+                stdout = res.stdout or ''
+                if 'already exists' not in stderr and 'already exists' not in stdout:
+                    print('[agf] docker build failed for base image:', file=sys.stdout)
+                    sys.stdout.flush()
+                    res.check_returncode()
 
             # Build the main image. If another concurrent build has already
             # produced and tagged the image, Docker may emit an "already
@@ -183,9 +291,9 @@ class Project:
                     '--platform',
                     'linux/amd64',
                     '--build-arg',
-                    f'BASE_IMAGE=base_{config.name}',
+                    f'BASE_IMAGE={base_tag}',
                     '-t',
-                    f'main_{config.name}',
+                    main_tag,
                     '-f',
                     self.path / 'config' / 'Dockerfile',
                     str((self.path / 'config').absolute()),
@@ -194,24 +302,27 @@ class Project:
                 stderr=subprocess.PIPE,
                 text=True,
             )
+            print('[agf] docker build result:', file=sys.stdout)
+            print('--- docker stdout ---', file=sys.stdout)
+            print(res.stdout, file=sys.stdout)
+            print('--- docker stderr ---', file=sys.stdout)
+            print(res.stderr, file=sys.stdout)
+            sys.stdout.flush()
+
             if res.returncode != 0:
                 stderr = res.stderr or ''
-                if 'already exists' in stderr:
-                    # Benign race: another worker finished the same build.
-                    # Treat as success.
-                    return True
+                stdout = res.stdout or ''
+                if 'already exists' not in stderr and 'already exists' not in stdout:
+                    # Real failure: print Docker output to stderr so it shows up in
+                    # caller logs (e.g. stitch-bench cover.log), then raise.
+                    print('[agf] docker build failed for main image:', file=sys.stdout)
+                    sys.stdout.flush()
+                    res.check_returncode()
 
-                # Real failure: print Docker output to stderr so it shows up in
-                # caller logs (e.g. stitch-bench cover.log), then raise.
-                print('[agf] docker build failed for main image:', file=sys.stderr)
-                if res.stdout:
-                    print('--- docker stdout ---', file=sys.stderr)
-                    print(res.stdout, file=sys.stderr)
-                if res.stderr:
-                    print('--- docker stderr ---', file=sys.stderr)
-                    print(res.stderr, file=sys.stderr)
-                res.check_returncode()
-        return True
+        # Return the main image tag so callers can pass it explicitly to
+        # `invoke(...)`. This keeps image selection transparent and avoids any
+        # hidden global state inside Project.
+        return main_tag
 
     def external_base_image(self, override_commit: str = None) -> str:
         """Build a fully external base image and return the Dockerfile."""
@@ -274,16 +385,25 @@ class Project:
             ], check=True)
         return (base, tag)
 
-    def build_docker_capture_errors(self, build_coverage: bool = False, use_asan: bool = False) -> Optional[BuildError]:
-        config = self.get_config()
+    def build_docker_capture_errors(self, build_coverage: bool = False, use_asan: bool = False) -> Tuple[Optional[BuildError], Optional[str]]:
         base = self.base_image(build_coverage, use_asan)
+
+        base_tag = self._base_image_tag(
+            build_coverage=build_coverage,
+            use_asan=use_asan,
+        )
+        main_tag = self._main_image_tag(
+            build_coverage=build_coverage,
+            use_asan=use_asan,
+        )
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)
             subprocess.run([
                 'docker', 'build',
                 '--platform', 'linux/amd64',
-                '-t', f'base_{config.name}',
+                '-t', base_tag,
                 '-f', temp_dir / 'base.Dockerfile',
                 str(temp_dir)
             ], check=True)
@@ -291,18 +411,23 @@ class Project:
             res = subprocess.run([
                 'docker', 'build',
                 '--platform', 'linux/amd64',
-                '--build-arg', f'BASE_IMAGE=base_{config.name}',
-                '-t', f'main_{config.name}',
+                '--build-arg', f'BASE_IMAGE={base_tag}',
+                '-t', main_tag,
                 '-f', self.path / 'config' / 'Dockerfile',
                 str((self.path / 'config').absolute())
             ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if res.returncode != 0:
                 stderr = res.stderr or ''
                 if 'already exists' not in stderr:
-                    return BuildError(stdout=res.stdout, stderr=res.stderr)
-        return None
+                    # Real build failure; surface stdout/stderr to the caller
+                    # and return no tag.
+                    return BuildError(stdout=res.stdout, stderr=res.stderr), None
 
-    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False, **kwargs):
+        # Successful build (or benign "already exists" race). Return no error
+        # and the tag of the main image so callers can invoke it explicitly.
+        return None, main_tag
+
+    def invoke(self, env: List[str] = [], mounts: List[Tuple[str, str]] = [], cmd: str = 'bash', check: bool = False, image: Optional[str] = None, **kwargs):
         """
         Invoke a command inside the main container (must be built first).
 
@@ -317,6 +442,7 @@ class Project:
             cmd: Command to run
         """
         full_cmd = ['docker', 'run', '--rm']
+        full_cmd += ['--platform', 'linux/amd64']
 
         # Only request a TTY when our own stdin is a TTY. This keeps interactive
         # usage unchanged while allowing non-interactive callers (like
@@ -328,7 +454,13 @@ class Project:
         for mount in mounts:
             full_cmd += ['-v', f'{mount[0]}:{mount[1]}']
         full_cmd += ['--security-opt', f'seccomp={CUSTOM_SECCOMP}']
-        full_cmd += [f'main_{self.get_config().name}', 'bash', '-c', cmd]
+
+        # Prefer an explicitly provided image tag so callers can be precise
+        # about which variant they want. If no image is given, fall back to the
+        # historical default tag `main_<name>` to keep older workflows working.
+        image_tag = image or f'main_{self.get_config().name}'
+
+        full_cmd += [image_tag, 'bash', '-c', cmd]
         return subprocess.run(full_cmd, check=check, **kwargs)
 
     def next_harness_name(self) -> str:

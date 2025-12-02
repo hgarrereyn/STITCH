@@ -17,7 +17,7 @@ def do_bug(args):
     if asan:
         print(f'[{Colors.GREEN}+{Colors.END}] Using ASAN')
 
-    project.build_docker(use_asan=asan, override_commit=args.commit)
+    image_tag = project.build_docker(use_asan=asan, override_commit=args.commit)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -44,6 +44,7 @@ def do_bug(args):
 
         project.invoke(
             mounts=mounts, 
+            image=image_tag,
             cmd=cmd
         )
 

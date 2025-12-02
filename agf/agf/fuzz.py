@@ -54,7 +54,7 @@ def do_fuzz(args):
 
     check_env(['OPENAI_API_KEY'])
 
-    project.build_docker(use_asan=asan, hard_rss_limit_mb=args.hard_rss_limit_mb)
+    image_tag = project.build_docker(use_asan=asan, hard_rss_limit_mb=args.hard_rss_limit_mb)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -74,6 +74,7 @@ def do_fuzz(args):
         project.invoke(
             env=env,
             mounts=mounts,
+            image=image_tag,
             cmd=f'''
                 cd /fuzz/workspace &&
                 agfi zephyr looper --harness harness.json --campaign /fuzz/campaign --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}

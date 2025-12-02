@@ -32,7 +32,7 @@ def do_infer(args):
     
     check_env(['OPENAI_API_KEY'])
 
-    project.build_docker()
+    image_tag = project.build_docker()
 
     info = ProjectInfo.model_validate_json(open(project.path / 'config' / 'info.json').read())
 
@@ -56,7 +56,7 @@ def do_infer(args):
         ]
         cmd = f'cd /fuzz/workspace && agfi zephyr run --headers {" ".join(headers)} --output meta.json --threads {args.threads} {"--verbose" if args.verbose else ""}'
 
-        project.invoke(env=env, mounts=mounts, cmd=cmd)
+        project.invoke(env=env, mounts=mounts, image=image_tag, cmd=cmd)
 
         # Save the results
         shutil.copy(tmpdir / 'meta.json', harness.path / 'harness.json')

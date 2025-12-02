@@ -35,7 +35,7 @@ def do_save(args):
         print(f'[{Colors.RED}-{Colors.END}] Harness {harness.name} does not exist')
         return
 
-    project.build_docker(use_asan=True)
+    image_tag = project.build_docker(use_asan=True)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -51,6 +51,7 @@ def do_save(args):
 
         project.invoke(
             mounts=mounts, 
+            image=image_tag,
             cmd=f'''
                 cd /fuzz/workspace &&
                 agfi zephyr save /fuzz/campaign /fuzz/bugs {'--bug-hash ' + args.bug_hash if args.bug_hash else ''} {'--save ' + str(args.save)}

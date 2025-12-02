@@ -13,7 +13,7 @@ def do_test(args):
         print(f'[{Colors.RED}-{Colors.END}] Could not find project at {path.absolute()}')
         return
 
-    project.build_docker()
+    image_tag = project.build_docker()
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -28,6 +28,7 @@ def do_test(args):
             print(f'[{Colors.GREEN}+{Colors.END}] Testing...')
             project.invoke(
                 mounts=mounts, 
+                image=image_tag,
                 cmd='''
                     cd /fuzz/workspace &&
                     agfi build external test &&
@@ -43,6 +44,7 @@ def do_test(args):
             print(f'[{Colors.GREEN}+{Colors.END}] Testing codegen configuration...')
             project.invoke(
                 mounts=mounts, 
+                image=image_tag,
                 cmd='''
                     cd /fuzz/workspace &&
                     agfi build test-setup

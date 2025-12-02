@@ -39,7 +39,7 @@ def do_replay(args):
     if asan:
         print(f'[{Colors.GREEN}+{Colors.END}] Using ASAN')
 
-    project.build_docker(use_asan=asan, override_commit=args.commit)
+    image_tag = project.build_docker(use_asan=asan, override_commit=args.commit)
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
@@ -55,6 +55,7 @@ def do_replay(args):
 
         project.invoke(
             mounts=mounts, 
+            image=image_tag,
             cmd=f'''
                 cd /fuzz/workspace &&
                 agfi zephyr replay /fuzz/campaign /fuzz/bugs {'--raw' if args.raw else ''} {'--bug-hash ' + args.bug_hash if args.bug_hash else ''} {'--all' if args.all else ''} {'--save ' + str(args.save) if args.save is not None else ''}
