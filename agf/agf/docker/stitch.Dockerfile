@@ -64,6 +64,8 @@ RUN cd /src/gf_libafl && \
     mkdir -p target/release/build && \
     cp -r /src/tmp/libafl_cc-* target/release/build/
 
+RUN chmod -R a+rX /root/.cargo
+
 COPY /agfi /src/agfi
 
 RUN cd /src/agfi && \
