@@ -201,11 +201,12 @@ impl Graph {
             for (i, ref_type) in node.out_ref.iter().enumerate() {
                 match ref_type {
                     NodeRefType::Disconnected => {
-                        assert!(
-                            false,
-                            "Node output connection is disconnected at {} (conn {})",
-                            idx, i
-                        );
+                        // assert!(
+                        //     false,
+                        //     "Node output connection is disconnected at {} (conn {})",
+                        //     idx, i
+                        // );
+                        // Outputs are allowed to be disconnected
                     }
                     NodeRefType::Connected(ref node_ref) => {
                         assert!(
@@ -397,12 +398,42 @@ impl Graph {
 
     // Reindex a node with a new index, updating all references
     pub fn reindex(&mut self, node: usize, new_idx: usize) {
+        // eprintln!(
+        //     "[gf_core::graph::reindex] nodes_len={}, node_pos={}, old_index={}, new_index={}",
+        //     self.nodes.len(),
+        //     node,
+        //     self.nodes[node].index,
+        //     new_idx
+        // );
+
         self.nodes[node].index = new_idx;
         let n = self.nodes[node].clone();
 
         for (i, out_ref) in n.out_ref.iter().enumerate() {
             match out_ref {
                 NodeRefType::Connected(ref node_ref) => {
+                    if node_ref.node_idx >= self.nodes.len() {
+                        eprintln!(
+                            "[gf_core::graph::reindex] OUT_REF target node_idx OOB: nodes_len={}, src_node_pos={}, src_conn_idx={}, target_node_idx={}",
+                            self.nodes.len(),
+                            node,
+                            i,
+                            node_ref.node_idx
+                        );
+                        panic!("Graph::reindex: out_ref target node_idx out of bounds");
+                    }
+                    if node_ref.conn_idx >= self.nodes[node_ref.node_idx].in_ref.len() {
+                        eprintln!(
+                            "[gf_core::graph::reindex] OUT_REF target conn_idx OOB: src_node_pos={}, src_conn_idx={}, target_node_idx={}, target_conn_idx={}, target_in_len={}",
+                            node,
+                            i,
+                            node_ref.node_idx,
+                            node_ref.conn_idx,
+                            self.nodes[node_ref.node_idx].in_ref.len()
+                        );
+                        panic!("Graph::reindex: out_ref target conn_idx out of bounds");
+                    }
+
                     self.nodes[node_ref.node_idx].in_ref[node_ref.conn_idx] =
                         NodeRefType::Connected(NodeRef {
                             node_idx: new_idx,
@@ -416,6 +447,28 @@ impl Graph {
         for (i, in_ref) in n.in_ref.iter().enumerate() {
             match in_ref {
                 NodeRefType::Connected(ref node_ref) => {
+                    if node_ref.node_idx >= self.nodes.len() {
+                        eprintln!(
+                            "[gf_core::graph::reindex] IN_REF target node_idx OOB: nodes_len={}, src_node_pos={}, src_conn_idx={}, target_node_idx={}",
+                            self.nodes.len(),
+                            node,
+                            i,
+                            node_ref.node_idx
+                        );
+                        panic!("Graph::reindex: in_ref target node_idx out of bounds");
+                    }
+                    if node_ref.conn_idx >= self.nodes[node_ref.node_idx].out_ref.len() {
+                        eprintln!(
+                            "[gf_core::graph::reindex] IN_REF target conn_idx OOB: src_node_pos={}, src_conn_idx={}, target_node_idx={}, target_conn_idx={}, target_out_len={}",
+                            node,
+                            i,
+                            node_ref.node_idx,
+                            node_ref.conn_idx,
+                            self.nodes[node_ref.node_idx].out_ref.len()
+                        );
+                        panic!("Graph::reindex: in_ref target conn_idx out of bounds");
+                    }
+
                     self.nodes[node_ref.node_idx].out_ref[node_ref.conn_idx] =
                         NodeRefType::Connected(NodeRef {
                             node_idx: new_idx,
@@ -480,11 +533,57 @@ impl Graph {
     }
 
     pub fn collapse(&mut self, keep: &HashSet<usize>) {
+        // eprintln!(
+        //     "[gf_core::graph::collapse] start: nodes_len={}, keep_len={}",
+        //     self.nodes.len(),
+        //     keep.len()
+        // );
+
+        // Before reindexing and truncating, disconnect any edges in *kept* nodes
+        // that point to nodes which will be dropped. Otherwise, after swapping
+        // and truncating, these references may end up pointing at unrelated
+        // nodes with incompatible arity, corrupting the graph.
+        for idx in 0..self.nodes.len() {
+            if !keep.contains(&idx) {
+                continue;
+            }
+
+            // Clean up incoming edges whose source will be dropped.
+            for in_ref in self.nodes[idx].in_ref.iter_mut() {
+                match in_ref {
+                    NodeRefType::Connected(ref node_ref) => {
+                        if !keep.contains(&node_ref.node_idx) {
+                            *in_ref = NodeRefType::Disconnected;
+                        }
+                    }
+                    NodeRefType::Disconnected => {}
+                }
+            }
+
+            // Clean up outgoing edges whose target will be dropped.
+            for out_ref in self.nodes[idx].out_ref.iter_mut() {
+                match out_ref {
+                    NodeRefType::Connected(ref node_ref) => {
+                        if !keep.contains(&node_ref.node_idx) {
+                            *out_ref = NodeRefType::Disconnected;
+                        }
+                    }
+                    NodeRefType::Disconnected => {}
+                }
+            }
+        }
+
         let mut write_idx = 0;
 
         for i in 0..self.nodes.len() {
             if keep.contains(&i) {
                 if write_idx != i {
+                    // eprintln!(
+                    //     "[gf_core::graph::collapse] moving original node_pos {} -> new_pos {} (node.index={})",
+                    //     i,
+                    //     write_idx,
+                    //     self.nodes[i].index
+                    // );
                     self.reindex(i, write_idx);
                     self.nodes.swap(write_idx, i);
                 }
@@ -494,6 +593,11 @@ impl Graph {
         }
 
         self.nodes.truncate(write_idx);
+        // eprintln!(
+        //     "[gf_core::graph::collapse] end: write_idx={}, new_nodes_len={}",
+        //     write_idx,
+        //     self.nodes.len()
+        // );
         self.invocation_order = None;
     }
 

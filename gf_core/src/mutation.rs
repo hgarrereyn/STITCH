@@ -94,6 +94,19 @@ pub struct MutationContext {
 }
 
 impl MutationContext {
+    /// Debug-only helper: validate graph structure against the pspec, with a label.
+    /// Controlled by the `GF_VALIDATE_GRAPHS` env var to avoid slowing down normal fuzzing.
+    fn validate_graph_debug(&self, where_label: &str, graph: &Graph) {
+        if std::env::var("GF_VALIDATE_GRAPHS").is_ok() {
+            eprintln!(
+                "[gf_core::mutation::validate_graph_debug] at {}: nodes_len={}",
+                where_label,
+                graph.nodes.len()
+            );
+            graph.validate(&self.pspec);
+        }
+    }
+
     pub fn new(pspec: PSpec) -> Self {
         Self {
             pspec,
@@ -443,6 +456,8 @@ impl MutationContext {
         self.complete(&mut graph);
         graph.sanitize();
 
+        // self.validate_graph_debug("generate:post", &graph);
+
         graph
     }
 
@@ -465,22 +480,32 @@ impl MutationContext {
         self.complete(&mut graph);
         graph.sanitize();
 
+        // self.validate_graph_debug("generate_seeded:post", &graph);
+
         graph
     }
 
     pub fn mutate_regenerate(&self, graph: &mut Graph) {
         *graph = self.generate();
+        // self.validate_graph_debug("mutate_regenerate:post", graph);
     }
 
     pub fn mutate_random(&self, graph: &mut Graph) {
         if graph.nodes.len() == 0 {
             *graph = self.generate();
+            // self.validate_graph_debug("mutate_random:post_empty", graph);
             return;
         }
         let choice = self.rng.borrow_mut().gen_range(0..2);
         match choice {
-            0 => self.mutate_delete_one(graph),
-            1 => self.mutate_isolate_component(graph),
+            0 => {
+                self.mutate_delete_one(graph);
+                // self.validate_graph_debug("mutate_random:post_delete_one", graph);
+            }
+            1 => {
+                self.mutate_isolate_component(graph);
+                // self.validate_graph_debug("mutate_random:post_isolate_component", graph);
+            }
             _ => unreachable!(),
         }
     }
@@ -488,6 +513,7 @@ impl MutationContext {
     pub fn mutate_delete_one(&self, graph: &mut Graph) {
         if graph.nodes.len() == 0 {
             *graph = self.generate();
+            // self.validate_graph_debug("mutate_delete_one:post_empty", graph);
             return;
         }
 
@@ -500,11 +526,14 @@ impl MutationContext {
 
         self.complete(graph);
         graph.sanitize();
+
+        // self.validate_graph_debug("mutate_delete_one:post", graph);
     }
 
     pub fn mutate_isolate_component(&self, graph: &mut Graph) {
         if graph.nodes.len() == 0 {
             *graph = self.generate();
+            // self.validate_graph_debug("mutate_isolate_component:post_empty", graph);
             return;
         }
 
@@ -516,11 +545,14 @@ impl MutationContext {
 
         self.complete(graph);
         graph.sanitize();
+
+        // self.validate_graph_debug("mutate_isolate_component:post", graph);
     }
 
     pub fn mutate_add_one(&self, graph: &mut Graph) {
         if graph.nodes.len() == 0 {
             *graph = self.generate();
+            // self.validate_graph_debug("mutate_add_one:post_empty", graph);
             return;
         }
 
@@ -538,6 +570,7 @@ impl MutationContext {
         if (is_input && node.in_ref.is_empty()) || (!is_input && node.out_ref.is_empty()) {
             // No valid connections to modify, try regenerating
             self.mutate_regenerate(graph);
+            // self.validate_graph_debug("mutate_add_one:post_regenerate", graph);
             return;
         }
 
@@ -585,6 +618,7 @@ impl MutationContext {
 
         if endpoints.is_empty() {
             self.mutate_regenerate(graph);
+            // self.validate_graph_debug("mutate_add_one:post_regenerate_no_endpoints", graph);
             return;
         }
 
@@ -613,6 +647,8 @@ impl MutationContext {
         // Complete any remaining edges
         self.complete(graph);
         graph.sanitize();
+
+        // self.validate_graph_debug("mutate_add_one:post", graph);
     }
 
     pub fn mutate_crossover(&self, graph: &mut Graph, other: &Graph) {
@@ -641,6 +677,8 @@ impl MutationContext {
 
         self.complete(graph);
         graph.sanitize();
+
+        // self.validate_graph_debug("mutate_crossover:post", graph);
     }
 
     /// Trim or repair the graph around the last executed region, using the
@@ -655,6 +693,13 @@ impl MutationContext {
         bail_node_idx: Option<usize>,
         executed_prefix_len: usize,
     ) {
+        // eprintln!(
+        //     "[gf_core::mutation::mutate_frontier_trim_and_repair] start: nodes_len={}, bail_node_idx={:?}, executed_prefix_len={}",
+        //     graph.nodes.len(),
+        //     bail_node_idx,
+        //     executed_prefix_len
+        // );
+
         if graph.nodes.is_empty() {
             *graph = self.generate();
             return;
@@ -687,6 +732,13 @@ impl MutationContext {
             if let Some(bail_idx) = bail_node_idx {
                 // Keep nodes up to but excluding the bail node in invocation
                 // order.
+                let bail_in_order = order.iter().any(|idx| *idx == bail_idx);
+                // eprintln!(
+                //     "[gf_core::mutation::mutate_frontier_trim_and_repair] strict_prefix: bail_idx={}, bail_in_order={}",
+                //     bail_idx,
+                //     bail_in_order
+                // );
+
                 for idx in order.iter() {
                     if *idx == bail_idx {
                         break;
@@ -699,6 +751,13 @@ impl MutationContext {
                 }
             }
 
+            // eprintln!(
+            //     "[gf_core::mutation::mutate_frontier_trim_and_repair] strict_prefix: order_len={}, prefix_len={}, keep_len={}",
+            //     order.len(),
+            //     prefix_len,
+            //     keep.len()
+            // );
+
             if keep.is_empty() {
                 // If we somehow ended up with nothing to keep, just regenerate.
                 *graph = self.generate();
@@ -708,11 +767,23 @@ impl MutationContext {
             graph.collapse(&keep);
             self.complete(graph);
             graph.sanitize();
+
+            // self.validate_graph_debug("mutate_frontier_trim_and_repair:post_strict_prefix", graph);
         } else {
             // Option A: keep the failing node but sever its outgoing edges so
             // that new consumer chains can be attached on the next completion.
+            // eprintln!(
+            //     "[gf_core::mutation::mutate_frontier_trim_and_repair] sever-outgoing: bail_node_idx={:?}",
+            //     bail_node_idx
+            // );
+
             if let Some(bail_idx) = bail_node_idx {
                 if bail_idx < graph.nodes.len() {
+                    // eprintln!(
+                    //     "[gf_core::mutation::mutate_frontier_trim_and_repair] sever-outgoing: bail_idx={}, out_ref_len={}",
+                    //     bail_idx,
+                    //     graph.nodes[bail_idx].out_ref.len()
+                    // );
                     let out_len = graph.nodes[bail_idx].out_ref.len();
                     for conn in 0..out_len {
                         graph.unlink(bail_idx, conn);
@@ -722,6 +793,8 @@ impl MutationContext {
 
             self.complete(graph);
             graph.sanitize();
+
+            // self.validate_graph_debug("mutate_frontier_trim_and_repair:post_sever_outgoing", graph);
         }
     }
 
@@ -730,12 +803,14 @@ impl MutationContext {
     pub fn mutate_frontier_extend(&self, graph: &mut Graph, executed_prefix_len: usize) {
         if graph.nodes.is_empty() {
             *graph = self.generate();
+            // self.validate_graph_debug("mutate_frontier_extend:post_empty", graph);
             return;
         }
 
         let order = graph.topological_sort();
         if order.is_empty() {
             *graph = self.generate();
+            // self.validate_graph_debug("mutate_frontier_extend:post_empty_order", graph);
             return;
         }
 
@@ -763,6 +838,7 @@ impl MutationContext {
         if (is_input && node.in_ref.is_empty()) || (!is_input && node.out_ref.is_empty()) {
             // No valid connections to modify, fall back to a random add-one.
             self.mutate_add_one(graph);
+            // self.validate_graph_debug("mutate_frontier_extend:post_fallback_add_one", graph);
             return;
         }
 
@@ -856,5 +932,7 @@ impl MutationContext {
         // Complete any remaining edges and sanitize.
         self.complete(graph);
         graph.sanitize();
+
+        // self.validate_graph_debug("mutate_frontier_extend:post", graph);
     }
 }

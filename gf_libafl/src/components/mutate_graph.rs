@@ -8,14 +8,12 @@ use log::debug;
 
 use super::graph_input::{GraphExecutionMetadata, GraphInput};
 pub struct GraphMutatorSelector<MT> {
-    graph_select_prob: f64,
     mutators: MT,
 }
 
 impl<MT> GraphMutatorSelector<MT> {
-    pub fn new(graph_select_prob: f64, mutators: MT) -> Self {
+    pub fn new(mutators: MT) -> Self {
         Self {
-            graph_select_prob,
             mutators,
         }
     }
@@ -37,16 +35,11 @@ where
         state: &mut S,
         input: &mut I,
     ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
-        if state.rand_mut().coinflip(self.graph_select_prob) {
-            let index =
-                state
-                    .rand_mut()
-                    .below(NonZeroUsize::new(self.mutators.len()).unwrap());
-            self.mutators
-                .get_and_mutate(MutationId::from(index), state, input)
-        } else {
-            Ok(libafl::mutators::MutationResult::Skipped)
-        }
+        let index =
+            state
+                .rand_mut()
+                .below(NonZeroUsize::new(self.mutators.len()).unwrap());
+        self.mutators.get_and_mutate(MutationId::from(index), state, input)
     }
 }
 
@@ -75,6 +68,9 @@ macro_rules! create_graph_mutator {
                 _state: &mut S,
                 input: &mut GraphInput,
             ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
+                // Structural mutations invalidate any previous execution metadata.
+                input.exec_meta = None;
+
                 let graph = &mut input.graph;
                 self.ctx.$func(graph);
                 graph.trim_to(self.ctx.opts.max_nodes);
@@ -112,17 +108,20 @@ impl<S> Mutator<GraphInput, S> for GraphMutateFrontierTrimRepair {
         _state: &mut S,
         input: &mut GraphInput,
     ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
+        // Take the execution metadata for this mutation and clear it on the input,
+        // so it is never reused after we structurally change the graph.
+        let meta = input.exec_meta.take();
         let graph = &mut input.graph;
 
-            if let Some(GraphExecutionMetadata {
+        if let Some(GraphExecutionMetadata {
             bailed,
             bail_node_idx,
             executed_prefix_len,
             ..
-        }) = &input.exec_meta
+        }) = meta
         {
             // If we never executed anything, fall back to a random mutation.
-            if !*bailed && *executed_prefix_len == 0 {
+            if !bailed && executed_prefix_len == 0 {
                 self.ctx.mutate_random(graph);
             } else {
                     debug!(
@@ -133,8 +132,8 @@ impl<S> Mutator<GraphInput, S> for GraphMutateFrontierTrimRepair {
                     );
                 self.ctx.mutate_frontier_trim_and_repair(
                     graph,
-                    *bail_node_idx,
-                    *executed_prefix_len,
+                    bail_node_idx,
+                    executed_prefix_len,
                 );
             }
         } else {
@@ -172,10 +171,12 @@ impl<S> Mutator<GraphInput, S> for GraphMutateFrontierExtend {
         _state: &mut S,
         input: &mut GraphInput,
     ) -> Result<libafl::mutators::MutationResult, libafl::Error> {
+        // Take the execution metadata and clear it; mutating the graph would
+        // otherwise make it stale.
+        let meta = input.exec_meta.take();
         let graph = &mut input.graph;
 
-        let executed_prefix_len = input
-            .exec_meta
+        let executed_prefix_len = meta
             .as_ref()
             .map(|m| m.executed_prefix_len)
             .unwrap_or(0);
@@ -223,6 +224,10 @@ where
         if corpus_size == 0 {
             return Ok(libafl::mutators::MutationResult::Skipped);
         }
+
+        // Crossover changes the graph structure; previous exec metadata no
+        // longer describes the resulting graph.
+        input.exec_meta = None;
 
         let other_idx = state
             .rand_mut()

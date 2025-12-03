@@ -208,7 +208,6 @@ pub fn fuzz(
     )?;
 
     let graph_mutator = StdMutationalStage::new(GraphMutatorSelector::new(
-        0.01,
         tuple_list!(
             GraphMutateFrontierTrimRepair::new(ctx.clone()),
             GraphMutateFrontierExtend::new(ctx.clone()),
