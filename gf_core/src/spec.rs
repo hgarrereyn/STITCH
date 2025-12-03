@@ -331,7 +331,6 @@ impl Endpoint {
                 let arg_buf_size = args.len() - 2;
                 let arg_buf_data = args.len() - 1;
 
-                pre_template.push_str(&format!("$a{}[$a{}] = 0;\n", arg_buf_data, arg_buf_size));
                 pre_template.push_str(&format!("std::string $__str_{} = std::string((const char *)$a{}, (size_t)$a{});", arg_buf_size, arg_buf_data, arg_buf_size));
                 template_with_fuzz = template_with_fuzz.replacen(&template[start..end], &format!("($__str_{})", arg_buf_size), 1);
 
