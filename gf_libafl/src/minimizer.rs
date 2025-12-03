@@ -71,6 +71,7 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, minimize_ti
         if new_size < thresh {
             let i2 = GraphInput {
                 graph: g,
+                exec_meta: None,
             };
             let res = executor.run_target(&mut fuzzer, &mut state, &mut mgr, &i2);
             match res {
@@ -95,6 +96,7 @@ pub fn minimize(path: String, output: Option<String>, cycles: usize, minimize_ti
     if let Some(output) = output {
         let inp = GraphInput {
             graph: inp.graph,
+            exec_meta: None,
         };
         inp.to_file(output);
     }

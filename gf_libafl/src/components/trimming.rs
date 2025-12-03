@@ -1,29 +1,35 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashSet, rc::Rc, time};
+use std::{borrow::Cow, cell::RefCell, rc::Rc, time};
 
 use gf_core::harness::BailInfo;
 use libafl::{corpus::{Corpus, Testcase}, executors::Executor, feedbacks::MapIndexesMetadata, inputs::UsesInput, schedulers::{MinimizerScheduler, TestcaseScore}, stages::Stage, state::{HasCorpus, HasCurrentTestcase, State, UsesState}, Error, HasMetadata};
+use log::debug;
 use libafl_bolts::{impl_serdeany, Named};
 use serde::{Deserialize, Serialize};
 
-use crate::components::graph_input::GraphInput;
+use crate::components::graph_input::{GraphExecutionMetadata, GraphInput};
 
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GraphTestcaseMetadata {
-    pub exec_time: f64,
-    pub bailing: bool
+    pub exec_time_ms: f64,
+    pub bailing: bool,
+    pub bail_node_idx: Option<usize>,
+    pub bail_node_type: Option<usize>,
+    pub executed_prefix_len: usize,
 }
 
 impl_serdeany!(GraphTestcaseMetadata);
 
 
-// A LibAFL stage that periodically writes metadata to a file
-pub struct TrimmingStage<'a, S> {
+/// Analyzer stage: re-executes new corpus entries once to collect
+/// execution/bail metadata and attach it to the testcase and the
+/// corresponding `GraphInput`. It no longer mutates or trims graphs.
+pub struct AnalyzerStage<'a, S> {
     shared_bail_info: Rc<RefCell<&'a mut [u8]>>,
     phantom: std::marker::PhantomData<S>,
 }
 
-impl<'a, S> TrimmingStage<'a, S> {
+impl<'a, S> AnalyzerStage<'a, S> {
     pub fn new(shared_bail_info: Rc<RefCell<&'a mut [u8]>>) -> Self {
         Self {
             phantom: std::marker::PhantomData,
@@ -32,20 +38,20 @@ impl<'a, S> TrimmingStage<'a, S> {
     }
 }
 
-impl<'a, S> Named for TrimmingStage<'a, S> {
+impl<'a, S> Named for AnalyzerStage<'a, S> {
     fn name(&self) -> &Cow<'static, str> {
-        &Cow::Borrowed("trimming")
+        &Cow::Borrowed("analyzer")
     }
 }
 
-impl<'a, S> UsesState for TrimmingStage<'a, S>
+impl<'a, S> UsesState for AnalyzerStage<'a, S>
 where
     S: State,
 {
     type State = S;
 }
 
-impl<'a, E, EM, Z, S, C> Stage<E, EM, Z> for TrimmingStage<'a, S>
+impl<'a, E, EM, Z, S, C> Stage<E, EM, Z> for AnalyzerStage<'a, S>
 where
     S: State + HasCorpus<Corpus = C> + HasCurrentTestcase + UsesInput<Input = GraphInput>,
     C: Corpus<Input = GraphInput>,
@@ -89,37 +95,73 @@ where
         // Copy the bytes to a properly aligned location first
         let mut aligned_bytes = [0u8; std::mem::size_of::<BailInfo>()];
         aligned_bytes.copy_from_slice(&invoke_result);
-        let bail_info = unsafe {
-            &*(aligned_bytes.as_ptr() as *const BailInfo)
+        let bail_info = unsafe { &*(aligned_bytes.as_ptr() as *const BailInfo) };
+
+        // Compute executed prefix in invocation order, including the bail node
+        // if any, but do not modify the graph.
+        let invocation_order = input.graph.get_invocation_order();
+        let executed_prefix_len = if bail_info.bailed {
+            if let Some(bail_pos) = invocation_order
+                .iter()
+                .position(|&idx| idx == bail_info.node_idx)
+            {
+                bail_pos + 1
+            } else {
+                // If we can't find the bail node in the current invocation
+                // order (graph changed since last analysis), fall back to
+                // treating the whole graph as executed.
+                invocation_order.len()
+            }
+        } else {
+            invocation_order.len()
         };
 
-        if bail_info.bailed {
-            let mut graph = input.graph.clone();
-            let order = graph.topological_sort();
-            let mut keep = HashSet::new();
+        let graph_exec_meta = GraphExecutionMetadata {
+            bailed: bail_info.bailed,
+            bail_node_idx: if bail_info.bailed {
+                Some(bail_info.node_idx)
+            } else {
+                None
+            },
+            bail_node_type: if bail_info.bailed {
+                Some(bail_info.node_type)
+            } else {
+                None
+            },
+            executed_prefix_len,
+            exec_time_ms: exec_time,
+        };
 
-            let mut hit = false;
-            for idx in order.iter() {
-                if hit {
-                    // Unlink all nodes after the bailed node
-                    graph.unlink_all(*idx);
-                } else {
-                    keep.insert(*idx);
-                    if *idx == bail_info.node_idx {
-                        hit = true;
-                    }
-                }
-            }
+        debug!(
+            "AnalyzerStage: bailed={}, bail_node_idx={:?}, bail_node_type={:?}, executed_prefix_len={}, exec_time_ms={}",
+            bail_info.bailed,
+            if bail_info.bailed { Some(bail_info.node_idx) } else { None },
+            if bail_info.bailed { Some(bail_info.node_type) } else { None },
+            executed_prefix_len,
+            exec_time,
+        );
 
-            log::info!("[TRIM] Keeping: {} out of {} ({:.2}%)", keep.len(), graph.nodes.len(), keep.len() as f64 / graph.nodes.len() as f64 * 100.0);
-            graph.collapse(&keep);
-
-            let mut testcase = state.current_testcase_mut()?;
-            testcase.set_input(GraphInput { graph });
-        }
-
+        // Attach execution metadata to the current testcase input and also
+        // store summary metadata for the minimizer scheduler.
         let mut testcase = state.current_testcase_mut()?;
-        testcase.add_metadata(GraphTestcaseMetadata { exec_time, bailing: bail_info.bailed });
+        let mut updated_input = input;
+        updated_input.exec_meta = Some(graph_exec_meta);
+        testcase.set_input(updated_input);
+        testcase.add_metadata(GraphTestcaseMetadata {
+            exec_time_ms: exec_time,
+            bailing: bail_info.bailed,
+            bail_node_idx: if bail_info.bailed {
+                Some(bail_info.node_idx)
+            } else {
+                None
+            },
+            bail_node_type: if bail_info.bailed {
+                Some(bail_info.node_type)
+            } else {
+                None
+            },
+            executed_prefix_len,
+        });
 
         Ok(())
     }

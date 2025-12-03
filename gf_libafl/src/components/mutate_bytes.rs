@@ -44,11 +44,64 @@ where
     S: HasRand
 {
     fn mutate(&mut self, state: &mut S, input: &mut GraphInput) -> Result<libafl::mutators::MutationResult, libafl::Error> {
-        // 1. Pick a random node
-        // 2. Pick one of (flattened fixed-size bytes, a resizable buffer (hint buffer))
-        // 3. Mutate the chosen bytes with the underlying mutator and reserialize
-        
-        let node_idx = state.rand_mut().below(NonZeroUsize::new(input.graph.nodes.len()).unwrap());
+        // 1. Pick a node to mutate, preferring the executed prefix and bail
+        //    vicinity when execution metadata is available.
+        // 2. Pick one of (flattened fixed-size bytes, a resizable buffer
+        //    (hint buffer)).
+        // 3. Mutate the chosen bytes with the underlying mutator and
+        //    reserialize.
+
+        if input.graph.nodes.is_empty() {
+            return Ok(MutationResult::Skipped);
+        }
+
+        let node_idx = if let Some(meta) = &input.exec_meta {
+            let order = input.graph.get_invocation_order();
+            let prefix_len = meta.executed_prefix_len.min(order.len());
+
+            if prefix_len == 0 {
+                // No executed prefix recorded yet; fall back to uniform.
+                state.rand_mut().below(NonZeroUsize::new(input.graph.nodes.len()).unwrap())
+            } else {
+                // Focus on the frontier: the last few executed nodes (up to 4).
+                let band_width = core::cmp::min(4, prefix_len);
+                let start = prefix_len - band_width;
+                let band = &order[start..prefix_len];
+
+                // With high probability, mutate within the frontier band; with
+                // low probability, pick any node to avoid overfitting.
+                if state.rand_mut().coinflip(0.8) {
+                    // If we bailed and the bail node is in the band, occasionally
+                    // target it directly, otherwise pick a random node in band.
+                    if meta.bailed {
+                        if let Some(bail_idx) = meta.bail_node_idx {
+                            if let Some(&bail_in_band) = band.iter().find(|&&idx| idx == bail_idx) {
+                                if state.rand_mut().coinflip(0.5) {
+                                    bail_in_band
+                                } else {
+                                    let local = state.rand_mut().below(NonZeroUsize::new(band.len()).unwrap());
+                                    band[local]
+                                }
+                            } else {
+                                let local = state.rand_mut().below(NonZeroUsize::new(band.len()).unwrap());
+                                band[local]
+                            }
+                        } else {
+                            let local = state.rand_mut().below(NonZeroUsize::new(band.len()).unwrap());
+                            band[local]
+                        }
+                    } else {
+                        let local = state.rand_mut().below(NonZeroUsize::new(band.len()).unwrap());
+                        band[local]
+                    }
+                } else {
+                    state.rand_mut().below(NonZeroUsize::new(input.graph.nodes.len()).unwrap())
+                }
+            }
+        } else {
+            state.rand_mut().below(NonZeroUsize::new(input.graph.nodes.len()).unwrap())
+        };
+
         let node = &mut input.graph.nodes[node_idx];
         if node.context.len() == 0 {
             return Ok(MutationResult::Skipped);

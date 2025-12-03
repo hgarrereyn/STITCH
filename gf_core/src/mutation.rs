@@ -642,4 +642,219 @@ impl MutationContext {
         self.complete(graph);
         graph.sanitize();
     }
+
+    /// Trim or repair the graph around the last executed region, using the
+    /// bail information when available.
+    ///
+    /// `bail_node_idx` is the index of the node where execution first bailed,
+    /// if any. `executed_prefix_len` is the number of nodes that executed in
+    /// invocation order, including the bail node if present.
+    pub fn mutate_frontier_trim_and_repair(
+        &self,
+        graph: &mut Graph,
+        bail_node_idx: Option<usize>,
+        executed_prefix_len: usize,
+    ) {
+        if graph.nodes.is_empty() {
+            *graph = self.generate();
+            return;
+        }
+
+        let order = graph.topological_sort();
+        if order.is_empty() {
+            *graph = self.generate();
+            return;
+        }
+
+        // Clamp prefix length to the current graph size.
+        let prefix_len = executed_prefix_len.min(order.len());
+
+        // If we have no information, fall back to a lighter-weight mutation.
+        if prefix_len == 0 && bail_node_idx.is_none() {
+            self.mutate_random(graph);
+            return;
+        }
+
+        let mut rng = self.rng.borrow_mut();
+        let use_strict_prefix = rng.gen_bool(0.5);
+        drop(rng);
+
+        if use_strict_prefix {
+            // Option B: keep only the strict prefix before the failing node (if
+            // known), or the executed prefix otherwise, then re-complete.
+            let mut keep = HashSet::new();
+
+            if let Some(bail_idx) = bail_node_idx {
+                // Keep nodes up to but excluding the bail node in invocation
+                // order.
+                for idx in order.iter() {
+                    if *idx == bail_idx {
+                        break;
+                    }
+                    keep.insert(*idx);
+                }
+            } else {
+                for idx in order.iter().take(prefix_len) {
+                    keep.insert(*idx);
+                }
+            }
+
+            if keep.is_empty() {
+                // If we somehow ended up with nothing to keep, just regenerate.
+                *graph = self.generate();
+                return;
+            }
+
+            graph.collapse(&keep);
+            self.complete(graph);
+            graph.sanitize();
+        } else {
+            // Option A: keep the failing node but sever its outgoing edges so
+            // that new consumer chains can be attached on the next completion.
+            if let Some(bail_idx) = bail_node_idx {
+                if bail_idx < graph.nodes.len() {
+                    let out_len = graph.nodes[bail_idx].out_ref.len();
+                    for conn in 0..out_len {
+                        graph.unlink(bail_idx, conn);
+                    }
+                }
+            }
+
+            self.complete(graph);
+            graph.sanitize();
+        }
+    }
+
+    /// Extend the graph from the frontier of the executed prefix by inserting
+    /// a new node attached near the last executed node.
+    pub fn mutate_frontier_extend(&self, graph: &mut Graph, executed_prefix_len: usize) {
+        if graph.nodes.is_empty() {
+            *graph = self.generate();
+            return;
+        }
+
+        let order = graph.topological_sort();
+        if order.is_empty() {
+            *graph = self.generate();
+            return;
+        }
+
+        let prefix_len = executed_prefix_len.min(order.len());
+
+        // Choose a frontier node: the last executed node if we have a prefix,
+        // otherwise a random node.
+        let frontier_node_idx = if prefix_len > 0 {
+            order[prefix_len - 1]
+        } else {
+            self.rng.borrow_mut().gen_range(0..graph.nodes.len())
+        };
+
+        // Reuse the logic from mutate_add_one, but target the chosen frontier
+        // node.
+        let node = &graph.nodes[frontier_node_idx];
+
+        // Decide whether to pick from inputs or outputs.
+        let is_input = if !node.in_ref.is_empty() && !node.out_ref.is_empty() {
+            self.rng.borrow_mut().gen_bool(0.5)
+        } else {
+            !node.in_ref.is_empty()
+        };
+
+        if (is_input && node.in_ref.is_empty()) || (!is_input && node.out_ref.is_empty()) {
+            // No valid connections to modify, fall back to a random add-one.
+            self.mutate_add_one(graph);
+            return;
+        }
+
+        // Pick a random connection on the chosen side.
+        let conn_idx = if is_input {
+            self.rng.borrow_mut().gen_range(0..node.in_ref.len())
+        } else {
+            self.rng.borrow_mut().gen_range(0..node.out_ref.len())
+        };
+
+        // Get the type we need to match.
+        let endpoint = &self.pspec.endpoints[node.typ];
+        let typ = if is_input {
+            endpoint.inputs[conn_idx]
+        } else {
+            endpoint.outputs[conn_idx]
+        };
+
+        // Remove the existing connection if there is one.
+        if is_input {
+            if let NodeRefType::Connected(_) = &graph.nodes[frontier_node_idx].in_ref[conn_idx] {
+                graph.unlink_backward(frontier_node_idx, conn_idx);
+            }
+        } else if let NodeRefType::Connected(_) =
+            &graph.nodes[frontier_node_idx].out_ref[conn_idx]
+        {
+            graph.unlink(frontier_node_idx, conn_idx);
+        }
+
+        // Find enabled endpoints with a matching input/output type.
+        let cache = self.cache.borrow();
+        let enabled_endpoint_indices = &cache.enabled_endpoints;
+
+        let endpoints = if is_input {
+            enabled_endpoint_indices
+                .iter()
+                .map(|&idx| &self.pspec.endpoints[idx])
+                .filter(|e| e.outputs.contains(&typ))
+                .collect::<Vec<_>>()
+        } else {
+            enabled_endpoint_indices
+                .iter()
+                .map(|&idx| &self.pspec.endpoints[idx])
+                .filter(|e| e.inputs.contains(&typ))
+                .collect::<Vec<_>>()
+        };
+
+        if endpoints.is_empty() {
+            self.mutate_regenerate(graph);
+            return;
+        }
+
+        // Pick a random endpoint.
+        let endpoint = endpoints
+            .choose(&mut *self.rng.borrow_mut())
+            .unwrap();
+
+        // Add the new node.
+        let new_node = graph.add_node(
+            &self,
+            endpoint.idx,
+            graph.nodes[frontier_node_idx].layer + if is_input { -1 } else { 1 },
+            endpoint.inputs.len(),
+            endpoint.outputs.len(),
+            endpoint.context_size.unwrap(),
+        );
+
+        // Link the new node.
+        if is_input {
+            let new_conn_idx = endpoint
+                .outputs
+                .iter()
+                .enumerate()
+                .filter(|(_, x)| **x == typ)
+                .choose(&mut *self.rng.borrow_mut())
+                .unwrap()
+                .0;
+            graph.link(new_node, new_conn_idx, frontier_node_idx, conn_idx);
+        } else {
+            let new_conn_idx = endpoint
+                .inputs
+                .iter()
+                .enumerate()
+                .filter(|(_, x)| **x == typ)
+                .choose(&mut *self.rng.borrow_mut())
+                .unwrap()
+                .0;
+            graph.link(frontier_node_idx, conn_idx, new_node, new_conn_idx);
+        }
+
+        // Complete any remaining edges and sanitize.
+        self.complete(graph);
+        graph.sanitize();
+    }
 }

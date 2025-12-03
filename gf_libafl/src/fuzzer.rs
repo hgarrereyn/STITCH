@@ -34,12 +34,12 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
 use crate::components::runtime_metadata::MetadataLoggerStage;
-use crate::components::trimming::{IndexesBailedLenMinimizerScheduler, TrimmingStage};
+use crate::components::trimming::{AnalyzerStage, IndexesBailedLenMinimizerScheduler};
 use crate::components::{
     graph_input::GraphInput,
     mutate_bytes::GraphMutateBytes,
     mutate_graph::{
-        GraphMutateAddOne, GraphMutateCrossover, GraphMutateDeleteOne, GraphMutateIsolateComponent,
+        GraphMutateCrossover, GraphMutateFrontierExtend, GraphMutateFrontierTrimRepair,
         GraphMutateRegenerate, GraphMutatorSelector,
     },
 };
@@ -209,12 +209,10 @@ pub fn fuzz(
 
     let graph_mutator = StdMutationalStage::new(GraphMutatorSelector::new(
         0.01,
-        3,
         tuple_list!(
-            GraphMutateDeleteOne::new(ctx.clone()),
-            GraphMutateIsolateComponent::new(ctx.clone()),
+            GraphMutateFrontierTrimRepair::new(ctx.clone()),
+            GraphMutateFrontierExtend::new(ctx.clone()),
             GraphMutateRegenerate::new(ctx.clone()),
-            GraphMutateAddOne::new(ctx.clone()),
             GraphMutateCrossover::new(ctx.clone()),
         ),
     ));
@@ -298,7 +296,7 @@ pub fn fuzz(
         shmem_provider.clone(),
     )?;
 
-    let trimming_stage = TrimmingStage::new(shared_bail_info.clone());
+    let analyzer_stage = AnalyzerStage::new(shared_bail_info.clone());
 
     // Periodically dump aggregated runtime metadata to `runtime_stats.json` in the
     // output directory. This runs outside the hot execution loop and avoids
@@ -313,7 +311,7 @@ pub fn fuzz(
         Duration::from_secs(2),
     );
 
-    let mut stages = tuple_list!(metadata_logger, trimming_stage, graph_mutator, context_stage,);
+    let mut stages = tuple_list!(metadata_logger, analyzer_stage, graph_mutator, context_stage,);
 
     // Read tokens
     if state.metadata_map().get::<Tokens>().is_none() {
@@ -353,6 +351,7 @@ pub fn fuzz(
     for seed in initial_seeds {
         let seed_input = GraphInput {
             graph: seed.clone(),
+            exec_meta: None,
         };
         fuzzer.add_input(&mut state, &mut executor, &mut mgr, seed_input)?;
     }

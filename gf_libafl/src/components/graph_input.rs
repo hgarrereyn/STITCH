@@ -1,10 +1,10 @@
 
-use std::{io::Read};
+use std::io::Read;
 
 use ahash::RandomState;
 use libafl::inputs::Input;
 use libafl_bolts::{ErrorBacktrace, HasLen};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use core::hash::{BuildHasher, Hasher};
 
 use gf_core::graph::Graph;
@@ -12,9 +12,36 @@ use gf_core::graph::Graph;
 use log;
 
 
+/// Execution metadata attached directly to each `GraphInput`.
+///
+/// This is populated by the Analyzer stage when a corpus entry is (re-)executed
+/// and is then available to graph and data mutators, and it persists when
+/// inputs are serialized to disk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphExecutionMetadata {
+    /// Whether this execution bailed (including assertion violations and
+    /// library exceptions).
+    pub bailed: bool,
+    /// Index of the node where the first bail occurred, if any.
+    pub bail_node_idx: Option<usize>,
+    /// Endpoint type of the node where the first bail occurred, if any.
+    pub bail_node_type: Option<usize>,
+    /// Number of nodes that executed in invocation order, including the bail
+    /// node if any. For successful executions, this will equal the length of
+    /// the invocation order.
+    pub executed_prefix_len: usize,
+    /// Approximate execution time for this input, in milliseconds.
+    pub exec_time_ms: f64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GraphInput {
     pub graph: Graph,
+    /// Optional execution metadata describing how this graph behaved on its
+    /// last run. Newly-generated inputs will have this set to `None` until
+    /// analyzed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exec_meta: Option<GraphExecutionMetadata>,
 }
 
 impl Input for GraphInput {

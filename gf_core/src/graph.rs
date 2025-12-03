@@ -275,7 +275,7 @@ impl Graph {
                 // We need to update the size argument to a valid size and then fill the backing buffer with the hint data
 
                 // Select either a random hint or a random raw input
-                let (will_use_hints, will_use_raw_inputs) = match (has_hints, has_raw_inputs) {
+                let (will_use_hints, _will_use_raw_inputs) = match (has_hints, has_raw_inputs) {
                     (true, true) => {
                         let p = ctx.rng.borrow_mut().gen_bool(0.5);
                         (p, !p)
