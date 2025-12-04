@@ -54,13 +54,14 @@ pub fn fuzz(
     tokenfile: Option<PathBuf>,
     logfile: &PathBuf,
     timeout: Duration,
-    _rss_limit_mb: Option<u64>,
     keep_stdout: bool,
     verbose: bool,
 ) -> Result<(), Error> {
     if verbose {
+        // In verbose mode we want to surface as much information as possible
+        // from the mutation and graph pipelines, including `log::debug!` calls.
         SimpleLogger::new()
-            .with_level(LevelFilter::Info)
+            .with_level(LevelFilter::Debug)
             .init()
             .unwrap();
     }

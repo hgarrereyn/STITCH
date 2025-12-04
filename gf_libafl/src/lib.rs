@@ -94,9 +94,6 @@ pub struct Options {
     #[arg(short, long, default_value = "1200")]
     pub timeout: String,
 
-    #[arg(short, long, default_value = "2000")]
-    pub rss_limit_mb: u64,
-
     #[arg(short, long, default_value = "false")]
     pub keep_stdout: bool,
 
@@ -104,9 +101,20 @@ pub struct Options {
     pub verbose: bool,
 }
 
-fn compute_mutation_context(pspec: PSpec, pspec_path: String, compute_size: usize, bypass_validation: bool) -> Rc<MutationContext> {
+fn compute_mutation_context(
+    pspec: PSpec,
+    pspec_path: String,
+    compute_size: usize,
+    bypass_validation: bool,
+    verbose: bool,
+) -> Rc<MutationContext> {
     let pspec_cache_path = PathBuf::from(format!("{}.cache", pspec_path));
-    let mctx = MutationContext::new(pspec);
+    let mut mctx = MutationContext::new(pspec);
+    // Allow the CLI verbosity flag to enable extra mutation debugging, in
+    // addition to any environment-based defaults.
+    if verbose {
+        mctx.opts.extra_verbose = true;
+    }
     if pspec_cache_path.exists() {
         println!("Loading pspec cache from {:?}", pspec_cache_path);
         mctx.load(&pspec_cache_path).expect("Could not load pspec cache");
@@ -157,7 +165,13 @@ pub extern "C" fn libafl_main() {
 
     if res.input.is_some() && res.out.is_some() {
         // Fuzzing!
-        let ctx = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);        
+        let ctx = compute_mutation_context(
+            pspec,
+            pspec_path,
+            res.compute_size,
+            res.bypass_validation,
+            res.verbose,
+        );
         run_fuzzer(res, gf_harness, ctx);
     } else if res.execute.is_some() {
         // Execute one testcase
@@ -167,14 +181,26 @@ pub extern "C" fn libafl_main() {
         write_one(res, gf_harness);
     } else if res.minimize.is_some() {
         // Minimize one testcase
-        let ctx = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);
+        let ctx = compute_mutation_context(
+            pspec,
+            pspec_path,
+            res.compute_size,
+            res.bypass_validation,
+            res.verbose,
+        );
         minimizer::minimize(res.minimize.unwrap(), res.minimize_output, res.minimize_cycles, res.minimize_timeout, gf_harness, res.full_write, ctx);
     } else {
         // No action specified
 
         // Compute mutation context to force the cache to be created.
         // (downstream users can run the harness with no arguments to force cache creation)
-        let _ = compute_mutation_context(pspec, pspec_path, res.compute_size, res.bypass_validation);
+        let _ = compute_mutation_context(
+            pspec,
+            pspec_path,
+            res.compute_size,
+            res.bypass_validation,
+            res.verbose,
+        );
 
         println!("Either input and out directories, execute command, test-filter with input, or minimize must be provided.");
         return;
@@ -217,7 +243,7 @@ fn run_fuzzer(res: Options, gf_harness: Harness, ctx: Rc<MutationContext>) {
 
     fuzzer::fuzz(
         gf_harness, ctx, &out_dir, &in_dir, raw_in_dir,tokens,
-        &logfile, timeout, Some(res.rss_limit_mb), res.keep_stdout, res.verbose
+        &logfile, timeout, res.keep_stdout, res.verbose
     ).unwrap();
 }
 

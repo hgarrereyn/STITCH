@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import shutil
 import tempfile
 from typing import Optional
@@ -67,8 +68,26 @@ def do_fuzz_raw(args):
             (str(tmpdir.absolute()), '/fuzz/workspace'),
             (str(out_dir.absolute()), '/fuzz/out'),
         ]
-
         env = []
+
+        # When running in debug mode, enable extra validation and restore the
+        # target's stderr so we can see detailed mutation/graph diagnostics.
+        debug_cli_flags = ""
+        if getattr(args, "debug", False):
+            # These environment variables are consumed inside the fuzzer:
+            #   - GF_VALIDATE_GRAPHS: enables additional graph validation and
+            #     debug printing along the mutation pipeline.
+            #   - GF_EXTRA_VERBOSE: turns on extra validation and verbose
+            #     mutation/graph logging in the Rust mutation context.
+            #   - LIBAFL_FUZZBENCH_DEBUG: re-enables the target's stderr so
+            #     that eprintln!/logging output is visible instead of being
+            #     fully muted by LibAFL.
+            os.environ.setdefault("GF_VALIDATE_GRAPHS", "1")
+            os.environ.setdefault("GF_EXTRA_VERBOSE", "1")
+            os.environ.setdefault("LIBAFL_FUZZBENCH_DEBUG", "1")
+            env.extend(["GF_VALIDATE_GRAPHS", "GF_EXTRA_VERBOSE", "LIBAFL_FUZZBENCH_DEBUG"])
+            # `--verbose` turns on additional logging in the Rust pipeline.
+            debug_cli_flags = " --verbose"
 
         # Optional time limit applied to the fuzzer process *inside* the
         # container. This ensures that expensive steps like Docker image
@@ -91,7 +110,7 @@ def do_fuzz_raw(args):
         # Roughly mirror what the looper does internally, but without bucketizer/patching:
         #   agfi zephyr to-schema --meta harness.json --output fuzzer.json
         #   agfi build full fuzzer
-        #   ./fuzzer -i /fuzz/out/inputs -o /fuzz/out --bypass-validation --logfile /fuzz/out/fuzzer.log --rss-limit-mb 0
+        #   ./fuzzer -i /fuzz/out/inputs -o /fuzz/out --bypass-validation --logfile /fuzz/out/fuzzer.log
         project.invoke(
             env=env,
             mounts=mounts,
@@ -102,7 +121,7 @@ def do_fuzz_raw(args):
                 agfi zephyr to-schema --meta harness.json --output fuzzer.json &&
                 agfi build full fuzzer &&
                 mkdir -p /fuzz/out/inputs /fuzz/out/queue /fuzz/out/crashes &&
-                {timeout_prefix}./fuzzer -i /fuzz/out/inputs -o /fuzz/out --bypass-validation --logfile /fuzz/out/fuzzer.log --rss-limit-mb 0
+                {timeout_prefix}./fuzzer -i /fuzz/out/inputs -o /fuzz/out --bypass-validation --logfile /fuzz/out/fuzzer.log{debug_cli_flags}
             ''',
         )
 
@@ -132,13 +151,20 @@ def register(subparsers):
         '--hard-rss-limit-mb',
         type=int,
         help='The hard RSS limit in MB (propagated via ASAN_OPTIONS in the Docker image)',
-        default=1024,
+        default=0,
     )
     raw.add_argument(
         '--time-limit-seconds',
         type=int,
         help='Optional wall-clock time limit (in seconds) applied to the fuzzer process inside the container.',
         default=None,
+    )
+    raw.add_argument(
+        '-d',
+        '--debug',
+        action='store_true',
+        help='Enable extra validation and verbose mutation/graph logging; keep target stderr',
+        default=False,
     )
     raw.set_defaults(func=do_fuzz_raw)
 
