@@ -78,6 +78,11 @@ pub struct MutationOptions {
     /// When true, allow graph structure validation to run where enabled.
     /// Typically controlled by the `GF_VALIDATE_GRAPHS` env var.
     pub validate_graphs: bool,
+    /// Probability (0.0–1.0) of attempting cross-pollination for hint-backed
+    /// buffers during data-level mutation. When a cross-pollination attempt
+    /// fails to find a compatible donor, the mutator falls back to the
+    /// standard in-place mutation.
+    pub cross_pollination_probability: f64,
 }
 
 impl Default for MutationOptions {
@@ -90,11 +95,20 @@ impl Default for MutationOptions {
         let extra_verbose_env = std::env::var("GF_EXTRA_VERBOSE").is_ok();
         let extra_verbose = extra_verbose_env || validate_graphs;
 
+        // Cross-pollination probability can be tuned via GF_CROSS_POLL_PROB in
+        // the environment. Values outside [0.0, 1.0] are clamped.
+        let cross_pollination_probability = std::env::var("GF_CROSS_POLL_PROB")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .map(|p| p.clamp(0.0, 1.0))
+            .unwrap_or(0.3);
+
         Self {
             self_link_probability: 0.2,
             max_nodes: 50,
             extra_verbose,
             validate_graphs,
+            cross_pollination_probability,
         }
     }
 }

@@ -53,6 +53,15 @@ pub struct Endpoint {
     #[serde(default)]
     pub hints: Vec<String>,
 
+    /// High-level data type tags for this endpoint's fuzzed data.
+    ///
+    /// These are produced by the Zephyr classifiers and propagated through
+    /// to the internal `PEndpoint` representation. They are used by the
+    /// mutators (in `gf_libafl`) to perform cross-pollination between
+    /// endpoints that operate on the same logical kind of data.
+    #[serde(default)]
+    pub data_types: Vec<String>,
+
     #[serde(default)]
     pub preconditions: Vec<String>,
 
@@ -417,6 +426,7 @@ impl Endpoint {
             hint_args,
             hint_args_sizes,
             flat_args,
+            data_types: self.data_types.clone(),
 
             input_vars,
             output_vars,

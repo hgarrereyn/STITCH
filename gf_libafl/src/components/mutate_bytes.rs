@@ -1,6 +1,11 @@
 use std::{borrow::{Borrow, Cow}, num::NonZeroUsize, rc::Rc};
 
-use libafl::{inputs::{BytesInput, HasMutatorBytes}, mutators::{MutationResult, Mutator}, state::HasRand};
+use libafl::{
+    corpus::Corpus,
+    inputs::{BytesInput, HasMutatorBytes},
+    mutators::{MutationResult, Mutator},
+    state::{HasCorpus, HasRand},
+};
 use libafl_bolts::{rands::Rand, Named};
 
 use gf_core::mutation::MutationContext;
@@ -38,10 +43,103 @@ where
     }
 }
 
+/// Select a donor buffer from another corpus entry whose endpoint shares at
+/// least one high-level data type with the target endpoint. Returns the raw
+/// bytes of the donor buffer, if any.
+fn select_donor_hint<S>(
+    ctx: &MutationContext,
+    state: &mut S,
+    target_endpoint_idx: usize,
+    max_trials: usize,
+) -> Result<Option<Vec<u8>>, libafl::Error>
+where
+    S: HasRand + HasCorpus,
+    S::Corpus: Corpus<Input = GraphInput>,
+{
+    let target_ep = &ctx.pspec.endpoints[target_endpoint_idx];
+
+    // If the target endpoint has no data type tags, we cannot reason about
+    // compatibility, so skip cross-pollination.
+    if target_ep.data_types.is_empty() {
+        return Ok(None);
+    }
+
+    // Nothing to sample from.
+    if state.corpus().count_all() == 0 {
+        return Ok(None);
+    }
+
+    for _ in 0..max_trials {
+        let id = libafl::random_corpus_id_with_disabled!(state.corpus(), state.rand_mut());
+
+        // Avoid trivially picking the same testcase we are currently mutating.
+        if let Some(cur) = state.corpus().current() {
+            if id == *cur {
+                continue;
+            }
+        }
+
+        let mut testcase = state.corpus().get_from_all(id)?.borrow_mut();
+        let other = testcase.load_input(state.corpus())?;
+        let other_input: &GraphInput = other;
+
+        // Search nodes in the donor graph for compatible endpoints.
+        for node in other_input.graph.nodes.iter() {
+            let ep_idx = node.typ;
+            let donor_ep = &ctx.pspec.endpoints[ep_idx];
+
+            // Require at least one shared data type tag.
+            if donor_ep
+                .data_types
+                .is_empty()
+                || !donor_ep
+                    .data_types
+                    .iter()
+                    .any(|dt| target_ep.data_types.iter().any(|t| t == dt))
+            {
+                continue;
+            }
+
+            // Iterate over all hint-backed buffers on this endpoint and try to
+            // extract a non-empty buffer.
+            for (i, hint_arg) in donor_ep.hint_args.iter().enumerate() {
+                let hint_size = donor_ep.hint_args_sizes[i];
+                let hint_off = donor_ep.arg_offsets[*hint_arg] as usize;
+
+                // Ensure we have at least a size field.
+                if hint_off + 4 > node.context.len() {
+                    continue;
+                }
+
+                let mut size_bytes = [0u8; 4];
+                size_bytes.copy_from_slice(&node.context[hint_off..hint_off + 4]);
+                let size = u32::from_le_bytes(size_bytes) as usize;
+                if size == 0 {
+                    continue;
+                }
+
+                let copy_len = core::cmp::min(size, hint_size);
+                let end = hint_off + 4 + copy_len;
+                if end > node.context.len() {
+                    continue;
+                }
+
+                let data = node.context[hint_off + 4..end].to_vec();
+                if !data.is_empty() {
+                    return Ok(Some(data));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 impl<M,S> Mutator<GraphInput,S> for GraphMutateBytes<M,S>
 where
     M: Mutator<BytesInput,S>,
-    S: HasRand
+    S: HasRand + HasCorpus,
+    S::Corpus: Corpus<Input = GraphInput>,
 {
     fn mutate(&mut self, state: &mut S, input: &mut GraphInput) -> Result<libafl::mutators::MutationResult, libafl::Error> {
         // 1. Pick a node to mutate, preferring the executed prefix and bail
@@ -127,6 +225,22 @@ where
             let hint_arg = pendpoint.hint_args[hint_idx];
             let hint_size = pendpoint.hint_args_sizes[hint_idx];
             let hint_off = pendpoint.arg_offsets[hint_arg] as usize;
+
+            // With some probability, attempt cross-pollination from another
+            // corpus entry that operates on the same logical data type. If no
+            // compatible donor is found, fall back to in-place mutation.
+            if state.rand_mut().coinflip(self.ctx.opts.cross_pollination_probability) {
+                if let Some(donor) = select_donor_hint(&self.ctx, state, pendpoint.idx, 32)? {
+                    let new_size = hint_size.min(donor.len());
+
+                    node.context[hint_off..hint_off + 4]
+                        .copy_from_slice(&(new_size as u32).to_le_bytes());
+                    node.context[hint_off + 4..hint_off + 4 + new_size]
+                        .copy_from_slice(&donor[..new_size]);
+
+                    return Ok(libafl::mutators::MutationResult::Mutated);
+                }
+            }
 
             // Buffer data starts at hint_off+4
             let mut inp = BytesInput::new(node.context[hint_off+4..hint_off + 4 + hint_size].to_vec());

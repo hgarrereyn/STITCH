@@ -46,6 +46,11 @@ pub struct PEndpoint {
     pub hint_args_sizes: Vec<usize>, // Sizes of arguments derived from FUZZ_PARAM_STR/FUZZ_PARAM_FILE
     pub flat_args: Vec<usize>, // Indices of fixed-size arguments derived from FUZZ_PARAM
 
+    /// High-level data type tags for this endpoint's fuzzed data, copied
+    /// from the public spec. Used by mutators to identify compatible
+    /// endpoints for cross-pollination of buffer contents.
+    pub data_types: Vec<String>,
+
     // Metadata
     pub input_vars: Vec<String>, // Original variable names
     pub output_vars: Vec<String>, // Original variable names
@@ -70,6 +75,7 @@ impl Default for PEndpoint {
             hint_args: vec![],
             hint_args_sizes: vec![],
             flat_args: vec![],
+            data_types: vec![],
             input_vars: vec![],
             output_vars: vec![],
             mappings: vec![],

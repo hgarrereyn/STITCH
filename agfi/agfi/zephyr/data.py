@@ -134,9 +134,18 @@ class ProjectMetadata(BaseModel):
             ep = func.to_endpoint()
 
             if func.name in classifiers_by_name:
-                for data_type in classifiers_by_name[func.name].data_types:
+                classifier = classifiers_by_name[func.name]
+
+                # Attach synthesized hints for each classified data type.
+                for data_type in classifier.data_types:
                     if data_type in synthesized_data:
                         ep.hints.extend(synthesized_data[data_type])
+
+                # Propagate the high-level data type tags so the Rust-side
+                # spec (and ultimately the mutators) can perform
+                # cross-pollination between endpoints using the same kind of
+                # data.
+                ep.data_types = list(classifier.data_types)
 
             schema.endpoints.append(ep)
 
