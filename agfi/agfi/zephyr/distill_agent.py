@@ -65,6 +65,8 @@ class CrashAssessment(BaseModel):
     relevant_functions: List[str]
 
     # Added later
+    duplicate_of: Optional[str] = None
+    duplicate_reason: Optional[str] = None
     usage: Optional[UsageTracker] = Field(default_factory=UsageTracker)
     test_iterations: List[CrashAssessmentTest] = Field(default_factory=list)
 
@@ -106,7 +108,7 @@ def tool_test_compile(testcase: str) -> TestCompileOutput:
         return TestCompileOutput(res=ProcessResult(stdout=stdout, stderr=stderr, crash_report=crash_report))
 
 
-def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessment:
+def run_distill_agent(harness: ProjectMetadata, testcase: str, history: Optional[list[dict]] = None) -> CrashAssessment:
     client = OpenAI()
 
     usage = UsageTracker()
@@ -153,11 +155,26 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
             "role": "user",
             "content": f'Objects: {json.dumps(p_objects)}\nFunctions: {json.dumps(p_functions)}\nFuzzer stubs: {json.dumps(p_endpoints)}'
         },
+    ]
+
+    # Optionally provide a compact history of previous crashes so the agent can
+    # recognize when the current crash is a duplicate of a prior one.
+    if history:
+        # Keep representation compact: one JSON object per line.
+        history_lines = "\n".join(json.dumps(item) for item in history)
+        ctx.append(
+            {
+                "role": "user",
+                "content": f'Previous crashes (one JSON object per line, with fields like `bug_hash`, `summary`, `crash_type`, `title`, `harness_revision`, `relevant_functions`):\n{history_lines}'
+            }
+        )
+
+    ctx.append(
         {
             "role": "user",
             "content": f'Testcase: \n```\n{testcase}\n```\nCrash report: \n```\n{report}\n```'
         }
-    ]
+    )
 
     tools = [
         {
@@ -186,7 +203,9 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
                     "explanation": { "type": "string", "description": "A detailed explanation of your assessment" },
                     "can_patch_fuzzer": { "type": "boolean", "description": "Whether the fuzzer can be patched to fix or avoid the crash" },
                     "patch_guidance": { "type": "string", "description": "Detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`)" },
-                    "relevant_functions": { "type": "array", "description": "The list of functions which are relevant to the crash", "items": { "type": "string" } }
+                    "relevant_functions": { "type": "array", "description": "The list of functions which are relevant to the crash", "items": { "type": "string" } },
+                    "duplicate_of": { "type": "string", "description": "If this crash is functionally the same as a previous crash, set this to that crash's `bug_hash` / `bucket_hash` from the previous crash list; otherwise omit or leave empty." },
+                    "duplicate_reason": { "type": "string", "description": "If `duplicate_of` is set, a short explanation of why this crash is considered a duplicate of the referenced prior crash." }
                 },
                 "required": ["title", "crash_type", "crash_type_reasoning", "minimized_testcase", "explanation", "can_patch_fuzzer", "patch_guidance"]
             }
@@ -269,7 +288,14 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str) -> CrashAssessmen
 def main(args):
     harness = ProjectMetadata.model_validate_json(open(args.harness).read())
     testcase = open(args.external_code).read()
-    assessment = run_distill_agent(harness, testcase)
+    history = None
+    if getattr(args, "history", None):
+        try:
+            history = json.loads(open(args.history).read())
+        except Exception:
+            history = None
+
+    assessment = run_distill_agent(harness, testcase, history=history)
     print(f'{Colors.GREEN}[+]{Colors.END} Usage: {assessment.usage.cost_by_task()}')
     open(args.output, 'w').write(assessment.model_dump_json(indent=2))
 
@@ -279,4 +305,5 @@ def register(subparser: ArgumentParser):
     parser.add_argument('--harness', type=str, required=True)
     parser.add_argument('--external-code', type=str, required=True)
     parser.add_argument('--output', type=str, required=True)
+    parser.add_argument('--history', type=str, required=False, help='Optional JSON file with a list of previous crash summaries')
     parser.set_defaults(func=main)

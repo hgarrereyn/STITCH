@@ -7,6 +7,7 @@ import os
 import signal
 from pydantic import BaseModel
 import tempfile
+import json
 
 from ..data.project_info import ProjectInfo
 from .data import ProjectMetadata
@@ -133,10 +134,37 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
     # Collect the list of known crashes
     reports = campaign / 'reports'
     known_crashes: dict[str, CrashInfo] = {}
+    prior_crash_history: list[dict] = []
     for report_dir in reports.iterdir():
         if report_dir.is_dir():
-            crash_info = CrashInfo.model_validate_json(open(report_dir / 'info.json').read())
+            info_path = report_dir / 'info.json'
+            if not info_path.exists():
+                continue
+            crash_info = CrashInfo.model_validate_json(open(info_path).read())
             known_crashes[crash_info.bucket_hash] = crash_info
+
+            # If an assessment exists, include a compact summary in the history so
+            # the distill-agent can recognize duplicates of previously-seen bugs.
+            assessment_path = report_dir / 'assessment.json'
+            if assessment_path.exists():
+                try:
+                    from .distill_agent import CrashAssessment
+
+                    assessment = CrashAssessment.model_validate_json(open(assessment_path).read())
+                    prior_crash_history.append(
+                        {
+                            "bug_hash": crash_info.bucket_hash,
+                            "summary": crash_info.summary,
+                            "crash_type": assessment.crash_type,
+                            "title": assessment.title,
+                            "harness_revision": crash_info.harness_revision,
+                            "relevant_functions": assessment.relevant_functions,
+                            "duplicate_of": getattr(assessment, "duplicate_of", None),
+                        }
+                    )
+                except Exception:
+                    # If the assessment cannot be parsed for any reason, just skip it.
+                    continue
 
     print(f'{Colors.GREEN}[+]{Colors.END} Known crashes: {len(known_crashes)}')
 
@@ -293,13 +321,20 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         assessment_path = tmpdir / 'assessment.json'
+        history_path = tmpdir / 'history.json'
+        # Serialize prior crash history for the distill-agent, but keep it compact.
+        try:
+            history_path.write_text(json.dumps(prior_crash_history, indent=2))
+            history_arg = ['--history', str(history_path)]
+        except Exception:
+            history_arg = []
         try:
             subprocess.run([
                 'agfi', 'zephyr', 'distill-agent',
                 '--harness', str((workdir / 'harness.json').absolute()),
                 '--external-code', str(new_crash),
-                '--output', str(assessment_path)
-            ], check=True)
+                '--output', str(assessment_path),
+            ] + history_arg, check=True)
         except subprocess.CalledProcessError:
             print(f'{Colors.RED}[-]{Colors.END} Distill agent failed')
             return

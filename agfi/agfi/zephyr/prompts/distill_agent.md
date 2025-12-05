@@ -49,6 +49,23 @@ You will also be provided with a list of fuzzer stubs that were involved in the 
 - You must use `test_compile` at least once (and up to 5 times) to demonstrate your understanding of the crash by creating a minimized testcase.
 - Only after you have a solid understanding of the crash, you should use `crash_assessment` to produce an assessment.
 
+-# Previous crashes and duplicates
+- You may optionally be given a list of **previous crashes** as JSON objects, one per line. Each object will typically contain fields like:
+    - `bug_hash` (the bucket hash / unique ID for that crash)
+    - `summary` (short textual description)
+    - `crash_type`
+    - `title`
+    - `harness_revision`
+    - `relevant_functions`
+- Use this information to determine whether the **current crash is functionally the same underlying bug** as any previous crash:
+    - Compare the stack trace, failure mode, involved functions, and testcase structure.
+    - If you conclude that the current crash is the same underlying bug as a prior crash, **treat that prior crash as canonical**.
+    - In that case:
+        - Set `duplicate_of` to the `bug_hash` of the matching prior crash.
+        - Set `duplicate_reason` to a short explanation (1–3 sentences) summarizing why you believe they are the same bug (e.g., same crashing function and line, same invalid precondition, same misuse pattern).
+    - If you believe the current crash is **not** the same as any previous crash, leave `duplicate_of` and `duplicate_reason` empty/omitted.
+- Even when a crash is a duplicate, you should still provide a coherent assessment so downstream tools and humans can understand the manifestation.
+
 # Output
 - Your output should be an assessment report object with the following fields:
     - `title`: a short single sentence title of what the crash is (e.g. "<thing> in <xyz> caused by <abc>")
@@ -59,3 +76,5 @@ You will also be provided with a list of fuzzer stubs that were involved in the 
     - `can_patch_fuzzer`: whether the fuzzer can be patched to fix or avoid the crash
     - `patch_guidance`: detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`)
     - `relevant_functions`: a list of all the function names which are involved with or relevant to the crash
+    - `duplicate_of`: (optional) if the crash is functionally the same as a previous crash, the `bug_hash` of that prior crash
+    - `duplicate_reason`: (optional) if `duplicate_of` is set, a short explanation of why this crash is considered a duplicate

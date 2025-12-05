@@ -46,6 +46,8 @@ def main(args):
         if crash.assessment:
             print(f'    {Colors.CYAN}[+]{Colors.END} Assessment: {crash.assessment.title}')
             print(f'    {Colors.CYAN}[+]{Colors.END} Crash type: {crash.assessment.crash_type}')
+            if getattr(crash.assessment, "duplicate_of", None):
+                print(f'    {Colors.CYAN}[+]{Colors.END} Duplicate of: {crash.assessment.duplicate_of}')
             print(f'    {Colors.CYAN}[+]{Colors.END} Can patch fuzzer: {crash.assessment.can_patch_fuzzer}')
             print(f'    {Colors.CYAN}[+]{Colors.END} Description:')
             pretty_print_code(crash.assessment.explanation, language="markdown")
