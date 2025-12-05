@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple, Dict
 
 from ..data.project_info import ProjectInfo
 
-from .data import FunctionImpl, FunctionImplError, ObjectInfo, FunctionInfo
+from .data import FunctionImpl, FunctionImplError, ObjectInfo, FunctionInfo, UnharnessableFunction
 from .pretty import print_functions, print_function_impl, pretty_print_error
 
 from ..utils.colors import Colors
@@ -30,9 +30,18 @@ PROMPT_WITH_ERRORS = open(os.path.join(os.path.dirname(__file__), 'prompts/with_
 
 class SynthResponse(BaseModel):
     functions: List[FunctionImpl] = Field(description="The list of function implementations")
+    unharnessable: List[UnharnessableFunction] = Field(
+        default_factory=list,
+        description="Functions that cannot be safely or meaningfully harnessed, with reasons",
+    )
 
 
-def synth_functions(objects: List[ObjectInfo], functions: List[FunctionInfo], target_functions: List[str], usage: UsageTracker) -> List[FunctionImpl]:
+def synth_functions(
+    objects: List[ObjectInfo],
+    functions: List[FunctionInfo],
+    target_functions: List[str],
+    usage: UsageTracker,
+) -> Tuple[List[FunctionImpl], List[UnharnessableFunction]]:
     client = OpenAI()
 
     p_objects = [o.model_dump() for o in objects],
@@ -55,12 +64,19 @@ def synth_functions(objects: List[ObjectInfo], functions: List[FunctionInfo], ta
         text_format=SynthResponse
     )
     usage.record_model('synth-functions', 'gpt-5', UsageTokens.from_openai(response.usage))
-    functions = response.output_parsed.functions
+    parsed = response.output_parsed
 
-    return functions
+    return parsed.functions, parsed.unharnessable
 
 
-def synth_functions_with_errors(objects: List[ObjectInfo], functions: List[FunctionInfo], target_functions: List[str], usage: UsageTracker, existing_stubs: List[FunctionImpl], failed_stubs: List[FunctionImplError]) -> List[FunctionImpl]:
+def synth_functions_with_errors(
+    objects: List[ObjectInfo],
+    functions: List[FunctionInfo],
+    target_functions: List[str],
+    usage: UsageTracker,
+    existing_stubs: List[FunctionImpl],
+    failed_stubs: List[FunctionImplError],
+) -> Tuple[List[FunctionImpl], List[UnharnessableFunction]]:
     client = OpenAI()
 
     p_objects = [o.model_dump() for o in objects],
@@ -97,12 +113,20 @@ def synth_functions_with_errors(objects: List[ObjectInfo], functions: List[Funct
         text_format=SynthResponse
     )
     usage.record_model('synth-functions', 'gpt-5', UsageTokens.from_openai(response.usage))
-    functions = response.output_parsed.functions
+    parsed = response.output_parsed
 
-    return functions
+    return parsed.functions, parsed.unharnessable
 
 
-def incremental_synthesis_loop(objects: List[ObjectInfo], functions: List[FunctionInfo], usage: UsageTracker, threads: int, info: ProjectInfo, retry_count: int = 2, max_batch_size: int = 20) -> Tuple[List[FunctionImpl], List[FunctionImplError]]:
+def incremental_synthesis_loop(
+    objects: List[ObjectInfo],
+    functions: List[FunctionInfo],
+    usage: UsageTracker,
+    threads: int,
+    info: ProjectInfo,
+    retry_count: int = 2,
+    max_batch_size: int = 20,
+) -> Tuple[List[FunctionImpl], List[FunctionImplError], List[UnharnessableFunction]]:
     # Maintain a state of the current harness, including validated and failed functions.
     # We will attempt each function up to retry_count times.
     # Functions are queried in batches of max_batch_size.
@@ -110,6 +134,10 @@ def incremental_synthesis_loop(objects: List[ObjectInfo], functions: List[Functi
     # The current state of the harness
     valid_functions: List[FunctionImpl] = []
     total_failed_functions: List[FunctionImplError] = []
+
+    # Functions that have been explicitly marked as unharnessable by the model
+    total_unharnessable: List[UnharnessableFunction] = []
+    unharnessable_by_name: Dict[str, UnharnessableFunction] = {}
 
     # Failed functions by name (we only keep the latest error for each function)
     failed_functions: Dict[str, FunctionImplError] = {}
@@ -130,10 +158,33 @@ def incremental_synthesis_loop(objects: List[ObjectInfo], functions: List[Functi
 
         # Query the LLM
         stubs = None
+        newly_unharnessable: List[UnharnessableFunction] = []
         if len(valid_functions) > 0 or len(filtered_failed) > 0:
-            stubs = synth_functions_with_errors(objects, functions, target_functions, usage, valid_functions, filtered_failed)
+            stubs, newly_unharnessable = synth_functions_with_errors(
+                objects,
+                functions,
+                target_functions,
+                usage,
+                valid_functions,
+                filtered_failed,
+            )
         else:
-            stubs = synth_functions(objects, functions, target_functions, usage)
+            stubs, newly_unharnessable = synth_functions(
+                objects,
+                functions,
+                target_functions,
+                usage,
+            )
+
+        # Immediately record any functions the model has declared unharnessable
+        for uh in newly_unharnessable:
+            if uh.name in remaining_functions:
+                log('INFO', f"Marking function as unharnessable: {Colors.YELLOW}{uh.name}{Colors.END} -- {uh.reason}")
+                unharnessable_by_name[uh.name] = uh
+                total_unharnessable.append(uh)
+                remaining_functions.pop(uh.name)
+            else:
+                log('INFO', f"Extraneous unharnessable entry for {Colors.YELLOW}{uh.name}{Colors.END} (not in remaining functions)")
 
         # Validate the stubs in parallel
         results = parallel_run(threads, run_validate_stub, [(info, s, objects) for s in stubs])
@@ -167,7 +218,7 @@ def incremental_synthesis_loop(objects: List[ObjectInfo], functions: List[Functi
                     log('ERROR', f"Extraneous stub for {Colors.YELLOW}{error.stub.name}{Colors.END} (not in remaining functions)")
                     continue
 
-    return valid_functions, total_failed_functions
+    return valid_functions, total_failed_functions, total_unharnessable
 
 
 def main(args):
@@ -175,17 +226,21 @@ def main(args):
     functions = [FunctionInfo.model_validate(x) for x in json.load(open(args.functions))]
     target_functions = args.target_functions
     usage = UsageTracker()
-    functions = synth_functions(objects, functions, target_functions, usage)
+    stubs, unharnessable = synth_functions(objects, functions, target_functions, usage)
     print(usage.cost_by_task())
-    
+
     # Pretty print the functions with syntax highlighting
-    print_functions(functions)
+    print_functions(stubs)
 
     # Still save to JSON if output file is specified
     if args.output:
-        functions_json = [x.model_dump() for x in functions]
+        functions_json = [x.model_dump() for x in stubs]
+        meta = {
+            "functions": functions_json,
+            "unharnessable": [x.model_dump() for x in unharnessable],
+        }
         with open(args.output, 'w') as f:
-            f.write(json.dumps(functions_json, indent=2))
+            f.write(json.dumps(meta, indent=2))
 
 
 def register(subparsers):

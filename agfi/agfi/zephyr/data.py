@@ -63,6 +63,15 @@ class FunctionImplError(BaseModel):
     error: str = Field(description="An error message if the function implementation is invalid")
 
 
+class UnharnessableFunction(BaseModel):
+    """
+    A function that the model has determined cannot be safely or meaningfully
+    harnessed under the current constraints.
+    """
+    name: str = Field(description="The name of the function that is not harnessable")
+    reason: str = Field(description="One-sentence explanation of why this function cannot be harnessed")
+
+
 class FunctionClassifier(BaseModel):
     name: str
     data_types: List[str]
@@ -83,6 +92,9 @@ class ProjectMetadata(BaseModel):
     functions: Optional[List[FunctionInfo]] = None
 
     endpoints: Optional[List[FunctionImpl]] = None
+
+    # Functions that were explicitly marked as unharnessable by the model
+    unharnessable_functions: Optional[List[UnharnessableFunction]] = None
 
     # Types of data used by the endpoints
     endpoint_classifiers: Optional[List[FunctionClassifier]] = None

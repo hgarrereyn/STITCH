@@ -12,11 +12,18 @@
 
 # Instructions
 - Generate C++ fuzzer stub code for each function in `target_functions`, using provided object and function information.
-- For each target function, produce an object with:
-- `name`: Function name.
-- `inputs`: List of input variables, each with `name` and `type` (using `ptr_type` from objects list).
-- `outputs`: List of output variables, each with `name` and `type`.
-- `code`: The stub C++ code; implement as a single block, focusing only on the target function and related macros.
+- For each target function that **can** be safely and meaningfully exercised under the fuzzer model, produce an entry in the `functions` list with:
+  - `name`: Function name.
+  - `inputs`: List of input variables, each with `name` and `type` (using `ptr_type` from objects list).
+  - `outputs`: List of output variables, each with `name` and `type`.
+  - `code`: The stub C++ code; implement as a single block, focusing only on the target function and related macros.
+- For any target function that **cannot** be safely or meaningfully harnessed at all (for example, it is not compatible with the platform or compiler toolchain), do **not** invent a stub or unconditionally call `FUZZ_BAIL()`:
+  - Instead, add an entry to the `unharnessable` list with:
+    - `name`: the exact function name from `target_functions`
+    - `reason`: a single concise sentence explaining why this function cannot be harnessed.
+- Every function in `target_functions` must be accounted for **exactly once**, either by:
+  - A valid stub entry in `functions`, or
+  - A corresponding entry in `unharnessable`.
 
 ## Stub Construction Guidelines
 - Each fuzzer stub should be a block of C++ code that invokes the target function with fuzzable random arguments, ensuring API constraints are met.

@@ -1,7 +1,7 @@
 from typing import List, Tuple
 import time
 
-from .data import ObjectInfo, FunctionInfo, FunctionImplError, ProjectSynthMetadata, FunctionImpl
+from .data import ObjectInfo, FunctionInfo, FunctionImplError, ProjectSynthMetadata, FunctionImpl, UnharnessableFunction
 
 from ..data.metadata import UsageTracker
 from ..data.project_info import ProjectInfo
@@ -20,7 +20,7 @@ from .util import parallel_run, parallel_run_raw, log
 SYNTH_RETRIES = 3
 
 
-def process_header_functions(header_path: str, objects: List[ObjectInfo], info: ProjectInfo, threads: int, usage: UsageTracker) -> Tuple[List[FunctionInfo], List[FunctionImpl], List[FunctionImplError]]:
+def process_header_functions(header_path: str, objects: List[ObjectInfo], info: ProjectInfo, threads: int, usage: UsageTracker) -> Tuple[List[FunctionInfo], List[FunctionImpl], List[FunctionImplError], List[UnharnessableFunction]]:
     code = open(header_path, 'rb').read().decode('utf-8', errors='ignore')
     
     log('INFO', f"Scanning header {header_path} for function names")
@@ -32,10 +32,10 @@ def process_header_functions(header_path: str, objects: List[ObjectInfo], info: 
     log('SCAN', f"Found {len(functions)} functions in {header_path}")
 
     log('INFO', f"Synthesizing functions in {header_path}")
-    valid_stubs, failed_stubs = incremental_synthesis_loop(objects, functions, usage, threads, info)
-    log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed in {header_path}")
+    valid_stubs, failed_stubs, unharnessable = incremental_synthesis_loop(objects, functions, usage, threads, info)
+    log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed, {len(unharnessable)} unharnessable in {header_path}")
 
-    return functions, valid_stubs, failed_stubs
+    return functions, valid_stubs, failed_stubs, unharnessable
 
 
 def main(args):
@@ -79,6 +79,7 @@ def main(args):
     functions = []
     valid_stubs = []
     failed_stubs = []
+    unharnessable_functions: List[UnharnessableFunction] = []
 
     t_functions = 0
     t_synthesis = 0
@@ -99,8 +100,9 @@ def main(args):
 
         log('INFO', 'Synthesizing functions')
         s_synthesis = time.time()
-        valid_stubs, failed_stubs = incremental_synthesis_loop(objects, functions, usage, args.threads, info)
-        log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed")
+        valid_stubs, failed_stubs, unharnessable = incremental_synthesis_loop(objects, functions, usage, args.threads, info)
+        log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed, {len(unharnessable)} unharnessable")
+        unharnessable_functions.extend(unharnessable)
         t_synthesis = time.time() - s_synthesis
     else:
         # For many headers, we perform independent scans/synthesis to avoid context explosion
@@ -110,10 +112,11 @@ def main(args):
         log('INFO', f"Scanning header(s) for functions")
         s_synthesis = time.time()
         res = parallel_run_raw(args.threads, process_header_functions, [(header_path, objects, info, args.threads, usage) for header_path in args.headers])
-        for p_functions, p_valid_stubs, p_failed_stubs in res:
+        for p_functions, p_valid_stubs, p_failed_stubs, p_unharnessable in res:
             functions.extend(p_functions)
             valid_stubs.extend(p_valid_stubs)
             failed_stubs.extend(p_failed_stubs)
+            unharnessable_functions.extend(p_unharnessable)
         t_synthesis = time.time() - s_synthesis
         log('SCAN', f"Found {len(functions)} functions total")
         log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed")
@@ -123,6 +126,7 @@ def main(args):
         objects=objects,
         functions=functions,
         endpoints=valid_stubs,
+        unharnessable_functions=unharnessable_functions,
         usage=usage,
     )
 
