@@ -153,10 +153,9 @@ impl SGraph {
             });
         }
 
-        Graph { 
-            nodes,
-            invocation_order: None,
-        }
+        let mut graph = Graph::new();
+        graph.nodes = nodes;
+        graph
     }
 }
 

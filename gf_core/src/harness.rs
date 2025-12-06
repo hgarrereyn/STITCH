@@ -150,7 +150,10 @@ impl Harness {
         graph: &Graph,
         mut metadata: Option<&mut RuntimeMetadataView>,
     ) -> InvokeResult {
-        let slots = vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
+        // Flattened slot storage: [node_idx * MAX_SLOTS + conn_idx].
+        // This avoids per-node Vec allocations on every invocation.
+        let slots =
+            vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS * graph.nodes.len()];
 
         let order = graph.get_invocation_order();
 
@@ -164,11 +167,17 @@ impl Harness {
                 .in_ref
                 .iter()
                 .map(|x| match x {
-                    NodeRefType::Connected(ref y) => slots[y.node_idx][y.conn_idx],
+                    NodeRefType::Connected(ref y) => {
+                        slots[y.node_idx * Harness::MAX_SLOTS + y.conn_idx]
+                    }
                     NodeRefType::Disconnected => panic!("Disconnected node reference"),
                 })
                 .collect::<Vec<_>>();
-            let out_ref = slots[node.index].as_ptr();
+            let out_ref = unsafe {
+                slots
+                    .as_ptr()
+                    .add(node.index * Harness::MAX_SLOTS)
+            };
 
             let mut exit_type = 0;
             let mut exit_buffer = [0; 1024];
@@ -266,7 +275,7 @@ impl Harness {
         std::io::stdout().flush().unwrap();
 
         let mut slots =
-            vec![vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS]; graph.nodes.len()];
+            vec![std::ptr::null::<c_void>(); Harness::MAX_SLOTS * graph.nodes.len()];
 
         let order = graph.topological_sort();
 
@@ -278,15 +287,21 @@ impl Harness {
                 .in_ref
                 .iter()
                 .map(|x| match x {
-                    NodeRefType::Connected(ref y) => slots[y.node_idx][y.conn_idx],
+                    NodeRefType::Connected(ref y) => {
+                        slots[y.node_idx * Harness::MAX_SLOTS + y.conn_idx]
+                    }
                     NodeRefType::Disconnected => panic!("Disconnected node reference"),
                 })
                 .collect::<Vec<_>>();
-            let out_ref = slots[node.index].as_ptr();
+            let out_ref = unsafe {
+                slots
+                    .as_ptr()
+                    .add(node.index * Harness::MAX_SLOTS)
+            };
 
             // Fill out ref with new indices
             for (i, _output) in node.out_ref.iter().enumerate() {
-                slots[node.index][i] = vidx as *const c_void;
+                slots[node.index * Harness::MAX_SLOTS + i] = vidx as *const c_void;
                 vidx += 1;
             }
 

@@ -1,4 +1,8 @@
-use std::{collections::HashSet, num::ParseIntError};
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashSet,
+    num::ParseIntError,
+};
 
 use colored::Colorize;
 use rand::Rng;
@@ -37,17 +41,22 @@ pub struct Node {
     pub context: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Graph {
     pub nodes: Vec<Node>,
 
-    // Stores the invocation order (topological sort) for visualization
-    // This is optional for backward compatibility with existing testcases
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub invocation_order: Option<Vec<usize>>,
+    // Cached invocation order (topological sort) for execution.
+    // This is derived data and is therefore skipped during (de)serialization.
+    #[serde(skip)]
+    #[serde(default)]
+    invocation_order: RefCell<Option<Vec<usize>>>,
 }
 
 impl Graph {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn pprint(&self) {
         // Sort nodes by layer
         let ordered = self.topological_sort();
@@ -98,21 +107,31 @@ impl Graph {
         ordered
     }
 
-    /// Ensures that the invocation order is computed and stored in the graph.
-    /// This should be called before serializing the graph to disk.
-    pub fn ensure_invocation_order(&mut self) {
-        if self.invocation_order.is_none()
-            || self.invocation_order.as_ref().unwrap().len() != self.nodes.len()
-        {
-            self.invocation_order = Some(self.topological_sort());
+    /// Ensures that the invocation order is computed and cached.
+    /// Safe to call from &self via interior mutability.
+    pub fn ensure_invocation_order(&self) {
+        let needs_recompute = {
+            let inv = self.invocation_order.borrow();
+            match inv.as_ref() {
+                Some(v) => v.len() != self.nodes.len(),
+                None => true,
+            }
+        };
+        if needs_recompute {
+            let mut inv = self.invocation_order.borrow_mut();
+            *inv = Some(self.topological_sort());
         }
     }
 
-    /// Gets the invocation order, using the cached version if available, otherwise computing it.
-    pub fn get_invocation_order(&self) -> Vec<usize> {
-        self.invocation_order
-            .clone()
-            .unwrap_or_else(|| self.topological_sort())
+    /// Gets the invocation order as a borrowed slice, computing and caching it
+    /// on first use after structural changes.
+    pub fn get_invocation_order(&self) -> Ref<'_, [usize]> {
+        self.ensure_invocation_order();
+        Ref::map(self.invocation_order.borrow(), |opt| {
+            opt.as_ref()
+                .expect("invocation_order must be initialized")
+                .as_slice()
+        })
     }
 
     pub fn validate(&self, spec: &PSpec) {
@@ -340,7 +359,6 @@ impl Graph {
 
         self.nodes[node_a].out_ref[conn_a] = NodeRefType::Disconnected;
         self.nodes[node_ref.node_idx].in_ref[node_ref.conn_idx] = NodeRefType::Disconnected;
-        self.invocation_order = None;
     }
 
     // Unlink node A from its backward connection
@@ -352,7 +370,6 @@ impl Graph {
 
         self.nodes[node_a].in_ref[conn_a] = NodeRefType::Disconnected;
         self.nodes[node_ref.node_idx].out_ref[node_ref.conn_idx] = NodeRefType::Disconnected;
-        self.invocation_order = None;
     }
 
     pub fn link(&mut self, node_a: usize, conn_a: usize, node_b: usize, conn_b: usize) {
@@ -365,7 +382,6 @@ impl Graph {
             node_idx: node_a,
             conn_idx: conn_a,
         });
-        self.invocation_order = None;
     }
 
     pub fn unlink_all(&mut self, node: usize) {
@@ -393,7 +409,6 @@ impl Graph {
 
         self.nodes[node].in_ref = vec![NodeRefType::Disconnected; self.nodes[node].in_ref.len()];
         self.nodes[node].out_ref = vec![NodeRefType::Disconnected; self.nodes[node].out_ref.len()];
-        self.invocation_order = None;
     }
 
     // Reindex a node with a new index, updating all references
@@ -478,7 +493,7 @@ impl Graph {
                 NodeRefType::Disconnected => {}
             }
         }
-        self.invocation_order = None;
+        // invocation_order will be recomputed lazily on next access.
     }
 
     pub fn apply_offset(&mut self, offset: usize) {
@@ -503,7 +518,7 @@ impl Graph {
                 }
             }
         }
-        self.invocation_order = None;
+        // invocation_order will be recomputed lazily on next access.
     }
 
     pub fn visit(&self, node: usize, visited: &mut HashSet<usize>) {
@@ -598,7 +613,6 @@ impl Graph {
         //     write_idx,
         //     self.nodes.len()
         // );
-        self.invocation_order = None;
     }
 
     pub fn sanitize(&mut self) {

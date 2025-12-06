@@ -90,30 +90,34 @@ where
         let end_time = time::Instant::now();
         let exec_time = end_time.duration_since(start_time).as_millis() as f64;
 
-        let invoke_result = self.shared_bail_info.borrow().to_vec();
-        // For packed structs, we need to be careful about unaligned access
-        // Copy the bytes to a properly aligned location first
+        let bail_bytes = self.shared_bail_info.borrow();
+        // For packed structs, we need to be careful about unaligned access.
+        // Copy the bytes to a properly aligned location first, without
+        // allocating on the heap.
         let mut aligned_bytes = [0u8; std::mem::size_of::<BailInfo>()];
-        aligned_bytes.copy_from_slice(&invoke_result);
+        aligned_bytes.copy_from_slice(&bail_bytes);
         let bail_info = unsafe { &*(aligned_bytes.as_ptr() as *const BailInfo) };
 
         // Compute executed prefix in invocation order, including the bail node
-        // if any, but do not modify the graph.
-        let invocation_order = input.graph.get_invocation_order();
-        let executed_prefix_len = if bail_info.bailed {
-            if let Some(bail_pos) = invocation_order
-                .iter()
-                .position(|&idx| idx == bail_info.node_idx)
-            {
-                bail_pos + 1
+        // if any, but do not modify the graph. We keep the borrow for the
+        // minimal scope to avoid lifetime issues when we later move `input`.
+        let executed_prefix_len = {
+            let invocation_order = input.graph.get_invocation_order();
+            if bail_info.bailed {
+                if let Some(bail_pos) = invocation_order
+                    .iter()
+                    .position(|&idx| idx == bail_info.node_idx)
+                {
+                    bail_pos + 1
+                } else {
+                    // If we can't find the bail node in the current invocation
+                    // order (graph changed since last analysis), fall back to
+                    // treating the whole graph as executed.
+                    invocation_order.len()
+                }
             } else {
-                // If we can't find the bail node in the current invocation
-                // order (graph changed since last analysis), fall back to
-                // treating the whole graph as executed.
                 invocation_order.len()
             }
-        } else {
-            invocation_order.len()
         };
 
         let graph_exec_meta = GraphExecutionMetadata {
@@ -144,7 +148,7 @@ where
         // Attach execution metadata to the current testcase input and also
         // store summary metadata for the minimizer scheduler.
         let mut testcase = state.current_testcase_mut()?;
-        let mut updated_input = input;
+        let mut updated_input = input.clone();
         updated_input.exec_meta = Some(graph_exec_meta);
         testcase.set_input(updated_input);
         testcase.add_metadata(GraphTestcaseMetadata {

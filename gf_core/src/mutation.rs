@@ -474,10 +474,7 @@ impl MutationContext {
     }
 
     pub fn generate(&self) -> Graph {
-        let mut graph = Graph {
-            nodes: Vec::new(),
-            invocation_order: None,
-        };
+        let mut graph = Graph::new();
 
         let cache = self.cache.borrow();
         let endpoint_idx = cache.enabled_endpoints.iter().choose(&mut *self.rng.borrow_mut()).unwrap();
@@ -500,10 +497,7 @@ impl MutationContext {
     }
 
     pub fn generate_seeded(&self, idx: usize) -> Graph {
-        let mut graph = Graph {
-            nodes: Vec::new(),
-            invocation_order: None,
-        };
+        let mut graph = Graph::new();
         
         let endpoint = &self.pspec.endpoints[idx];
         let _ = graph.add_node(
