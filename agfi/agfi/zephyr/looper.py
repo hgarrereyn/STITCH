@@ -148,8 +148,6 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
             assessment_path = report_dir / 'assessment.json'
             if assessment_path.exists():
                 try:
-                    from .distill_agent import CrashAssessment
-
                     assessment = CrashAssessment.model_validate_json(open(assessment_path).read())
                     prior_crash_history.append(
                         {
@@ -210,8 +208,7 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
         '-i', str(fuzzer_inputs),
         '-o', str(fuzzer_outputs),
         '--bypass-validation',
-        '--logfile', str(fuzzer_log),
-        '--rss-limit-mb', '0',
+        '--logfile', str(fuzzer_log)
     ], cwd=workdir, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Keep output for bucketizer to help debug problems with crash reproduction
