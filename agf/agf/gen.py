@@ -5,18 +5,17 @@ import subprocess
 import sys
 
 from .utils.colors import Colors
-from .utils.project import Project
 from .utils.env import check_env
-from .data.metadata import UsageTracker
 
 
 def do_gen(args):
-    # Speed up imports
-    from .gen_agent.agent import run_agent
-
     def fail(msg: str):
         print(f'[{Colors.RED}-{Colors.END}] {msg}', file=sys.stderr)
         raise SystemExit(1)
+
+    # Import heavy dependencies only after basic argument/project validation so
+    # obvious failures don't pay import cost (or trigger optional deps).
+    from .utils.project import Project
 
     path = Path(args.path)
     project = Project(path)
@@ -32,6 +31,10 @@ def do_gen(args):
     config = project.get_config()
 
     check_env(['OPENAI_API_KEY'])
+
+    # Speed up imports (after validation)
+    from .gen_agent.agent import run_agent
+    from .data.metadata import UsageTracker
 
     print(f'[{Colors.GREEN}+{Colors.END}] Autogenerating build configuration...')
 

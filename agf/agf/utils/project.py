@@ -7,7 +7,6 @@ import tempfile
 import subprocess
 import json
 
-from ..data.metadata import UsageTracker
 from ..utils.colors import Colors
 
 CUSTOM_SECCOMP = (Path(__file__).parent.parent / 'seccomp.json').absolute()
@@ -41,6 +40,17 @@ class Harness:
         campaign_dir = self.path / 'campaign'
         campaign_dir.mkdir(parents=True, exist_ok=True)
         return campaign_dir
+
+    def control_dir(self) -> Path:
+        """
+        Control directory for out-of-band coordination with long-running runs.
+
+        Example: creating `<campaign>/control/stop` requests a safe stop for
+        `agf fuzz` (honored by the inner looper at safe points).
+        """
+        control_dir = self.campaign_dir() / 'control'
+        control_dir.mkdir(parents=True, exist_ok=True)
+        return control_dir
     
     def analysis_dir(self) -> Path:
         analysis_dir = self.path / 'analysis'
@@ -72,6 +82,10 @@ class Harness:
             harness = json.load(f)
         if 'usage' not in harness:
             return {}
+        # Lazy import to avoid pulling in heavier optional dependencies (and
+        # their transitive imports) for commands that don't need usage tracking.
+        from ..data.metadata import UsageTracker
+
         usage = UsageTracker.model_validate(harness['usage'])
         return usage.cost_by_task()
     
@@ -397,6 +411,8 @@ class Project:
         check: bool = False,
         image: Optional[str] = None,
         run_as_host_user: bool = True,
+        popen: bool = False,
+        use_tty: Optional[bool] = None,
         **kwargs,
     ):
         """
@@ -419,10 +435,12 @@ class Project:
         full_cmd = ['docker', 'run', '--rm']
         full_cmd += ['--platform', 'linux/amd64']
 
-        # Only request a TTY when our own stdin is a TTY. This keeps interactive
-        # usage unchanged while allowing non-interactive callers (like
-        # stitch-bench workers) to redirect or detach stdin safely.
-        if sys.stdin.isatty():
+        # Only request a TTY when our own stdin is a TTY unless explicitly
+        # overridden by callers. This keeps interactive usage unchanged while
+        # allowing non-interactive callers (or callers managing signals) to
+        # disable TTY behavior reliably.
+        effective_tty = sys.stdin.isatty() if use_tty is None else bool(use_tty)
+        if effective_tty:
             full_cmd.insert(2, '-it')
 
         # Decide whether to run the container as the host user. By default we
@@ -453,6 +471,8 @@ class Project:
         image_tag = image or f'main_{self.get_config().name}'
 
         full_cmd += [image_tag, 'bash', '-c', cmd]
+        if popen:
+            return subprocess.Popen(full_cmd, **kwargs)
         return subprocess.run(full_cmd, check=check, **kwargs)
 
     def next_harness_name(self) -> str:

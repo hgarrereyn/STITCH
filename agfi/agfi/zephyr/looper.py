@@ -5,6 +5,7 @@ import subprocess
 import time
 import os
 import signal
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
 import tempfile
@@ -43,6 +44,53 @@ class RestartableProcess:
         except subprocess.TimeoutExpired:
             os.killpg(self.p.pid, sig)
             self.p.wait()
+
+
+def _default_stop_file(campaign: Path, persist: Optional[Path]) -> Path:
+    """
+    Compute the default "stop requested" file location.
+
+    In minimal-persistence mode, `persist` is mounted from the host, so placing
+    the control file under persist makes it easy for external managers to
+    request a stop without signalling/killing the process.
+    """
+    root = persist if persist is not None else campaign
+    return (root / 'control' / 'stop').absolute()
+
+
+def _stop_requested(stop_file: Optional[Path]) -> bool:
+    try:
+        return stop_file is not None and stop_file.exists()
+    except Exception:
+        return False
+
+
+def _ack_stop(stop_file: Optional[Path]):
+    """
+    Best-effort acknowledgement of a stop request.
+
+    We write a small `stop.ack` file (timestamp) and remove the request file so
+    subsequent runs don't immediately exit unless a new request is created.
+    """
+    if stop_file is None:
+        return
+    try:
+        if not stop_file.exists():
+            return
+        stop_file.parent.mkdir(parents=True, exist_ok=True)
+        ack_path = stop_file.parent / 'stop.ack'
+        ack_path.write_text(
+            json.dumps(
+                {
+                    'handled_at': datetime.utcnow().isoformat() + 'Z',
+                },
+                indent=2,
+            )
+        )
+        stop_file.unlink(missing_ok=True)
+    except Exception:
+        # Never fail the looper due to stop-file bookkeeping.
+        return
 
 
 def get_last_fuzzer_line(log_path: Path, last_chunk_size: int = 3000) -> str:
@@ -200,6 +248,7 @@ def run_campaign(
     rotate_seconds: Optional[int] = None,
     rotate_max_gb: Optional[float] = None,
     rotate_seed_keep: int = 0,
+    stop_file: Optional[Path] = None,
 ):
     # Collect the list of known crashes
     reports = (persist / 'reports') if persist is not None else (campaign / 'reports')
@@ -236,6 +285,16 @@ def run_campaign(
                     continue
 
     print(f'{Colors.GREEN}[+]{Colors.END} Known crashes: {len(known_crashes)}')
+
+    # Stop-request control file. External managers can request a safe stop by
+    # creating this file; we only honor it at safe points (between fuzzing and
+    # triage, or between revisions).
+    if stop_file is None:
+        stop_file = _default_stop_file(campaign, persist)
+    try:
+        stop_file.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
     # Find the highest revision in campaign/revisions
     current_revision = 0
@@ -323,6 +382,7 @@ def run_campaign(
     new_crash = None
     new_crash_hash = None
     new_crash_summary = None
+    stop_requested = False
 
     status_refresh = 15.0
     last_status_check = time.time()
@@ -348,6 +408,12 @@ def run_campaign(
         # If revise is True, stop when we find a new crash
         # If revise is False, continue indefinitely
         while new_crash is None or (not revise):
+            # Safe stop point: while fuzzing/bucketizing, before we begin triage.
+            if _stop_requested(stop_file):
+                print(f'{Colors.YELLOW}[*]{Colors.END} Stop requested; finishing current work and exiting safely')
+                stop_requested = True
+                break
+
             current_time = time.time()
             if current_time - last_status_check >= status_refresh:
                 # Read the last part of fuzzer.log
@@ -475,6 +541,30 @@ def run_campaign(
     p_bucketizer.terminate()
     print(f'{Colors.GREEN}[+]{Colors.END} Fuzzer and bucketizer killed')
 
+    # If a stop was requested during fuzzing, exit now (safe point).
+    if stop_requested:
+        _ack_stop(stop_file)
+        return True
+
+    # If a stop was requested right after we discovered a new crash (or between
+    # the end of fuzzing and the start of triage), persist a minimal report and
+    # exit without doing long-running triage/patching work.
+    if _stop_requested(stop_file):
+        if new_crash_hash is not None:
+            report_path = reports / new_crash_hash
+            report_path.mkdir(parents=True, exist_ok=True)
+            (report_path / 'info.json').write_text(
+                CrashInfo(
+                    bucket_hash=new_crash_hash,
+                    summary=new_crash_summary or '',
+                    original_testcase=str(new_crash) if new_crash is not None else '',
+                    harness_revision=current_revision,
+                ).model_dump_json(indent=2)
+            )
+        print(f'{Colors.YELLOW}[*]{Colors.END} Stop requested; skipping triage/patching and exiting safely')
+        _ack_stop(stop_file)
+        return True
+
     # Save the report into the campaign/reports directory
     report_path = reports / new_crash_hash
     report_path.mkdir(parents=True, exist_ok=True)
@@ -570,6 +660,12 @@ def run_campaign(
         (workdir / 'fuzzer.pspec').unlink(missing_ok=True)
         (workdir / 'fuzzer.pspec.cache').unlink(missing_ok=True)
 
+        # Safe stop point: we finished triage/patching work.
+        if _stop_requested(stop_file):
+            print(f'{Colors.YELLOW}[*]{Colors.END} Stop requested; exiting after completing triage/patching')
+            _ack_stop(stop_file)
+            return True
+
         return
 
 
@@ -578,6 +674,7 @@ def main(args):
     harness = ProjectMetadata.model_validate_json(open(args.harness).read())
     campaign = Path(args.campaign).absolute()
     persist = Path(args.persist).absolute() if args.persist is not None else None
+    stop_file = Path(args.stop_file).absolute() if getattr(args, 'stop_file', None) is not None else None
 
     if persist is None:
         exists = campaign.exists() and (campaign / 'reports').exists() and (campaign / 'revisions').exists()
@@ -623,7 +720,7 @@ def main(args):
     # Run the campaign
     for revision in range(args.max_revisions):
         print(f'{Colors.GREEN}[+]{Colors.END} Running campaign {revision + 1} of {args.max_revisions}')
-        run_campaign(
+        should_stop = run_campaign(
             campaign,
             info_path,
             revise=True,
@@ -632,7 +729,10 @@ def main(args):
             rotate_seconds=args.rotate_seconds,
             rotate_max_gb=args.rotate_max_gb,
             rotate_seed_keep=args.rotate_seed_keep,
+            stop_file=stop_file,
         )
+        if should_stop:
+            return
 
     # Final run without revisions
     print(f'{Colors.GREEN}[+]{Colors.END} Running final campaign without revisions')
@@ -645,6 +745,7 @@ def main(args):
         rotate_seconds=args.rotate_seconds,
         rotate_max_gb=args.rotate_max_gb,
         rotate_seed_keep=args.rotate_seed_keep,
+        stop_file=stop_file,
     )
 
 
@@ -654,6 +755,7 @@ def register(subparser: ArgumentParser):
     parser.add_argument('--harness', type=str, required=True, help='Path to the original harness')
     parser.add_argument('--campaign', type=str, required=True, help='Path to the campaign directory')
     parser.add_argument('--persist', type=str, default=None, help='Optional persistence root (reports/buckets/seeds). If set, campaign is treated as ephemeral workdir.')
+    parser.add_argument('--stop-file', type=str, default=None, help='Optional stop-request file; when present, looper exits at safe points (between fuzzing and triage / between revisions).')
     parser.add_argument('--max-revisions', type=int, default=10, help='Maximum number of revisions to run')
     parser.add_argument('--reset', action='store_true', help='Reset the campaign (if it exists)')
     parser.add_argument('--no-corpus-copy', action='store_true', help='Do not copy compatible corpus files between revisions')

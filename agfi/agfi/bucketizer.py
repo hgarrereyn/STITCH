@@ -28,6 +28,11 @@ from .utils.colors import Colors
 MIN_PER_CRASH = 3
 
 
+# Max number of original testcase graphs stored per crash bucket.
+# We keep the first N and stop writing new ones after the limit.
+MAX_ORIG_PER_BUCKET = 100
+
+
 def bucket_hash(summary):
     return hashlib.sha256(summary.strip().encode()).hexdigest()[:8]
 
@@ -58,8 +63,19 @@ def process_crash(args):
         (bucket_dir / 'desc.txt').write_text(summary.strip() + '\n')
         (bucket_dir / 'orig').mkdir(parents=True, exist_ok=True)
         (bucket_dir / 'repro').mkdir(parents=True, exist_ok=True)
-        with open(crash_path, 'rb') as f:
-            (bucket_dir / 'orig' / f'{crash_path.name}.graph').write_bytes(f.read())
+        orig_dir = bucket_dir / 'orig'
+        target = orig_dir / f'{crash_path.name}.graph'
+        try:
+            # Allow overwriting an existing file even when at capacity.
+            if not target.exists():
+                existing = [p for p in orig_dir.iterdir() if p.is_file() and not p.name.startswith('.')]
+                if len(existing) >= MAX_ORIG_PER_BUCKET:
+                    return
+            with open(crash_path, 'rb') as f:
+                target.write_bytes(f.read())
+        except Exception:
+            # Never fail crash processing due to bucket retention bookkeeping.
+            return
 
 
 def run_bucketize(fuzzer, crashes_dir, output_dir, nproc) -> bool:
