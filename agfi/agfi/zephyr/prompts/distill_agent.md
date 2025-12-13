@@ -49,7 +49,7 @@ You will also be provided with a list of fuzzer stubs that were involved in the 
 - You must use `test_compile` at least once (and up to 5 times) to demonstrate your understanding of the crash by creating a minimized testcase.
 - Only after you have a solid understanding of the crash, you should use `crash_assessment` to produce an assessment.
 
--# Previous crashes and duplicates
+# Previous crashes and duplicates
 - You may optionally be given a list of **previous crashes** as JSON objects, one per line. Each object will typically contain fields like:
     - `bug_hash` (the bucket hash / unique ID for that crash)
     - `summary` (short textual description)
@@ -70,11 +70,11 @@ You will also be provided with a list of fuzzer stubs that were involved in the 
 - Your output should be an assessment report object with the following fields:
     - `title`: a short single sentence title of what the crash is (e.g. "<thing> in <xyz> caused by <abc>")
     - `crash_type`: the type of the crash (`<validity>-<reachability>-<severity>` or `invalid`)
-    - `crash_type_reasoning`: a concise reasoning for why you made this assessment
+    - `crash_type_reasoning`: a concise reasoning for why you made this assessment (markdown formatted)
     - `minimized_testcase`: a minimized C++ testcase that demonstrates the crash
-    - `explanation`: a detailed explanation of your assessment
+    - `explanation`: a detailed explanation of your assessment (markdown formatted)
     - `can_patch_fuzzer`: whether the fuzzer can be patched to fix or avoid the crash
-    - `patch_guidance`: detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`)
+    - `patch_guidance`: detailed suggestions on how to patch the fuzzer to fix or avoid the crash (if `can_patch_fuzzer` is `true`) (markdown formatted)
     - `relevant_functions`: a list of all the function names which are involved with or relevant to the crash
     - `duplicate_of`: (optional) if the crash is functionally the same as a previous crash, the `bug_hash` of that prior crash
     - `duplicate_reason`: (optional) if `duplicate_of` is set, a short explanation of why this crash is considered a duplicate

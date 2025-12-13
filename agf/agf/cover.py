@@ -87,7 +87,20 @@ def do_cover(args):
         # Find latest queue from the campaign
         queue_dir = _get_latest_queue_dir(harness)
         if queue_dir is None:
-            print(f'[{Colors.RED}-{Colors.END}] No queue found for harness {harness.path.name}. Make sure you have run `agf fuzz` first.')
+            campaign_dir = harness.campaign_dir()
+            # Minimal-persistence mode writes only reports/buckets/seeds to the host campaign dir,
+            # so revisions/corpus are not available for offline coverage.
+            if (campaign_dir / 'reports').exists() and not (campaign_dir / 'revisions').exists():
+                print(
+                    f'[{Colors.RED}-{Colors.END}] This harness campaign is in minimal-persistence mode '
+                    f'(no {campaign_dir / "revisions"} on host), so the corpus queue is not available for `agf cover`.\n'
+                    f'    {Colors.YELLOW}Tip{Colors.END}: run `agf fuzz-raw -o <outdir>` and then `agf cover --outputs <outdir>`.'
+                )
+            else:
+                print(
+                    f'[{Colors.RED}-{Colors.END}] No queue found for harness {harness.path.name}. '
+                    f'Make sure you have run `agf fuzz` first.'
+                )
             return
 
         latest_rev = queue_dir.parent.parent  # .../revisions/<rev>/outputs/queue -> .../revisions/<rev>
@@ -117,6 +130,12 @@ def do_cover(args):
         else:
             # Queue from the campaign revisions
             campaign_dir = harness.campaign_dir()
+            if not (campaign_dir / 'revisions').exists():
+                print(
+                    f'[{Colors.RED}-{Colors.END}] Campaign revisions not found at {campaign_dir / "revisions"}. '
+                    f'This is expected in minimal-persistence mode; use --outputs instead.'
+                )
+                return
             mounts.append((str(campaign_dir.absolute()), '/fuzz/campaign'))
             queue_dir_container = f'/fuzz/campaign/revisions/{latest_rev.name}/outputs/queue'
 

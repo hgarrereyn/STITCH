@@ -62,9 +62,23 @@ def do_fuzz(args):
         shutil.copy(harness.harness_config(), tmpdir / 'harness.json')
         shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
 
+        # Minimal persistence mode:
+        # - Keep fuzzing state (revisions/corpus/crashes/scratch) in the container FS
+        #   so it can be wiped/reset without touching the host.
+        # - Persist only small, high-value artifacts on the host.
+        host_campaign = harness.campaign_dir().absolute()
+        reports_dir = host_campaign / 'reports'
+        buckets_dir = host_campaign / 'buckets'
+        seeds_dir = host_campaign / 'seeds'
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        buckets_dir.mkdir(parents=True, exist_ok=True)
+        seeds_dir.mkdir(parents=True, exist_ok=True)
+
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace'),
-            (str(harness.campaign_dir().absolute()), '/fuzz/campaign'),
+            (str(reports_dir), '/fuzz/persist/reports'),
+            (str(buckets_dir), '/fuzz/persist/buckets'),
+            (str(seeds_dir), '/fuzz/persist/seeds'),
         ]
 
         env = [
@@ -77,7 +91,8 @@ def do_fuzz(args):
             image=image_tag,
             cmd=f'''
                 cd /fuzz/workspace &&
-                agfi zephyr looper --harness harness.json --campaign /fuzz/campaign --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
+                mkdir -p /fuzz/persist/reports /fuzz/persist/buckets /fuzz/persist/seeds &&
+                agfi zephyr looper --harness harness.json --campaign /tmp/agfi_campaign --persist /fuzz/persist --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
             ''',
         )
 

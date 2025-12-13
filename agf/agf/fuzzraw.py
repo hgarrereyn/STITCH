@@ -40,10 +40,17 @@ def do_fuzz_raw(args):
         rev_dir = campaign_dir / 'revisions' / str(args.revision)
         harness_json = rev_dir / 'harness.json'
         if not rev_dir.exists() or not harness_json.exists():
-            print(
-                f'[{Colors.RED}-{Colors.END}] Harness revision {args.revision} not found '
-                f'for harness {harness.path.name}'
-            )
+            if (campaign_dir / 'reports').exists() and not (campaign_dir / 'revisions').exists():
+                print(
+                    f'[{Colors.RED}-{Colors.END}] Harness revision {args.revision} not available because this campaign '
+                    f'is in minimal-persistence mode (no revisions stored on host).\n'
+                    f'    {Colors.YELLOW}Tip{Colors.END}: omit --revision to fuzz the base harness.json, or run a workflow that persists revisions.'
+                )
+            else:
+                print(
+                    f'[{Colors.RED}-{Colors.END}] Harness revision {args.revision} not found '
+                    f'for harness {harness.path.name}'
+                )
             return
 
     out_dir = Path(args.output_dir).absolute()

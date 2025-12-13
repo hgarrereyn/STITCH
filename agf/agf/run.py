@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import shutil
 import tempfile
 
@@ -29,6 +30,15 @@ def do_bug(args):
             (str(tmpdir.absolute()), '/fuzz/workspace'),
         ]
 
+        # When an output path is provided (and we're not in debug mode), wrap
+        # the `./test` invocation so that its stdout/stderr are *individually*
+        # captured to files inside the container while still streaming through
+        # to the terminal. This lets us record exactly what the binary printed
+        # (including ANSI escapes) rather than capturing Docker's aggregate
+        # stdout/stderr.
+        stdout_log = tmpdir / 'bug_stdout.log'
+        stderr_log = tmpdir / 'bug_stderr.log'
+
         if args.debug:
             cmd = f'''
                 cd /fuzz/workspace &&
@@ -36,17 +46,44 @@ def do_bug(args):
                 pwndbg ./test
             '''
         else:
-            cmd = f'''
-                cd /fuzz/workspace &&
-                agfi build external test &&
-                ./test
-            '''
+            if args.output is not None:
+                cmd = r'''
+                    cd /fuzz/workspace &&
+                    agfi build external test &&
+                    ./test > >(tee bug_stdout.log) 2> >(tee bug_stderr.log >&2)
+                '''
+            else:
+                cmd = '''
+                    cd /fuzz/workspace &&
+                    agfi build external test &&
+                    ./test
+                '''
 
-        project.invoke(
-            mounts=mounts, 
+        result = project.invoke(
+            mounts=mounts,
             image=image_tag,
-            cmd=cmd
+            cmd=cmd,
+            check=False,
         )
+
+        # If an output path was requested (in non-debug mode), read back the
+        # captured streams from the workspace and emit them as JSON.
+        if args.output is not None and not args.debug:
+            stdout = stdout_log.read_text(errors='replace') if stdout_log.exists() else ''
+            stderr = stderr_log.read_text(errors='replace') if stderr_log.exists() else ''
+
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(
+                    {
+                        'stdout': stdout,
+                        'stderr': stderr,
+                        'returncode': result.returncode,
+                    },
+                    indent=2,
+                )
+            )
 
 
 def register(subparsers):
@@ -57,4 +94,11 @@ def register(subparsers):
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('-d', '--debug', action='store_true', help='Spawn a shell', default=False)
     subparser.add_argument('-r', '--report', action='store_true', help='Generate a markdown report', default=False)
+    subparser.add_argument(
+        '-o',
+        '--output',
+        type=str,
+        help='Write JSON with stdout/stderr from the run to this path',
+        default=None,
+    )
     subparser.set_defaults(func=do_bug)

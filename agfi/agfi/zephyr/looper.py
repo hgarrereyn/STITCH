@@ -5,6 +5,7 @@ import subprocess
 import time
 import os
 import signal
+from typing import Optional
 from pydantic import BaseModel
 import tempfile
 import json
@@ -130,9 +131,79 @@ def compile_harness(workdir: Path):
     subprocess.run(['agfi', 'build', 'full', workdir / 'fuzzer'])
 
 
-def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool = False):
+def _dir_size_bytes(path: Path) -> int:
+    """
+    Best-effort recursive directory size. Used to decide when to rotate the
+    ephemeral workdir in minimal-persistence mode.
+    """
+    total = 0
+    try:
+        for root, _, files in os.walk(path, followlinks=False):
+            for f in files:
+                try:
+                    fp = os.path.join(root, f)
+                    total += os.path.getsize(fp)
+                except OSError:
+                    continue
+    except OSError:
+        return 0
+    return total
+
+
+def _copy_newest_files(src_dir: Path, dst_dir: Path, keep: int) -> int:
+    """
+    Copy up to `keep` newest regular files from src_dir into dst_dir (flat),
+    overwriting existing.
+    """
+    if keep <= 0 or not src_dir.exists():
+        return 0
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    files = [p for p in src_dir.iterdir() if p.is_file() and not p.name.startswith('.')]
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    copied = 0
+    for p in files[:keep]:
+        try:
+            shutil.copy2(p, dst_dir / p.name)
+            copied += 1
+        except Exception:
+            continue
+    return copied
+
+
+def _restore_seed_dir(seed_dir: Path, inputs_dir: Path):
+    if not seed_dir.exists():
+        return
+    inputs_dir.mkdir(parents=True, exist_ok=True)
+    for p in seed_dir.iterdir():
+        if p.is_file() and not p.name.startswith('.'):
+            try:
+                shutil.copy2(p, inputs_dir / p.name)
+            except Exception:
+                continue
+
+
+def _build_scratch_env(scratch_dir: Path) -> dict:
+    env = os.environ.copy()
+    env['TMPDIR'] = str(scratch_dir)
+    env['HOME'] = str(scratch_dir)
+    env['XDG_CACHE_HOME'] = str(scratch_dir / '.cache')
+    return env
+
+
+def run_campaign(
+    campaign: Path,
+    info: str,
+    revise: bool,
+    no_corpus_copy: bool = False,
+    *,
+    persist: Optional[Path] = None,
+    rotate_seconds: Optional[int] = None,
+    rotate_max_gb: Optional[float] = None,
+    rotate_seed_keep: int = 0,
+):
     # Collect the list of known crashes
-    reports = campaign / 'reports'
+    reports = (persist / 'reports') if persist is not None else (campaign / 'reports')
+    reports.mkdir(parents=True, exist_ok=True)
     known_crashes: dict[str, CrashInfo] = {}
     prior_crash_history: list[dict] = []
     for report_dir in reports.iterdir():
@@ -168,13 +239,28 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
 
     # Find the highest revision in campaign/revisions
     current_revision = 0
-    for revision in (campaign / 'revisions').iterdir():
-        if revision.is_dir():
-            current_revision = max(current_revision, int(revision.name))
+    if persist is not None:
+        # In minimal-persistence mode, revisions are persisted as small harness.json
+        # files so patch evolution can resume across container restarts.
+        persisted_revs = persist / 'revisions'
+        if persisted_revs.exists():
+            for revision in persisted_revs.iterdir():
+                if revision.is_dir() and revision.name.isdigit():
+                    current_revision = max(current_revision, int(revision.name))
+    else:
+        for revision in (campaign / 'revisions').iterdir():
+            if revision.is_dir() and revision.name.isdigit():
+                current_revision = max(current_revision, int(revision.name))
     
     print(f'{Colors.GREEN}[+]{Colors.END} Current revision: {current_revision}')
 
     workdir = (campaign / 'revisions' / str(current_revision)).absolute()
+    # Ensure the ephemeral workdir has the right harness.json (for restarts).
+    if persist is not None:
+        src_harness = (persist / 'revisions' / str(current_revision) / 'harness.json').absolute()
+        if src_harness.exists():
+            workdir.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src_harness, workdir / 'harness.json')
     compile_harness(workdir)
 
     # Run harness once to create the pspec cache
@@ -193,7 +279,6 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
     (workdir / 'outputs').mkdir(parents=True, exist_ok=True)
     (workdir / 'outputs' / 'crashes').mkdir(parents=True, exist_ok=True)
     (workdir / 'outputs' / 'queue').mkdir(parents=True, exist_ok=True)
-    (workdir / 'buckets').mkdir(parents=True, exist_ok=True)
 
     fuzzer_bin = workdir / 'fuzzer'
     fuzzer_inputs = workdir / 'inputs'
@@ -201,7 +286,19 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
     fuzzer_crashes = workdir / 'outputs' / 'crashes'
     fuzzer_log = workdir / 'fuzzer.log'
     
-    bucketizer_buckets = workdir / 'buckets'
+    # Bucketizer output is persisted in minimal-persistence mode.
+    if persist is not None:
+        bucketizer_buckets = (persist / 'buckets' / str(current_revision)).absolute()
+    else:
+        bucketizer_buckets = (workdir / 'buckets').absolute()
+    bucketizer_buckets.mkdir(parents=True, exist_ok=True)
+
+    # Run the target with a scratch cwd so relative-path writes don't land in the
+    # campaign directory. In minimal-persistence mode this also makes it easy to
+    # wipe bulk writes during rotation.
+    scratch_dir = (campaign / 'scratch' / str(current_revision) / 'current').absolute()
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    scratch_env = _build_scratch_env(scratch_dir)
 
     p_fuzzer = RestartableProcess([
         str(fuzzer_bin),
@@ -209,7 +306,7 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
         '-o', str(fuzzer_outputs),
         '--bypass-validation',
         '--logfile', str(fuzzer_log)
-    ], cwd=workdir, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ], cwd=scratch_dir, env=scratch_env, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     # Keep output for bucketizer to help debug problems with crash reproduction
     p_bucketizer = RestartableProcess([
@@ -220,7 +317,7 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
         '--output', str(bucketizer_buckets),
         '--nproc', '1',
         '--watch',
-    ], cwd=workdir, start_new_session=True)
+    ], cwd=scratch_dir, env=scratch_env, start_new_session=True)
 
     crashes_seen_this_round = set()
     new_crash = None
@@ -231,6 +328,17 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
     last_status_check = time.time()
 
     line_buffer = []
+
+    # Rotation bookkeeping (minimal-persistence mode only).
+    last_rotate = time.time()
+    rotate_check_refresh = 60.0
+    last_rotate_check = time.time()
+    rotate_max_bytes = None
+    if rotate_max_gb is not None:
+        try:
+            rotate_max_bytes = int(float(rotate_max_gb) * (1024 ** 3))
+        except Exception:
+            rotate_max_bytes = None
 
     try:
         print(f'{Colors.GREEN}[+]{Colors.END} Starting fuzzer and bucketizer')
@@ -251,6 +359,68 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
                 else:
                     print(f'{Colors.YELLOW}[*]{Colors.END} No fuzzer stats found')
                 last_status_check = current_time
+
+            # Periodically rotate the ephemeral workdir to bound disk usage.
+            if persist is not None and (rotate_seconds is not None or rotate_max_bytes is not None):
+                if current_time - last_rotate_check >= rotate_check_refresh:
+                    should_rotate = False
+                    reasons = []
+                    if rotate_seconds is not None and current_time - last_rotate >= rotate_seconds:
+                        should_rotate = True
+                        reasons.append(f'time>{rotate_seconds}s')
+                    if rotate_max_bytes is not None:
+                        size_bytes = _dir_size_bytes(campaign)
+                        if size_bytes >= rotate_max_bytes:
+                            should_rotate = True
+                            gb = size_bytes / (1024 ** 3)
+                            reasons.append(f'size~{gb:.2f}GB>{rotate_max_gb}GB')
+
+                    if should_rotate:
+                        print(
+                            f'{Colors.YELLOW}[*]{Colors.END} Rotating ephemeral workdir '
+                            f'({", ".join(reasons)})'
+                        )
+                        # Stop processes
+                        try:
+                            p_fuzzer.terminate()
+                        except Exception:
+                            pass
+                        try:
+                            p_bucketizer.terminate()
+                        except Exception:
+                            pass
+
+                        # Snapshot a small seed set from the queue to persisted seeds.
+                        seed_src = workdir / 'outputs' / 'queue'
+                        seed_dst = (persist / 'seeds' / 'current').absolute()
+                        if seed_dst.exists():
+                            shutil.rmtree(seed_dst, ignore_errors=True)
+                        copied = _copy_newest_files(seed_src, seed_dst, rotate_seed_keep)
+                        print(f'{Colors.YELLOW}[*]{Colors.END} Saved {copied} seed inputs')
+
+                        # Wipe bulk ephemeral directories.
+                        shutil.rmtree(scratch_dir, ignore_errors=True)
+                        shutil.rmtree(workdir / 'outputs', ignore_errors=True)
+                        shutil.rmtree(workdir / 'inputs', ignore_errors=True)
+
+                        # Recreate scratch + inputs/outputs and restore seeds.
+                        scratch_dir.mkdir(parents=True, exist_ok=True)
+                        scratch_env = _build_scratch_env(scratch_dir)
+                        (workdir / 'inputs').mkdir(parents=True, exist_ok=True)
+                        _restore_seed_dir(seed_dst, workdir / 'inputs')
+                        (workdir / 'outputs' / 'crashes').mkdir(parents=True, exist_ok=True)
+                        (workdir / 'outputs' / 'queue').mkdir(parents=True, exist_ok=True)
+
+                        # Relaunch processes
+                        p_fuzzer.kwargs['cwd'] = scratch_dir
+                        p_bucketizer.kwargs['cwd'] = scratch_dir
+                        p_fuzzer.kwargs['env'] = scratch_env
+                        p_bucketizer.kwargs['env'] = scratch_env
+                        p_fuzzer.launch()
+                        p_bucketizer.launch()
+                        last_rotate = time.time()
+
+                    last_rotate_check = current_time
 
             if not p_fuzzer.is_running():
                 print(f'{Colors.RED}[-]{Colors.END} Fuzzer crashed, restarting')
@@ -306,7 +476,7 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
     print(f'{Colors.GREEN}[+]{Colors.END} Fuzzer and bucketizer killed')
 
     # Save the report into the campaign/reports directory
-    report_path = campaign / 'reports' / new_crash_hash
+    report_path = reports / new_crash_hash
     report_path.mkdir(parents=True, exist_ok=True)
     (report_path / 'info.json').write_text(CrashInfo(
         bucket_hash=new_crash_hash,
@@ -378,6 +548,10 @@ def run_campaign(campaign: Path, info: str, revise: bool, no_corpus_copy: bool =
         next_revision_dir = campaign / 'revisions' / str(next_revision)
         next_revision_dir.mkdir(parents=True, exist_ok=True)
         (next_revision_dir / 'harness.json').write_text(new_harness.model_dump_json(indent=2))
+        if persist is not None:
+            persist_rev_dir = (persist / 'revisions' / str(next_revision)).absolute()
+            persist_rev_dir.mkdir(parents=True, exist_ok=True)
+            (persist_rev_dir / 'harness.json').write_text(new_harness.model_dump_json(indent=2))
 
         # Copy compatible corpus files from previous revision
         if not no_corpus_copy:
@@ -403,32 +577,75 @@ def main(args):
     info_path = Path(args.info).absolute()
     harness = ProjectMetadata.model_validate_json(open(args.harness).read())
     campaign = Path(args.campaign).absolute()
+    persist = Path(args.persist).absolute() if args.persist is not None else None
 
-    exists = campaign.exists() and (campaign / 'reports').exists() and (campaign / 'revisions').exists()
+    if persist is None:
+        exists = campaign.exists() and (campaign / 'reports').exists() and (campaign / 'revisions').exists()
+    else:
+        exists = (
+            campaign.exists()
+            and (campaign / 'revisions').exists()
+            and (persist / 'reports').exists()
+            and (persist / 'revisions').exists()
+        )
 
     if exists and args.reset:
         print(f'{Colors.GREEN}[+]{Colors.END} Clearing old campaign: {campaign}')
-        shutil.rmtree(campaign / 'reports')
-        shutil.rmtree(campaign / 'revisions')
+        shutil.rmtree(campaign / 'revisions', ignore_errors=True)
+        shutil.rmtree(campaign / 'scratch', ignore_errors=True)
+        if persist is None:
+            shutil.rmtree(campaign / 'reports', ignore_errors=True)
+        else:
+            shutil.rmtree(persist / 'reports', ignore_errors=True)
+            shutil.rmtree(persist / 'buckets', ignore_errors=True)
+            shutil.rmtree(persist / 'seeds', ignore_errors=True)
 
     if not exists or args.reset:
         print(f'{Colors.GREEN}[+]{Colors.END} Creating new campaign: {campaign}')
         campaign.mkdir(parents=True, exist_ok=True)
-        (campaign / 'reports').mkdir(parents=True, exist_ok=True)
+        if persist is None:
+            (campaign / 'reports').mkdir(parents=True, exist_ok=True)
+        else:
+            (persist / 'reports').mkdir(parents=True, exist_ok=True)
+            (persist / 'buckets').mkdir(parents=True, exist_ok=True)
+            (persist / 'seeds').mkdir(parents=True, exist_ok=True)
+            (persist / 'revisions').mkdir(parents=True, exist_ok=True)
         (campaign / 'revisions' / '0').mkdir(parents=True, exist_ok=True)
         # Copy the original harness to the campaign
         (campaign / 'revisions' / '0' / 'harness.json').write_text(harness.model_dump_json(indent=2))
+        if persist is not None:
+            # Persist the base revision so patch evolution can resume across restarts.
+            (persist / 'revisions' / '0').mkdir(parents=True, exist_ok=True)
+            (persist / 'revisions' / '0' / 'harness.json').write_text(harness.model_dump_json(indent=2))
     else:
         print(f'{Colors.GREEN}[+]{Colors.END} Using existing campaign: {campaign}')
 
     # Run the campaign
     for revision in range(args.max_revisions):
         print(f'{Colors.GREEN}[+]{Colors.END} Running campaign {revision + 1} of {args.max_revisions}')
-        run_campaign(campaign, info_path, revise=True, no_corpus_copy=args.no_corpus_copy)
+        run_campaign(
+            campaign,
+            info_path,
+            revise=True,
+            no_corpus_copy=args.no_corpus_copy,
+            persist=persist,
+            rotate_seconds=args.rotate_seconds,
+            rotate_max_gb=args.rotate_max_gb,
+            rotate_seed_keep=args.rotate_seed_keep,
+        )
 
     # Final run without revisions
     print(f'{Colors.GREEN}[+]{Colors.END} Running final campaign without revisions')
-    run_campaign(campaign, info_path, revise=False, no_corpus_copy=args.no_corpus_copy)
+    run_campaign(
+        campaign,
+        info_path,
+        revise=False,
+        no_corpus_copy=args.no_corpus_copy,
+        persist=persist,
+        rotate_seconds=args.rotate_seconds,
+        rotate_max_gb=args.rotate_max_gb,
+        rotate_seed_keep=args.rotate_seed_keep,
+    )
 
 
 def register(subparser: ArgumentParser):
@@ -436,7 +653,11 @@ def register(subparser: ArgumentParser):
     parser.add_argument('--info', type=str, default='info.json', help='Path to the project info')
     parser.add_argument('--harness', type=str, required=True, help='Path to the original harness')
     parser.add_argument('--campaign', type=str, required=True, help='Path to the campaign directory')
+    parser.add_argument('--persist', type=str, default=None, help='Optional persistence root (reports/buckets/seeds). If set, campaign is treated as ephemeral workdir.')
     parser.add_argument('--max-revisions', type=int, default=10, help='Maximum number of revisions to run')
     parser.add_argument('--reset', action='store_true', help='Reset the campaign (if it exists)')
     parser.add_argument('--no-corpus-copy', action='store_true', help='Do not copy compatible corpus files between revisions')
+    parser.add_argument('--rotate-seconds', type=int, default=3600, help='Rotate ephemeral workdir every N seconds (minimal-persistence mode)')
+    parser.add_argument('--rotate-max-gb', type=float, default=10.0, help='Rotate ephemeral workdir when it exceeds N GB (minimal-persistence mode)')
+    parser.add_argument('--rotate-seed-keep', type=int, default=200, help='Keep newest N queue entries as seeds across rotations (minimal-persistence mode)')
     parser.set_defaults(func=main)

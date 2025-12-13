@@ -419,6 +419,23 @@ def do_monitor(args):
     state['harness_dir'] = harness_dir
     state['harness_name'] = harness_dir.name
     
+    # The monitor dashboard expects corpus/crashes/logs under campaign/revisions/... .
+    # In minimal-persistence mode, `agf fuzz` only persists reports/buckets/seeds to the
+    # host campaign directory, so the dashboard cannot function offline.
+    campaign_dir = harness_dir / 'campaign'
+    revisions_dir = campaign_dir / 'revisions'
+    if not revisions_dir.exists():
+        if (campaign_dir / 'reports').exists() or (campaign_dir / 'buckets').exists():
+            print(
+                "This harness campaign appears to be in minimal-persistence mode "
+                f"(no revisions directory at {revisions_dir}).\n"
+                "The `agf monitor` dashboard currently requires host-visible revisions/outputs.\n"
+                "Tip: use `agf fuzz-raw` with a host output dir for monitoring, or extend the monitor to read from persisted buckets/reports."
+            )
+        else:
+            print(f"No campaign revisions found at {revisions_dir}. Run `agf fuzz` first.")
+        return
+
     print(f"Monitoring harness: {harness_dir.name}")
     print(f"Starting web server on http://localhost:{args.port}")
 
