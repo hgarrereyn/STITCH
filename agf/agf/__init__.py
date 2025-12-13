@@ -1,29 +1,32 @@
 import argparse
 
-from . import (
-    init,
-    infer,
-    info,
-    gen,
-    dev,
-    fuzz,
-    fuzzraw,
-    triage,
-    test,
-    cover,
-    stats,
-    replay,
-    run,
-    save,
-    report,
-    status,
-    multi,
-    execute,
-    clear,
-)
-
 
 def main():
+    # Import subcommands lazily so that importing `agf` has minimal side
+    # effects and works in more restricted environments. This also reduces CLI
+    # startup cost for callers that only need `agf --help`.
+    from . import (
+        init,
+        infer,
+        info,
+        gen,
+        dev,
+        fuzz,
+        fuzzraw,
+        triage,
+        test,
+        cover,
+        stats,
+        replay,
+        run,
+        save,
+        report,
+        status,
+        multi,
+        execute,
+        clear,
+    )
+
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 

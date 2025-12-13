@@ -28,6 +28,11 @@ Initialize a project from a github repository.
 agf init <github_url> [path]
 ```
 
+To print only the full path of the initialized project directory (useful for scripting):
+```
+agf init -q <github_url> [path]
+```
+
 Run auto-generation.
 ```
 agf gen

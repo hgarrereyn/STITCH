@@ -70,15 +70,20 @@ def do_fuzz(args):
         reports_dir = host_campaign / 'reports'
         buckets_dir = host_campaign / 'buckets'
         seeds_dir = host_campaign / 'seeds'
+        revisions_dir = host_campaign / 'revisions'
         reports_dir.mkdir(parents=True, exist_ok=True)
         buckets_dir.mkdir(parents=True, exist_ok=True)
         seeds_dir.mkdir(parents=True, exist_ok=True)
+        revisions_dir.mkdir(parents=True, exist_ok=True)
 
         mounts = [
             (str(tmpdir.absolute()), '/fuzz/workspace'),
             (str(reports_dir), '/fuzz/persist/reports'),
             (str(buckets_dir), '/fuzz/persist/buckets'),
             (str(seeds_dir), '/fuzz/persist/seeds'),
+            # Minimal persistence also stores small per-revision harness.json snapshots
+            # under persist/revisions so patch evolution can resume across restarts.
+            (str(revisions_dir), '/fuzz/persist/revisions'),
         ]
 
         env = [
@@ -91,7 +96,7 @@ def do_fuzz(args):
             image=image_tag,
             cmd=f'''
                 cd /fuzz/workspace &&
-                mkdir -p /fuzz/persist/reports /fuzz/persist/buckets /fuzz/persist/seeds &&
+                mkdir -p /fuzz/persist/reports /fuzz/persist/buckets /fuzz/persist/seeds /fuzz/persist/revisions &&
                 agfi zephyr looper --harness harness.json --campaign /tmp/agfi_campaign --persist /fuzz/persist --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
             ''',
         )

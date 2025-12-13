@@ -45,7 +45,6 @@ RUN pip install -r requirements.txt
 COPY rust-toolchain.toml /src/rust-toolchain.toml
 COPY /gf_core /src/gf_core
 COPY /gf_libafl /src/gf_libafl
-COPY /third_party /src/third_party
 
 ENV LIBAFL_EDGES_MAP_SIZE=800000
 

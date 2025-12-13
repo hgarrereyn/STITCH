@@ -254,36 +254,17 @@ class Project:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
             (temp_dir / 'base.Dockerfile').write_text(base)
-            print('[agf] building base image:', file=sys.stdout)
-            print(base, file=sys.stdout)
-            sys.stdout.flush()
             res = subprocess.run([
                 'docker', 'build',
                 '--platform', 'linux/amd64',
                 '-t', base_tag,
                 '-f', temp_dir / 'base.Dockerfile',
                 str(temp_dir)
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            print('[agf] docker build result:', file=sys.stdout)
-            print('--- docker stdout ---', file=sys.stdout)
-            print(res.stdout, file=sys.stdout)
-            print('--- docker stderr ---', file=sys.stdout)
-            print(res.stderr, file=sys.stdout)
-            sys.stdout.flush()
+            ])
             if res.returncode != 0:
-                stderr = res.stderr or ''
-                stdout = res.stdout or ''
-                if 'already exists' not in stderr and 'already exists' not in stdout:
-                    print('[agf] docker build failed for base image:', file=sys.stdout)
-                    sys.stdout.flush()
-                    res.check_returncode()
+                print(f'[{Colors.RED}-{Colors.END}] Base image build failed: {res.stderr}')
+                res.check_returncode()
 
-            # Build the main image. If another concurrent build has already
-            # produced and tagged the image, Docker may emit an "already
-            # exists" error; treat that specific case as success so that
-            # multiple infer jobs can proceed without racing. For any other
-            # failure, surface Docker's stdout/stderr so callers (e.g. cover)
-            # can see the root cause in their logs.
             res = subprocess.run(
                 [
                     'docker',
@@ -298,30 +279,11 @@ class Project:
                     self.path / 'config' / 'Dockerfile',
                     str((self.path / 'config').absolute()),
                 ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
             )
-            print('[agf] docker build result:', file=sys.stdout)
-            print('--- docker stdout ---', file=sys.stdout)
-            print(res.stdout, file=sys.stdout)
-            print('--- docker stderr ---', file=sys.stdout)
-            print(res.stderr, file=sys.stdout)
-            sys.stdout.flush()
-
             if res.returncode != 0:
-                stderr = res.stderr or ''
-                stdout = res.stdout or ''
-                if 'already exists' not in stderr and 'already exists' not in stdout:
-                    # Real failure: print Docker output to stderr so it shows up in
-                    # caller logs (e.g. stitch-bench cover.log), then raise.
-                    print('[agf] docker build failed for main image:', file=sys.stdout)
-                    sys.stdout.flush()
-                    res.check_returncode()
+                print(f'[{Colors.RED}-{Colors.END}] Main image build failed: {res.stderr}')
+                res.check_returncode()
 
-        # Return the main image tag so callers can pass it explicitly to
-        # `invoke(...)`. This keeps image selection transparent and avoids any
-        # hidden global state inside Project.
         return main_tag
 
     def external_base_image(self, override_commit: str = None) -> str:
@@ -497,9 +459,9 @@ class Project:
         """
         Get the next harness name.
         """
-        i = 0
+        i = 1
         while True:
-            name = f'harness_{i}'
+            name = f'harn{i}'
             if not (self.path / 'harnesses' / name).exists():
                 return name
             i += 1

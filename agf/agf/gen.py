@@ -2,6 +2,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import subprocess
+import sys
 
 from .utils.colors import Colors
 from .utils.project import Project
@@ -13,18 +14,20 @@ def do_gen(args):
     # Speed up imports
     from .gen_agent.agent import run_agent
 
+    def fail(msg: str):
+        print(f'[{Colors.RED}-{Colors.END}] {msg}', file=sys.stderr)
+        raise SystemExit(1)
+
     path = Path(args.path)
     project = Project(path)
     if not project.exists() or not project.has_config():
-        print(f'[{Colors.RED}-{Colors.END}] Could not find project at {path.absolute()}')
-        return
+        fail(f'Could not find project at {path.absolute()}')
 
     if project.has_build_config():
         if args.force:
             shutil.rmtree(project.path / 'config')
         else:
-            print(f'[{Colors.RED}-{Colors.END}] Build configuration already exists. Use --force to overwrite')
-            return
+            fail('Build configuration already exists. Use --force to overwrite')
         
     config = project.get_config()
 
@@ -39,10 +42,10 @@ def do_gen(args):
     with tempfile.TemporaryDirectory() as tmpdir:
         src = Path(tmpdir) / 'src'
         if config.commit is not None:
-            subprocess.run(['git', 'clone', config.repo, src])
-            subprocess.run(['git', 'checkout', config.commit], cwd=src)
+            subprocess.run(['git', 'clone', config.repo, src], check=True)
+            subprocess.run(['git', 'checkout', config.commit], cwd=src, check=True)
         else:
-            subprocess.run(['git', 'clone', config.repo, src])
+            subprocess.run(['git', 'clone', config.repo, src], check=True)
 
         usage = UsageTracker()
         res = run_agent(config, str(src), usage, args.extra)
@@ -50,9 +53,13 @@ def do_gen(args):
         print(f'[{Colors.GREEN}+{Colors.END}] Usage: {usage.cost_by_task()}')
 
         if res is None:
-            print(f'[{Colors.RED}-{Colors.END}] Autogen failed')
-            return
+            fail('Autogen failed')
         else:
+            # Sanity check: we must have at least one header to generate and fuzz.
+            headers = getattr(getattr(getattr(res, 'info', None), 'codegen', None), 'headers', None)
+            if not headers:
+                fail('Autogen produced a config with 0 headers (codegen.headers is empty)')
+
             print(f'[{Colors.GREEN}+{Colors.END}] Autogen completed')
     
             # Save the result

@@ -1,13 +1,12 @@
 
 from pathlib import Path
 import shutil
-import requests
 import json
 import tempfile
 import subprocess
+import sys
 
 from .utils.colors import Colors
-from .utils.project import Project, ProjectConfig
 
 
 def get_repo_name(url):
@@ -27,10 +26,10 @@ def get_repo_name(url):
     return '_'.join(parts).replace('.', '_').replace('-', '_').lower()
 
 
-def get_latest_commit(url):
+def get_latest_commit(url, *, quiet: bool = False):
     if url.startswith('https://github.com/'):
         return get_latest_commit_github(url)
-    return get_latest_commit_clone(url)
+    return get_latest_commit_clone(url, quiet=quiet)
 
 
 def get_latest_commit_github(url):
@@ -38,6 +37,10 @@ def get_latest_commit_github(url):
     Get the latest commit hash from a GitHub repository URL.
     This returns the commit that would be checked out by a simple git clone.
     """
+    # Lazy import so `agf` can start up even in restricted environments
+    # (and to avoid paying import cost when the user provides --commit).
+    import requests
+
     if not url.startswith('https://github.com/'):
         raise ValueError(f"Invalid GitHub URL: {url}")
     
@@ -68,28 +71,55 @@ def get_latest_commit_github(url):
         raise RuntimeError(f"Unexpected response format from GitHub API: {e}")
 
 
-def get_latest_commit_clone(url):
+def get_latest_commit_clone(url, *, quiet: bool = False):
     """
     Get the latest commit hash from a clone of a repository.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         tmpdir.mkdir(parents=True, exist_ok=True)
-        subprocess.run(['git', 'clone', '--depth', '1', url, tmpdir], check=True)
+        # `git clone` writes progress to stderr by default, which breaks `-q`
+        # mode. Suppress it when requested.
+        if quiet:
+            subprocess.run(
+                ['git', 'clone', '--depth', '1', url, tmpdir],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            subprocess.run(['git', 'clone', '--depth', '1', url, tmpdir], check=True)
 
         # figure out what commit we are on
         return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=tmpdir).decode('utf-8').strip()
 
 
 def do_init(args):
-    repo_name = get_repo_name(args.url)
-    if repo_name is None:
-        print(f'[{Colors.RED}-{Colors.END}] Invalid github url: {args.url}')
+    quiet = getattr(args, 'quiet', False)
+    # Lazily import heavier dependencies so `agf init -h` (and other CLI
+    # introspection) stays fast and works in more restricted environments.
+    from .utils.project import Project, ProjectConfig
+
+    def fail(msg: str):
+        # Quiet mode is intended for scripting: keep stdout clean and use a
+        # non-zero exit code on failure.
+        if quiet:
+            print(msg, file=sys.stderr)
+            raise SystemExit(1)
+        print(f'[{Colors.RED}-{Colors.END}] {msg}')
         return
 
-    commit = args.commit if args.commit is not None else get_latest_commit(args.url)
+    repo_name = get_repo_name(args.url)
+    if repo_name is None:
+        return fail(f'Invalid url: {args.url}')
 
-    print(f'[{Colors.GREEN}+{Colors.END}] Pinned commit: {commit}')
+    try:
+        commit = args.commit if args.commit is not None else get_latest_commit(args.url, quiet=quiet)
+    except Exception as e:
+        return fail(f'Failed to determine latest commit: {e}')
+
+    if not quiet:
+        print(f'[{Colors.GREEN}+{Colors.END}] Pinned commit: {commit}')
    
     config = ProjectConfig(name=repo_name, repo=args.url, commit=commit)
 
@@ -101,12 +131,16 @@ def do_init(args):
         if args.force:
             shutil.rmtree(path)
         else:
-            print(f'[{Colors.RED}-{Colors.END}] Project already exists. Use --force to overwrite')
-            return
+            return fail('Project already exists. Use --force to overwrite')
     
     project.create()
     project.set_config(config)
-    print(f'[{Colors.GREEN}+{Colors.END}] Initialized project in {path}')
+
+    if quiet:
+        # Print only the full path to the new project directory (for scripts).
+        print(str(project.path.resolve()))
+    else:
+        print(f'[{Colors.GREEN}+{Colors.END}] Initialized project in {path}')
 
 
 def register(subparsers):
@@ -115,4 +149,10 @@ def register(subparsers):
     subparser.add_argument('path', nargs='?', help='The path to the project', default=None)
     subparser.add_argument('-c', '--commit', help='The commit hash of the project (or most recent commit if not specified)')
     subparser.add_argument('-f', '--force', action='store_true', help='Overwrite the project if it already exists')
+    subparser.add_argument(
+        '-q',
+        '--quiet',
+        action='store_true',
+        help='Only print the full path to the initialized project directory (for scripting)',
+    )
     subparser.set_defaults(func=do_init)
