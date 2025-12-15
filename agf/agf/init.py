@@ -27,8 +27,9 @@ def get_repo_name(url):
 
 
 def get_latest_commit(url, *, quiet: bool = False):
-    if url.startswith('https://github.com/'):
-        return get_latest_commit_github(url)
+    # TODO: rate-limiting issues in bulk requests
+    # if url.startswith('https://github.com/'):
+    #     return get_latest_commit_github(url)
     return get_latest_commit_clone(url, quiet=quiet)
 
 

@@ -38,6 +38,8 @@ def do_bug(args):
         # stdout/stderr.
         stdout_log = tmpdir / 'bug_stdout.log'
         stderr_log = tmpdir / 'bug_stderr.log'
+        casr_san_log = tmpdir / 'casr_san.json'
+        casr_gdb_log = tmpdir / 'casr_gdb.json'
 
         if args.debug:
             cmd = f'''
@@ -47,10 +49,20 @@ def do_bug(args):
             '''
         else:
             if args.output is not None:
+                # Run the test and capture output, then also run casr-san and casr-gdb
+                # to gather detailed crash analysis if a crash occurs
                 cmd = r'''
                     cd /fuzz/workspace &&
                     agfi build external test &&
                     ./test > >(tee bug_stdout.log) 2> >(tee bug_stderr.log >&2)
+                    TEST_EXIT=$?
+                    if [ $TEST_EXIT -ne 0 ]; then
+                        # Run casr-san to analyze sanitizer output
+                        timeout 10 casr-san --output casr_san.json -- ./test 2>/dev/null || true
+                        # Run casr-gdb for additional crash analysis
+                        timeout 10 casr-gdb --output casr_gdb.json -- ./test 2>/dev/null || true
+                    fi
+                    exit $TEST_EXIT
                 '''
             else:
                 cmd = '''
@@ -72,6 +84,20 @@ def do_bug(args):
             stdout = stdout_log.read_text(errors='replace') if stdout_log.exists() else ''
             stderr = stderr_log.read_text(errors='replace') if stderr_log.exists() else ''
 
+            # Try to load CASR analysis results
+            casr_san = None
+            casr_gdb = None
+            try:
+                if casr_san_log.exists():
+                    casr_san = json.loads(casr_san_log.read_text(errors='replace'))
+            except Exception:
+                pass
+            try:
+                if casr_gdb_log.exists():
+                    casr_gdb = json.loads(casr_gdb_log.read_text(errors='replace'))
+            except Exception:
+                pass
+
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(
@@ -80,6 +106,8 @@ def do_bug(args):
                         'stdout': stdout,
                         'stderr': stderr,
                         'returncode': result.returncode,
+                        'casr_san': casr_san,
+                        'casr_gdb': casr_gdb,
                     },
                     indent=2,
                 )

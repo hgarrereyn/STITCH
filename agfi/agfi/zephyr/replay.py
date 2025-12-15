@@ -47,8 +47,15 @@ def main(args):
             continue
 
         # print info about the crash summary and crash type
-        print(f'{Colors.GREEN}[+]{Colors.END} Crash: ({crash.info.bucket_hash}) {crash.info.summary} ({crash.assessment.crash_type})')
-        print(f'    {Colors.CYAN}[+]{Colors.END} Bug report: {crash.assessment.crash_type_reasoning}')
+        if isinstance(crash.assessment, CrashAssessment):
+            print(
+                f'{Colors.GREEN}[+]{Colors.END} Crash: ({crash.info.bucket_hash}) '
+                f'{crash.info.summary} ({crash.assessment.triage.crash_mechanism}, {crash.assessment.triage.report_priority})'
+            )
+            print(f'    {Colors.CYAN}[+]{Colors.END} Report rationale: {crash.assessment.triage.report_rationale}')
+        else:
+            print(f'{Colors.GREEN}[+]{Colors.END} Crash: ({crash.info.bucket_hash}) {crash.info.summary} ({crash.assessment.crash_type})')
+            print(f'    {Colors.CYAN}[+]{Colors.END} Bug report: {crash.assessment.crash_type_reasoning}')
         print(f'    {Colors.CYAN}[+]{Colors.END} Description:')
         pretty_print_code(crash.assessment.explanation, language="markdown")
         print(f'    {Colors.CYAN}[+]{Colors.END} Minimized testcase:')

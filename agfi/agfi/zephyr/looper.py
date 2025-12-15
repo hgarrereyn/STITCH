@@ -255,6 +255,59 @@ def run_campaign(
     reports.mkdir(parents=True, exist_ok=True)
     known_crashes: dict[str, CrashInfo] = {}
     prior_crash_history: list[dict] = []
+
+    def _truncate(s: Optional[str], limit: int) -> Optional[str]:
+        if s is None:
+            return None
+        try:
+            s = str(s)
+        except Exception:
+            return None
+        if len(s) <= limit:
+            return s
+        return s[:limit] + f"\n... (truncated, {len(s)} chars total)"
+
+    def _build_history_entry(crash_info: CrashInfo, assessment_obj: dict) -> dict:
+        """
+        Build a history object for the distill-agent.
+
+        We intentionally include rich context (structured triage + short text
+        fields) so the agent can recognize duplicates and reuse prior analysis.
+        """
+        entry: dict = {
+            "bug_hash": crash_info.bucket_hash,
+            "summary": crash_info.summary,
+            "harness_revision": crash_info.harness_revision,
+        }
+
+        # Common optional fields across versions.
+        if isinstance(assessment_obj.get("title"), str):
+            entry["title"] = assessment_obj.get("title")
+        if isinstance(assessment_obj.get("relevant_functions"), list):
+            entry["relevant_functions"] = assessment_obj.get("relevant_functions")
+        if assessment_obj.get("duplicate_of") is not None:
+            entry["duplicate_of"] = assessment_obj.get("duplicate_of")
+        if assessment_obj.get("duplicate_reason") is not None:
+            entry["duplicate_reason"] = assessment_obj.get("duplicate_reason")
+        if assessment_obj.get("can_patch_fuzzer") is not None:
+            entry["can_patch_fuzzer"] = assessment_obj.get("can_patch_fuzzer")
+
+        # New schema: structured triage replaces crash_type.
+        if isinstance(assessment_obj.get("triage"), dict):
+            entry["triage"] = assessment_obj.get("triage")
+
+        # Old schema compatibility (some campaigns may still have these).
+        if assessment_obj.get("crash_type") is not None:
+            entry["crash_type"] = assessment_obj.get("crash_type")
+        if assessment_obj.get("crash_type_reasoning") is not None:
+            entry["crash_type_reasoning"] = assessment_obj.get("crash_type_reasoning")
+
+        # Rich-but-bounded text context (kept as excerpts to avoid exploding tokens).
+        entry["explanation_excerpt"] = _truncate(assessment_obj.get("explanation"), 3000)
+        entry["patch_guidance_excerpt"] = _truncate(assessment_obj.get("patch_guidance"), 2000)
+        entry["minimized_testcase_excerpt"] = _truncate(assessment_obj.get("minimized_testcase"), 1200)
+        return entry
+
     for report_dir in reports.iterdir():
         if report_dir.is_dir():
             info_path = report_dir / 'info.json'
@@ -268,18 +321,9 @@ def run_campaign(
             assessment_path = report_dir / 'assessment.json'
             if assessment_path.exists():
                 try:
-                    assessment = CrashAssessment.model_validate_json(open(assessment_path).read())
-                    prior_crash_history.append(
-                        {
-                            "bug_hash": crash_info.bucket_hash,
-                            "summary": crash_info.summary,
-                            "crash_type": assessment.crash_type,
-                            "title": assessment.title,
-                            "harness_revision": crash_info.harness_revision,
-                            "relevant_functions": assessment.relevant_functions,
-                            "duplicate_of": getattr(assessment, "duplicate_of", None),
-                        }
-                    )
+                    assessment_obj = json.loads(assessment_path.read_text())
+                    if isinstance(assessment_obj, dict):
+                        prior_crash_history.append(_build_history_entry(crash_info, assessment_obj))
                 except Exception:
                     # If the assessment cannot be parsed for any reason, just skip it.
                     continue
@@ -597,7 +641,7 @@ def run_campaign(
             return
         
         assessment = CrashAssessment.model_validate_json(open(assessment_path).read())
-        print(f'{Colors.GREEN}[+]{Colors.END} Crash assessment: [patchable: {assessment.can_patch_fuzzer}] ({assessment.crash_type}) {assessment.title}')
+        print(f'{Colors.GREEN}[+]{Colors.END} Crash assessment: [patchable: {assessment.can_patch_fuzzer}] ({assessment.triage.crash_mechanism}) {assessment.title}')
         
         # Save the assessment into the campaign/reports directory
         (report_path / 'assessment.json').write_text(assessment.model_dump_json(indent=2))

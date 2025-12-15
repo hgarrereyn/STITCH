@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import subprocess
 import json
+import sys
 
 from .utils.colors import Colors
 from .utils.project import Project
@@ -44,10 +45,15 @@ def do_report(args):
     cmd = f'''clang++-17 -fsanitize=address -g -O0 -o /fuzz/test /fuzz/testcase.cpp {" ".join(info.build_flags)}'''
     print(f'[{Colors.GREEN}+{Colors.END}] Running command: {cmd}')
 
+    # `agf report` is used both interactively and programmatically (e.g. from a web UI).
+    # `docker run -it` fails when there is no TTY; only request a TTY when we have one.
+    has_tty = sys.stdin.isatty() and sys.stdout.isatty()
+    docker_tty_flags = ['-it'] if has_tty else []
+
     res = subprocess.run([
         'docker', 'run',
         '--platform', 'linux/amd64',
-        '-it', '--rm',
+        *docker_tty_flags, '--rm',
         '-v', f'{str(testcase_path.absolute())}:/fuzz/testcase.cpp',
         tag,
         'bash', '-c', cmd
@@ -64,7 +70,7 @@ def do_report(args):
     res = subprocess.run([
         'docker', 'run',
         '--platform', 'linux/amd64',
-        '-it', '--rm',
+        *docker_tty_flags, '--rm',
         '-v', f'{str(testcase_path.absolute())}:/fuzz/testcase.cpp',
         tag,
         'bash', '-c', cmd

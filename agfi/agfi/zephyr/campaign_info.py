@@ -3,7 +3,7 @@ import difflib
 from ..data.project_info import ProjectInfo
 from .looper import CrashInfo
 from pydantic import BaseModel
-from .distill_agent import CrashAssessment
+from .distill_agent import CrashAssessment, OldCrashAssessment
 from typing import Optional
 from .patcher import PatchInfo
 from ..utils.colors import Colors
@@ -13,7 +13,7 @@ from .pretty import pretty_print_code
 
 class BugReport(BaseModel):
     info: CrashInfo
-    assessment: Optional[CrashAssessment] = None
+    assessment: Optional[CrashAssessment | OldCrashAssessment] = None
     patch: Optional[PatchInfo] = None
 
 
@@ -45,7 +45,11 @@ def main(args):
         print(f'    {Colors.CYAN}[+]{Colors.END} Original testcase: {crash.info.original_testcase}')
         if crash.assessment:
             print(f'    {Colors.CYAN}[+]{Colors.END} Assessment: {crash.assessment.title}')
-            print(f'    {Colors.CYAN}[+]{Colors.END} Crash type: {crash.assessment.crash_type}')
+            if hasattr(crash.assessment, "triage"):
+                print(f'    {Colors.CYAN}[+]{Colors.END} Crash mechanism: {crash.assessment.triage.crash_mechanism}')
+                print(f'    {Colors.CYAN}[+]{Colors.END} Priority: {crash.assessment.triage.report_priority}')
+            else:
+                print(f'    {Colors.CYAN}[+]{Colors.END} Crash type: {crash.assessment.crash_type}')
             if getattr(crash.assessment, "duplicate_of", None):
                 print(f'    {Colors.CYAN}[+]{Colors.END} Duplicate of: {crash.assessment.duplicate_of}')
             print(f'    {Colors.CYAN}[+]{Colors.END} Can patch fuzzer: {crash.assessment.can_patch_fuzzer}')
