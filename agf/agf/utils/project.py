@@ -248,9 +248,17 @@ class Project:
             base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
         return base_image
 
-    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> str:
+    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024, custom_dockerfile: Optional[Path] = None) -> str:
         self.build_base_image('stitch')
         base = self.base_image(build_coverage, use_asan, override_commit, hard_rss_limit_mb)
+
+        # When a custom dockerfile is provided, include its hash in the tag
+        # so different custom dockerfiles don't clobber each other's images
+        custom_dockerfile_hash = None
+        if custom_dockerfile is not None:
+            import hashlib
+            content = custom_dockerfile.read_text()
+            custom_dockerfile_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()[:12]
 
         base_tag = self._base_image_tag(
             build_coverage=build_coverage,
@@ -264,6 +272,10 @@ class Project:
             override_commit=override_commit,
             hard_rss_limit_mb=hard_rss_limit_mb,
         )
+        
+        # Append custom dockerfile hash to main tag if provided
+        if custom_dockerfile_hash:
+            main_tag = f'{main_tag.split(":")[0]}:{main_tag.split(":")[1]}_{custom_dockerfile_hash}'
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_dir = Path(temp_dir)
@@ -279,6 +291,10 @@ class Project:
                 print(f'[{Colors.RED}-{Colors.END}] Base image build failed: {res.stderr}')
                 res.check_returncode()
 
+            # Use custom dockerfile if provided, otherwise use default project dockerfile
+            dockerfile_path = custom_dockerfile if custom_dockerfile else (self.path / 'config' / 'Dockerfile')
+            build_context = dockerfile_path.parent if custom_dockerfile else (self.path / 'config').absolute()
+
             res = subprocess.run(
                 [
                     'docker',
@@ -290,8 +306,8 @@ class Project:
                     '-t',
                     main_tag,
                     '-f',
-                    self.path / 'config' / 'Dockerfile',
-                    str((self.path / 'config').absolute()),
+                    str(dockerfile_path),
+                    str(build_context),
                 ],
             )
             if res.returncode != 0:

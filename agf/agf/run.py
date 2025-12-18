@@ -18,12 +18,35 @@ def do_bug(args):
     if asan:
         print(f'[{Colors.GREEN}+{Colors.END}] Using ASAN')
 
-    image_tag = project.build_docker(use_asan=asan, override_commit=args.commit)
+    # Use custom dockerfile if provided
+    custom_dockerfile = None
+    if args.dockerfile:
+        custom_dockerfile = Path(args.dockerfile)
+        if not custom_dockerfile.exists():
+            print(f'[{Colors.RED}-{Colors.END}] Custom Dockerfile not found: {custom_dockerfile}')
+            return
+        print(f'[{Colors.GREEN}+{Colors.END}] Using custom Dockerfile: {custom_dockerfile}')
+
+    image_tag = project.build_docker(
+        use_asan=asan,
+        override_commit=args.commit,
+        custom_dockerfile=custom_dockerfile,
+    )
     
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         tmpdir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
+        
+        # Use custom info.json if provided, otherwise use default
+        if args.info_json:
+            info_json_path = Path(args.info_json)
+            if not info_json_path.exists():
+                print(f'[{Colors.RED}-{Colors.END}] Custom info.json not found: {info_json_path}')
+                return
+            print(f'[{Colors.GREEN}+{Colors.END}] Using custom info.json: {info_json_path}')
+            shutil.copy(info_json_path, tmpdir / 'info.json')
+        else:
+            shutil.copy(project.path / 'config' / 'info.json', tmpdir / 'info.json')
         shutil.copy(args.testcase, tmpdir / 'test.cpp')
 
         mounts = [
@@ -137,6 +160,18 @@ def register(subparsers):
         '--output',
         type=str,
         help='Write JSON with stdout/stderr from the run to this path',
+        default=None,
+    )
+    subparser.add_argument(
+        '--dockerfile',
+        type=str,
+        help='Use a custom Dockerfile instead of the project default',
+        default=None,
+    )
+    subparser.add_argument(
+        '--info-json',
+        type=str,
+        help='Use a custom info.json instead of the project default',
         default=None,
     )
     subparser.set_defaults(func=do_bug)
