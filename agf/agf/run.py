@@ -49,12 +49,22 @@ def do_bug(args):
             '''
         else:
             if args.output is not None:
-                # Run the test and capture output, then also run casr-san and casr-gdb
-                # to gather detailed crash analysis if a crash occurs
+                # Capture ALL output (build + test) to log files while streaming to terminal.
+                # This ensures compilation errors are captured, not just test execution output.
+                # We track whether the build succeeded separately so we can report the correct
+                # exit code and skip CASR analysis if compilation failed.
                 cmd = r'''
                     cd /fuzz/workspace &&
-                    agfi build external test &&
-                    ./test > >(tee bug_stdout.log) 2> >(tee bug_stderr.log >&2)
+                    # Capture build output (compilation errors will be here)
+                    BUILD_OK=0
+                    agfi build external test > >(tee -a bug_stdout.log) 2> >(tee -a bug_stderr.log >&2) || BUILD_OK=$?
+                    if [ $BUILD_OK -ne 0 ]; then
+                        echo "" >> bug_stderr.log
+                        echo "=== COMPILATION FAILED (exit code $BUILD_OK) ===" >> bug_stderr.log
+                        exit $BUILD_OK
+                    fi
+                    # Run the test and capture output
+                    ./test > >(tee -a bug_stdout.log) 2> >(tee -a bug_stderr.log >&2)
                     TEST_EXIT=$?
                     if [ $TEST_EXIT -ne 0 ]; then
                         # Run casr-san to analyze sanitizer output
