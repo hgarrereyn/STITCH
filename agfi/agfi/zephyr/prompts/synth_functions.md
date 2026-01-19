@@ -57,6 +57,7 @@
     - if the string is expected to point to a file, use `FUZZ_PARAM_FILENAME()` instead
 - `FUZZ_PARAM_FILENAME()`: generates a random null-terminated filename pointing to a file filled with random data
     - example: `const char *path = FUZZ_PARAM_FILENAME(); char *data = read_file(path)`
+    - note that only the file _data_ is fuzzed, the file path will be a templated name in the `/tmp` directory.
 - Limitations:
     - `FUZZ_PARAM_*` macros are resolved at compile time; macros invoked in a loop will return the same value each time
     - use `FUZZ_PARAM(T[N])` to obtain an array of random values; `N` must be a constant integer literal (not an expression or macro definition)
@@ -83,7 +84,11 @@
 
 ## Guidance
 - Prioritize validity of the API usage over all else.
-- Optimize for modularity and code coverage of the target function (try to exercise all possible code paths)
+- Optimize for modularity and code coverage of the target function (try to exercise all possible code paths), e.g.
+    - test each valid flag value
+    - test each usage pattern (if there are multiple)
+    - for optional arguments, test with and without the argument
+    - for variadic arguments, test with different numbers of arguments
 - The code will run in a fuzzer; for performance:
     - Keep allocations limited in size (<2048 bytes per call)
     - Stub out code that sleeps, blocks, or requires a timeout, unless you can enforce that runtime speed will be fast

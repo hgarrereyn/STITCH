@@ -290,24 +290,30 @@ namespace gf_fuzz_param {
         return result;
     }
 
+    // Helper to convert any pointer type (including const) to void* for use as map key
+    template <typename T>
+    void *to_void_ptr(T *var) {
+        return const_cast<void*>(static_cast<const void*>(var));
+    }
+
     template <typename T>
     void set_attr_int(T *var, const char *key, int value) {
-        (*gf_attrs_int)[std::make_tuple(var, key)] = value;
+        (*gf_attrs_int)[std::make_tuple(to_void_ptr(var), std::string(key))] = value;
     }
 
     template <typename T>
     void set_attr_str(T *var, const char *key, const char *value) {
-        (*gf_attrs_str)[std::make_tuple(var, key)] = value;
+        (*gf_attrs_str)[std::make_tuple(to_void_ptr(var), std::string(key))] = value;
     }
 
-    template <typename T>
-    void set_attr_ptr(T *var, const char *key, void *value) {
-        (*gf_attrs_ptr)[std::make_tuple(var, key)] = value;
+    template <typename T, typename V>
+    void set_attr_ptr(T *var, const char *key, V *value) {
+        (*gf_attrs_ptr)[std::make_tuple(to_void_ptr(var), std::string(key))] = to_void_ptr(value);
     }
 
     template <typename T>
     int get_attr_int(T *var, const char *key) {
-        auto it = gf_attrs_int->find(std::make_tuple(var, key));
+        auto it = gf_attrs_int->find(std::make_tuple(to_void_ptr(var), std::string(key)));
         if (it != gf_attrs_int->end()) {
             return it->second;
         }
@@ -316,7 +322,7 @@ namespace gf_fuzz_param {
 
     template <typename T>
     const char *get_attr_str(T *var, const char *key) {
-        auto it = gf_attrs_str->find(std::make_tuple(var, key));
+        auto it = gf_attrs_str->find(std::make_tuple(to_void_ptr(var), std::string(key)));
         if (it != gf_attrs_str->end()) {
             return it->second.c_str();
         }
@@ -325,7 +331,7 @@ namespace gf_fuzz_param {
 
     template <typename T>
     void *get_attr_ptr(T *var, const char *key) {
-        auto it = gf_attrs_ptr->find(std::make_tuple(var, key));
+        auto it = gf_attrs_ptr->find(std::make_tuple(to_void_ptr(var), std::string(key)));
         if (it != gf_attrs_ptr->end()) {
             return it->second;
         }
