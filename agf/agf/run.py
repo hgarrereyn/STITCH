@@ -30,6 +30,7 @@ def do_bug(args):
     image_tag = project.build_docker(
         use_asan=asan,
         override_commit=args.commit,
+        override_repo=args.repo,
         custom_dockerfile=custom_dockerfile,
     )
     
@@ -152,6 +153,7 @@ def register(subparsers):
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('-t', '--testcase', type=str, help='The path to the testcase (.cpp)', default=None)
     subparser.add_argument('-c', '--commit', type=str, help='Test on a specific commit', default=None)
+    subparser.add_argument('--repo', type=str, help='Override the repository URL', default=None)
     subparser.add_argument('--no-asan', action='store_true', help='Do not use ASAN', default=False)
     subparser.add_argument('-d', '--debug', action='store_true', help='Spawn a shell', default=False)
     subparser.add_argument('-r', '--report', action='store_true', help='Generate a markdown report', default=False)

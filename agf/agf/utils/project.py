@@ -136,14 +136,15 @@ class Project:
         build_coverage: bool = False,
         use_asan: bool = False,
         override_commit: str = None,
+        override_repo: str = None,
         hard_rss_limit_mb: int = 1024,
     ) -> str:
         """
         Compute a deterministic, compact suffix that captures the \"shape\" of a
         build so that:
           - Different build configurations (coverage vs non-coverage, ASAN vs
-            non-ASAN, commit override, RSS limit) do NOT clobber each other's
-            tags.
+            non-ASAN, commit override, repo override, RSS limit) do NOT clobber
+            each other's tags.
           - Identical configurations reuse the same tag across runs so Docker
             layer cache remains effective and disk usage stays bounded.
 
@@ -155,13 +156,14 @@ class Project:
 
         config = self.get_config()
         commit = override_commit or (config.commit or 'HEAD')
+        repo = override_repo or (config.repo or '')
 
         # Include the on-disk project path so that two different projects with
         # the same logical name don't accidentally share tags.
         key = {
             'project_name': config.name,
             'project_path': str(self.path.absolute()),
-            'repo': config.repo or '',
+            'repo': repo,
             'commit': commit,
             'build_coverage': bool(build_coverage),
             'use_asan': bool(use_asan),
@@ -178,12 +180,14 @@ class Project:
         build_coverage: bool = False,
         use_asan: bool = False,
         override_commit: str = None,
+        override_repo: str = None,
         hard_rss_limit_mb: int = 1024,
     ) -> str:
         suffix = self._docker_variant_suffix(
             build_coverage=build_coverage,
             use_asan=use_asan,
             override_commit=override_commit,
+            override_repo=override_repo,
             hard_rss_limit_mb=hard_rss_limit_mb,
         )
         config = self.get_config()
@@ -195,12 +199,14 @@ class Project:
         build_coverage: bool = False,
         use_asan: bool = False,
         override_commit: str = None,
+        override_repo: str = None,
         hard_rss_limit_mb: int = 1024,
     ) -> str:
         suffix = self._docker_variant_suffix(
             build_coverage=build_coverage,
             use_asan=use_asan,
             override_commit=override_commit,
+            override_repo=override_repo,
             hard_rss_limit_mb=hard_rss_limit_mb,
         )
         config = self.get_config()
@@ -225,19 +231,23 @@ class Project:
             str(REPO_PATH)
         ], check=True)
 
-    def base_image(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024) -> str:
+    def base_image(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, override_repo: str = None, hard_rss_limit_mb: int = 1024) -> str:
         """
         Builds the base image for the project.
         """
         config = self.get_config()
 
+        # Use override_repo if provided, otherwise fall back to config.repo
+        repo = override_repo if override_repo is not None else config.repo
+        commit = override_commit if override_commit is not None else config.commit
+
         base_image = ''
         base_image += f'FROM stitch_base\n'
-        if config.repo is not None:
-            if config.commit is not None or override_commit is not None:
-                base_image += f'RUN git clone {config.repo} /fuzz/src && cd /fuzz/src && git checkout {config.commit if override_commit is None else override_commit} && git submodule update --init --remote --recursive\n'
+        if repo is not None:
+            if commit is not None:
+                base_image += f'RUN git clone {repo} /fuzz/src && cd /fuzz/src && git checkout {commit} && git submodule update --init --remote --recursive\n'
             else:
-                base_image += f'RUN git clone --depth 1 {config.repo} /fuzz/src && cd /fuzz/src && git submodule update --init --remote --recursive\n'
+                base_image += f'RUN git clone --depth 1 {repo} /fuzz/src && cd /fuzz/src && git submodule update --init --remote --recursive\n'
         base_image += 'WORKDIR /fuzz/src\n'
         base_image += 'ENV DEBIAN_FRONTEND=noninteractive\n'
         base_image += 'ENV LD_LIBRARY_PATH=/fuzz/install/lib\n'
@@ -248,9 +258,9 @@ class Project:
             base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
         return base_image
 
-    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, hard_rss_limit_mb: int = 1024, custom_dockerfile: Optional[Path] = None) -> str:
+    def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, override_repo: str = None, hard_rss_limit_mb: int = 1024, custom_dockerfile: Optional[Path] = None) -> str:
         self.build_base_image('stitch')
-        base = self.base_image(build_coverage, use_asan, override_commit, hard_rss_limit_mb)
+        base = self.base_image(build_coverage, use_asan, override_commit, override_repo, hard_rss_limit_mb)
 
         # When a custom dockerfile is provided, include its hash in the tag
         # so different custom dockerfiles don't clobber each other's images
@@ -264,12 +274,14 @@ class Project:
             build_coverage=build_coverage,
             use_asan=use_asan,
             override_commit=override_commit,
+            override_repo=override_repo,
             hard_rss_limit_mb=hard_rss_limit_mb,
         )
         main_tag = self._main_image_tag(
             build_coverage=build_coverage,
             use_asan=use_asan,
             override_commit=override_commit,
+            override_repo=override_repo,
             hard_rss_limit_mb=hard_rss_limit_mb,
         )
         

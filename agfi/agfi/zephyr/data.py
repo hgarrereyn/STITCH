@@ -107,7 +107,7 @@ class ProjectMetadata(BaseModel):
 
     metadata: Dict[str, Any] = Field(description="Additional metadata", default={})
 
-    def to_schema(self, hint_synthesis: int = 1000) -> Spec:
+    def to_schema(self, hint_synthesis: int = 1000, run_generators: bool = True) -> Spec:
         schema = Spec(
             objects=[],
             endpoints=[],
@@ -120,7 +120,7 @@ class ProjectMetadata(BaseModel):
 
         # Run each generator hint_synthesis times
         synthesized_data = {}
-        if self.generators is not None:
+        if run_generators and self.generators is not None:
             for generator in self.generators:
                 hints = sample_generator(generator.generator, n=hint_synthesis, allow_errors=True)
                 hints =  list(set(hints))

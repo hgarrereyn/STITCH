@@ -25,6 +25,7 @@ def main():
         multi,
         execute,
         clear,
+        analyze_crashes,
     )
 
     parser = argparse.ArgumentParser()
@@ -49,6 +50,7 @@ def main():
     multi.register(subparsers)
     execute.register(subparsers)
     clear.register(subparsers)
+    analyze_crashes.register(subparsers)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
