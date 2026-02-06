@@ -1,107 +1,87 @@
-# End-to-end Automatic Modular Fuzzing
+# STITCH
 
+This repository contains the implementation of STITCH.
 
+The fuzzer consists of two components:
+- `stitch_core`: a Rust library that handles core functionality, runtime testcase execution, testcase mutation, etc.
+- `stitch_libafl`: the core fuzzing engine built with LibAFL, this uses `stitch_core` as a dependency.
 
+There are two packages that manage the high level workflow and operate the LLM integration:
+- `stitch` is the main top-level python package that acts as a CLI for STITCH, it also contains the Configure Agent
+- `stitchi` ("STITCH Internal") is the python package that gets installed inside fuzzer docker containers and manages the internal fuzzing loop, containing the Inference Workflow, Triage Agent, and Patch Agent.
 
-## Build folder components
+Note that this repository is still in a bit of a prototype state, everything is runnable but there is some extra unused functionality remaining from our tests which we plan to clean up before the full public release.
 
-```
-build/
-├─ <project>/
-│  ├─ base.Dockerfile     # Base image for the project
-│  ├─ Dockerfile          # (autogen) Dockerfile for the project
-│  ├─ info.json           # (autogen) Project build configuration
-│  ├─ test.cpp            # (autogen) Test client file
-│  ├─ <harness>/
-│  │  ├─ harness.json     # (autogen) Harness configuration
-│  │  ├─ queue/           # (fuzz) Queue of test cases
-│  │  ├─ crashes/         # (fuzz) Crashes found by the harness
-│  │  ├─ runtime.json     # (fuzz) Runtime information
-│  ├─ triage/
-```
+## LLM reference
 
+- `Config Agent` -> [stitch/stitch/gen_agent/agent.py](stitch/stitch/gen_agent/agent.py)
+- `Inference Workflow` -> (codename "Zephyr") -> [stitchi/stitchi/zephyr/run.py](stitchi/stitchi/zephyr/run.py)
+- `Triage Agent` -> [stitchi/stitchi/zephyr/distill_agent.py](stitchi/stitchi/zephyr/distill_agent.py)
+- `Patch Agent` -> [stitchi/stitchi/zephyr/patcher_agent.py](stitchi/stitchi/zephyr/patcher_agent.py)
 
 ## Usage
 
-Initialize a project from a github repository.
+First install the `stitch` cli:
 ```
-stitch init <github_url> [path]
-```
-
-To print only the full path of the initialized project directory (useful for scripting):
-```
-stitch init -q <github_url> [path]
+pip install -e stitch
 ```
 
-Run auto-generation.
+Normal usage is to configure a project, then infer a specification, and then run the fuzz loop:
+
+For example, to test [zlib](https://github.com/madler/zlib), do the following:
+
+Set your OpenAI API key (fuzzing zlib will cost about $1 using GPT-5):
 ```
+export OPENAI_API_KEY=...
+```
+
+Set up a new project (optionally pin to a specific commit with `-c <commit>`):
+```
+stitch init https://github.com/madler/zlib
+```
+
+This will create a new project folder, here with the name `madler_zlib`. Next run the configure agent to generate a configuration:
+```
+cd madler_zlib
 stitch gen
 ```
 
-Run inference.
-```
-stitch infer [--harness <harness_name>]
-```
+Once generation completes, you should see a `config` folder with the following files:
+- `Dockerfile`: the Dockerfile for the project
+- `test.cpp`: a simple test program using the project API
+- `info.json`: the project build configuration
+- `usage.json`: the usage tokens for the LLM calls
 
-Run fuzzing.
+Next, run the inference workflow to infer a specification:
 ```
-stitch fuzz [--harness <harness_name>]
+stitch infer
 ```
+You can run with `--threads <n>` to use multiple threads for the compilation tasks, which will be faster. You can also give this harness a specific name with `--name <name>` (by default it is `harn1`).
 
-Run triage (tries to reproduce crashes).
-```
-stitch triage [--harness <harness_name>]
-```
+Once this completes, you should have a `harnesses` folder with a new harness `harn1/harness.json` containing all the generated code blocks (as well as all the other metadata from the inference workflow).
 
-For debugging, you can mount the project in a container and run the fuzzer manually.
+Next, you can chose to fuzz in two modes.
+
+Raw fuzzing mode (i.e. just run the fuzzer continuously) -- which is what we did for RQ1:
 ```
-stitch dev [--harness <harness_name>]
+stitch fuzz-raw -o outputs
 ```
+This will run the fuzzer continuously until you stop it, saving all the artifacts to the specified output directory.
 
-### Internal commands
-
-Internal commands are prefixed with `stitch internal` and not intended to be invoked directly by the user.
-
-## stitch.yaml:
+Alternatively, can run STITCH in loop mode (normal mode) -- which is what we did for RQ2. This will run until hitting a crash and then use the Triage agent to diagnose the crash and (optionally) the Patch agent to repair the schema and restart the fuzzer.
 
 ```
-repo=<github_url>
-commit=<commit_hash> (optional, uses HEAD if not specified)
-
-repro_per_crash=<int> (optional, default 20) -- defines how many external reproducers to try to generate for each crash
-llm_min_per_crash=<int> (optional, default 1) -- defines how many LLM-based minimization steps to try for each crash
+stitch fuzz
 ```
 
-## Project structure
+This command is restartable, so if it generates two revisions and then you stop it, it will properly resume the campaign from the third revision. All data gets saved to the `campaign` directory which is in the harness folder (i.e. `harnesses/harn1/campaign`). Of interest, this will contain a `reports` folder containing the triaged crashes.
 
+## Other tools
 
-
-```
-<project_name>/
-    - stitch.yaml # Project description
-    - config/
-        - Dockerfile # (gen) Dockerfile for the project
-        - info.json # (gen) Project build configuration
-        - test.cpp # (gen) Test client file
-    - harness/
-        - <harness_name>/
-            - harness.json # (infer)
-            - output/
-                crashes/
-                queue/
-                runtime_metadata.json
-            - analysis/
-                - reports/
-                    - <crash_name>.report # (triage) json report or failure
-                - buckets/
-                    - <hash>/
-                        - desc.txt # (triage) crash description
-                        - repro/
-                            - <crash_name>.cpp # (triage) graph-minimized external code
-                            - <crash_name>.report # (triage) crash report for the external code
-                        - minimized/
-                            - <crash_name>.cpp # (triage) llm-minimized external code
-                            - <crash_name>.report # (triage) crash report for the llm-minimized code
-```
-
-
+There are a few other tools used mainly for debugging:
+- `stitch info` -> display a bunch of information about the project and costs
+- `stitch dev` -> launch a shell inside the fuzzer docker container
+- `stitch test` -> run the configuration test.cpp pass
+- `stitch stats --harness <name>` -> run a constructability analysis on a specific harness
+- `stitch replay -b <hash>` -> replay a specific minimized crash contained in a report folder
+- `stitch bug -t <file.cpp>` -> replay an external reproducer for a bug, optionally add `-d` to launch `pwndbg`

@@ -136,9 +136,9 @@ def do_fuzz(args):
                 export PYTHONUNBUFFERED=1 &&
                 (
                   command -v stdbuf >/dev/null 2>&1 &&
-                  exec stdbuf -oL -eL stitchi zephyr looper --harness harness.json --campaign /tmp/agfi_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
+                  exec stdbuf -oL -eL stitchi zephyr looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
                 ) || (
-                  exec stitchi zephyr looper --harness harness.json --campaign /tmp/agfi_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
+                  exec stitchi zephyr looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions} {'--reset' if args.reset else ''} {'--no-corpus-copy' if args.no_corpus_copy else ''}
                 )
             ''',
             popen=True,

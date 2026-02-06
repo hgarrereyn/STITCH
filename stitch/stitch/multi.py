@@ -124,8 +124,8 @@ def do_multi(args):
             continue
         
         # Check if this is a project (has stitch.json)
-        agf_json = subdir / 'stitch.json'
-        if agf_json.exists():
+        stitch_json = subdir / 'stitch.json'
+        if stitch_json.exists():
             try:
                 project = Project(subdir)
                 if project.has_config():

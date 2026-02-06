@@ -3,7 +3,6 @@ name = "stitch_libafl"
 version = "0.1.0"
 authors = [""]
 edition = "2021"
-build = "build.rs"
 
 [features]
 default = ["std"]
