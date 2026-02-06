@@ -25,44 +25,44 @@ build/
 
 Initialize a project from a github repository.
 ```
-agf init <github_url> [path]
+stitch init <github_url> [path]
 ```
 
 To print only the full path of the initialized project directory (useful for scripting):
 ```
-agf init -q <github_url> [path]
+stitch init -q <github_url> [path]
 ```
 
 Run auto-generation.
 ```
-agf gen
+stitch gen
 ```
 
 Run inference.
 ```
-agf infer [--harness <harness_name>]
+stitch infer [--harness <harness_name>]
 ```
 
 Run fuzzing.
 ```
-agf fuzz [--harness <harness_name>]
+stitch fuzz [--harness <harness_name>]
 ```
 
 Run triage (tries to reproduce crashes).
 ```
-agf triage [--harness <harness_name>]
+stitch triage [--harness <harness_name>]
 ```
 
 For debugging, you can mount the project in a container and run the fuzzer manually.
 ```
-agf dev [--harness <harness_name>]
+stitch dev [--harness <harness_name>]
 ```
 
 ### Internal commands
 
-Internal commands are prefixed with `agf internal` and not intended to be invoked directly by the user.
+Internal commands are prefixed with `stitch internal` and not intended to be invoked directly by the user.
 
-## agf.yaml:
+## stitch.yaml:
 
 ```
 repo=<github_url>
@@ -78,7 +78,7 @@ llm_min_per_crash=<int> (optional, default 1) -- defines how many LLM-based mini
 
 ```
 <project_name>/
-    - agf.yaml # Project description
+    - stitch.yaml # Project description
     - config/
         - Dockerfile # (gen) Dockerfile for the project
         - info.json # (gen) Project build configuration
