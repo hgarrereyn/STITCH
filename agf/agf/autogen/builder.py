@@ -113,8 +113,8 @@ Your Dockerfile must do the following:
     - Also install any required build tools (e.g. cmake, make, etc...)
     - Be extra careful, its ok to install more dependencies than needed, but dont miss any
 2. Configure the project with the following requirements:
-    - The C compiler must be `gf_libafl_cc`
-    - The C++ compiler must be `gf_libafl_cxx`
+    - The C compiler must be `stitch_libafl_cc`
+    - The C++ compiler must be `stitch_libafl_cxx`
     - The install prefix must be `/fuzz/install`
     - If possible, build only a static library
 3. Build the project

@@ -1,4 +1,3 @@
-gf_core/target
-gf_core/interface/build
-gf_libafl/target
-gf_synth/target
+stitch_core/target
+stitch_core/interface/build
+stitch_libafl/target

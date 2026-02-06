@@ -103,7 +103,7 @@ def analyze_constructability(validated_endpoints: List[dict],
                            max_depth: int) -> Tuple[List[str], List[Tuple[str, str]], Set[str]]:
     """
     Analyze which endpoints are constructable based on input/output dependencies,
-    mirroring gf_core's recursive depth-limited approach for constructors.
+    mirroring stitch_core's recursive depth-limited approach for constructors.
 
     Returns:
         (constructable_endpoints, unconstructable_endpoints, missing_constructors)

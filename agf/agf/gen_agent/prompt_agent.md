@@ -18,8 +18,8 @@ The source code for the project you are building is already located in `/fuzz/sr
 The Dockerfile must do the following:
 1. Install any extra dependencies needed to build or run the project
 2. Configure the project with the following requirements:
-    - The C compiler must be `gf_libafl_cc` (a `clang-17` wrapper)
-    - The C++ compiler must be `gf_libafl_cxx` (a `clang++-17` wrapper)
+    - The C compiler must be `stitch_libafl_cc` (a `clang-17` wrapper)
+    - The C++ compiler must be `stitch_libafl_cxx` (a `clang++-17` wrapper)
     - The install prefix must be `/fuzz/install`
     - If possible, build only a static library
 3. Build and install the project into `/fuzz/install`

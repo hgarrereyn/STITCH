@@ -31,7 +31,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
 # Make both the Rust cargo bin directory and our global gf tools directory
 # available on PATH. rustup installs cargo into /root/.cargo/bin, while we
-# install casr and gf_libafl tooling under /opt/gf_bin.
+# install casr and stitch_libafl tooling under /opt/gf_bin.
 ENV PATH="/opt/gf_bin/bin:/root/.cargo/bin:${PATH}"
 
 # Install casr into a globally accessible prefix so any UID can execute it.
@@ -43,29 +43,29 @@ COPY /agfi/requirements.txt /requirements.txt
 RUN pip install -r requirements.txt
 
 COPY rust-toolchain.toml /src/rust-toolchain.toml
-COPY /gf_core /src/gf_core
-COPY /gf_libafl /src/gf_libafl
+COPY /stitch_core /src/stitch_core
+COPY /stitch_libafl /src/stitch_libafl
 
 ENV LIBAFL_EDGES_MAP_SIZE=800000
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
-    --mount=type=cache,target=/src/gf_libafl/target \
-    --mount=type=cache,target=/src/gf_core/target \
+    --mount=type=cache,target=/src/stitch_libafl/target \
+    --mount=type=cache,target=/src/stitch_core/target \
     --mount=type=cache,target=/root/.rustup \
-    cd /src/gf_libafl && \
+    cd /src/stitch_libafl && \
     cargo build --release && \
     cargo install --path . --root /opt/gf_bin && \
     mkdir -p /opt/gf_bin/bin && \
-    cp target/release/libgf_libafl.a /opt/gf_bin/bin/libgf_libafl.a && \
+    cp target/release/libstitch_libafl.a /opt/gf_bin/bin/libstitch_libafl.a && \
     cp target/release/liboom_wrapper.so /opt/gf_bin/bin/liboom_wrapper.so && \
     chmod -R a+rx /opt/gf_bin && \
     mkdir -p /src/tmp && \
     cp -r target/release/build/libafl_cc-* /src/tmp && \
-    cd /src/gf_core && \
+    cd /src/stitch_core && \
     cargo build --release && \
     cargo install --path . --root /opt/gf_bin
 
-RUN cd /src/gf_libafl && \
+RUN cd /src/stitch_libafl && \
     mkdir -p target/release/build && \
     cp -r /src/tmp/libafl_cc-* target/release/build/
 

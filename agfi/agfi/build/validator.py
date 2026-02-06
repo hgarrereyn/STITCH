@@ -26,7 +26,7 @@ def format_and_check(main_code: str, info: ProjectInfo, verbose: bool = False, e
             code += '#include "%s"\n' % header.path
 
     if external:
-        code += '#include "gf_util.h"\n'
+        code += '#include "stitch_util.h"\n'
 
     code += main_code
 

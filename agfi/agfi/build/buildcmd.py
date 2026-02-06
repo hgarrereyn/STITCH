@@ -19,7 +19,7 @@ def synth_command(path: str, info: ProjectInfo) -> subprocess.CompletedProcess:
             f.write(info.model_dump_json(indent=4))
 
         res = subprocess.run([
-            'gf_synth',
+            'stitch_synth',
             str(path) + '.json',
             '--info', str(tmp_info),
             '-o', str(path) + '.cpp',
@@ -29,7 +29,7 @@ def synth_command(path: str, info: ProjectInfo) -> subprocess.CompletedProcess:
 
 def build_command(path: str, info: ProjectInfo, external: bool, verbose: bool = False) -> subprocess.CompletedProcess:
     cmd = [
-        'gf_libafl_cxx',
+        'stitch_libafl_cxx',
         '-g',
         '-std=c++17',
     ]
@@ -45,7 +45,7 @@ def build_command(path: str, info: ProjectInfo, external: bool, verbose: bool = 
             cmd.append(flag)
 
     if external:
-        cmd.append('-I/src/gf_core/external/')
+        cmd.append('-I/src/stitch_core/external/')
 
     if verbose:
         print('[BUILD] ' + ' '.join(cmd))

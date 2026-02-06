@@ -12,8 +12,8 @@ setup(
             'agf=agf:main',
         ],
     },
-    author="Harrison Green",
-    author_email="harrisonmichaelgreen@gmail.com",
+    author="",
+    author_email="",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

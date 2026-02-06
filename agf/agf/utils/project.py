@@ -253,9 +253,9 @@ class Project:
         base_image += 'ENV LD_LIBRARY_PATH=/fuzz/install/lib\n'
         base_image += f'ENV ASAN_OPTIONS=hard_rss_limit_mb={hard_rss_limit_mb}:detect_leaks=0\n'
         if build_coverage:
-            base_image += 'ENV GRAPHFUZZ_BUILD_COVERAGE=1\n'
+            base_image += 'ENV STITCH_BUILD_COVERAGE=1\n'
         if use_asan:
-            base_image += 'ENV GRAPHFUZZ_USE_ASAN=1\n'
+            base_image += 'ENV STITCH_USE_ASAN=1\n'
         return base_image
 
     def build_docker(self, build_coverage: bool = False, use_asan: bool = False, override_commit: str = None, override_repo: str = None, hard_rss_limit_mb: int = 1024, custom_dockerfile: Optional[Path] = None) -> str:
@@ -354,10 +354,10 @@ class Project:
             "    chmod +x /usr/local/bin/clang_wrapper++\n\n"
         )
 
-        # Replace gf_libafl_cc with clang_wrapper
-        config_dockerfile = config_dockerfile.replace('gf_libafl_cc', 'clang_wrapper')
-        # Replace gf_libafl_cxx with clang_wrapper++
-        config_dockerfile = config_dockerfile.replace('gf_libafl_cxx', 'clang_wrapper++')
+        # Replace stitch_libafl_cc with clang_wrapper
+        config_dockerfile = config_dockerfile.replace('stitch_libafl_cc', 'clang_wrapper')
+        # Replace stitch_libafl_cxx with clang_wrapper++
+        config_dockerfile = config_dockerfile.replace('stitch_libafl_cxx', 'clang_wrapper++')
 
         base_image += config_dockerfile
 

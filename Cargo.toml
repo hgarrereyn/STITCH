@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "gf_core",
-    "gf_libafl",
+    "stitch_core",
+    "stitch_libafl",
 ]
