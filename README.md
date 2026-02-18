@@ -23,7 +23,7 @@ Note that this repository is still in a bit of a prototype state, everything is 
 
 Install the `stitch` CLI from PyPI:
 ```
-pip install stitch
+pip install stitch-fuzz
 stitch --help
 ```
 
