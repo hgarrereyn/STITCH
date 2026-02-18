@@ -12,7 +12,7 @@ from .data import ProjectMetadata
 from .distill_agent import CrashAssessment
 from .pretty import print_functions, pretty_print_code, print_function_impl, pretty_print_error
 from .validation import run_validate_stub
-from .util import parallel_run
+from .util import parallel_run, get_model
 from ..utils.colors import Colors
 import re
 
@@ -40,6 +40,7 @@ def find_stubs(pattern: str, harness: ProjectMetadata) -> List[FunctionImpl]:
 def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAssessment, threads: int) -> PatchInfo:
     usage = UsageTracker()
     client = OpenAI()
+    model = get_model()
 
     valid_stub_names = set([e.name for e in harness.endpoints])
     endpoints_by_name = {e.name: e for e in harness.endpoints}
@@ -138,7 +139,7 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
         print(f'{Colors.GREEN}[+]{Colors.END} Patching fuzzer stubs (step {i+1} of {MAX_STEPS})')
         try:
             response = client.responses.parse(
-                model='gpt-5',
+                model=model,
                 input=ctx,
                 reasoning={
                     "effort": "medium",
@@ -151,7 +152,7 @@ def run_patcher_agent(info: ProjectInfo, harness: ProjectMetadata, assessment: C
             break
 
         ctx += response.output
-        usage.record_model('patcher', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('patcher', model, UsageTokens.from_openai(response.usage))
 
         did_tool_call = False
         for message in response.output:

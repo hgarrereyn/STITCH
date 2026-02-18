@@ -15,7 +15,7 @@ def do_gen(args):
 
     # Import heavy dependencies only after basic argument/project validation so
     # obvious failures don't pay import cost (or trigger optional deps).
-    from .utils.project import Project
+    from .utils.project import Project, resolve_model
 
     path = Path(args.path)
     project = Project(path)
@@ -30,13 +30,16 @@ def do_gen(args):
         
     config = project.get_config()
 
+    # Resolve model: CLI flag > config > default
+    model = resolve_model(getattr(args, 'model', None), config)
+
     check_env(['OPENAI_API_KEY'])
 
     # Speed up imports (after validation)
     from .gen_agent.agent import run_agent
     from .data.metadata import UsageTracker
 
-    print(f'[{Colors.GREEN}+{Colors.END}] Autogenerating build configuration...')
+    print(f'[{Colors.GREEN}+{Colors.END}] Autogenerating build configuration (model: {model})...')
 
     # Build the base image
     print(f'[{Colors.GREEN}+{Colors.END}] Building base image...')
@@ -51,7 +54,7 @@ def do_gen(args):
             subprocess.run(['git', 'clone', config.repo, src], check=True)
 
         usage = UsageTracker()
-        res = run_agent(config, str(src), usage, args.extra)
+        res = run_agent(config, str(src), usage, args.extra, model=model)
 
         print(f'[{Colors.GREEN}+{Colors.END}] Usage: {usage.cost_by_task()}')
 
@@ -79,4 +82,5 @@ def register(subparsers):
     subparser.add_argument('path', nargs='?', help='The path to the project', default='.')
     subparser.add_argument('-f', '--force', action='store_true', help='Overwrite the build configuration if it already exists')
     subparser.add_argument('-e', '--extra', type=str, help='Extra context to pass to the agent', default=None)
+    subparser.add_argument('-m', '--model', type=str, default=None, help='LLM model to use (overrides stitch.json default)')
     subparser.set_defaults(func=do_gen)

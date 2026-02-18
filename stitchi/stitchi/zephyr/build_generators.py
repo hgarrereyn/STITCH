@@ -7,7 +7,7 @@ from ..data.metadata import UsageTracker, UsageTokens
 from .data import DataGenerator, ObjectInfo, ProjectMetadata, FunctionImpl, FunctionInfo, DataTypeInfo, FunctionClassifier
 from .pretty import pretty_print_generator, pretty_print_code
 from ..utils.colors import Colors
-from .util import sample_generator, validate_generator, parallel_run
+from .util import sample_generator, validate_generator, parallel_run, get_model
 
 from openai import OpenAI
 
@@ -73,15 +73,16 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
     
     validated = False
     generator = None
+    model = get_model()
     for i in range(REGEN_ATTEMPTS):
         print(f'[{Colors.GREEN}+{Colors.END}] Building generator for {data_type} (attempt {i+1})')
         response = client.responses.parse(
-            model="gpt-5",
-            reasoning={ "effort": "minimal" },
+            model=model,
+            reasoning={ "effort": "low" },
             input=ctx,
             text_format=BuildGeneratorResponse
         )
-        usage.record_model('build-generators', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('build-generators', model, UsageTokens.from_openai(response.usage))
         
         generator = response.output_parsed.generator
         error = validate_generator(generator)

@@ -17,10 +17,36 @@ class BuildError(BaseModel):
     stderr: str
 
 
+DEFAULT_MODEL = 'gpt-5'
+
+
 class ProjectConfig(BaseModel):
     name: str = Field(default='unknown', description='The name of the project')
     repo: Optional[str] = Field(default=None, description='The url of the project')
     commit: Optional[str] = Field(default=None, description='The commit hash of the project (or most recent commit if not specified)')
+    model: Optional[str] = Field(default=None, description='The default LLM model to use for inference tasks')
+
+    def get_model(self) -> str:
+        """Return the configured model or the default."""
+        return self.model if self.model is not None else DEFAULT_MODEL
+
+
+def resolve_model(cli_model: Optional[str], config: Optional[ProjectConfig]) -> str:
+    """
+    Resolve the model to use with priority: CLI flag > config > default.
+    
+    Args:
+        cli_model: Model specified via --model CLI flag
+        config: Project configuration (may be None)
+    
+    Returns:
+        The model name to use
+    """
+    if cli_model is not None:
+        return cli_model
+    if config is not None and config.model is not None:
+        return config.model
+    return DEFAULT_MODEL
 
 
 class Harness:

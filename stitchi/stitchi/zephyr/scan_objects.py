@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from ..data.metadata import UsageTracker, UsageTokens
 from .data import ObjectInfo
+from .util import get_model
 
 from openai import OpenAI
 
@@ -18,10 +19,11 @@ class ObjectsResponse(BaseModel):
 
 def scan_objects(code: str, usage: UsageTracker) -> List[ObjectInfo]:
     client = OpenAI()
+    model = get_model()
 
     response = client.responses.parse(
-        model="gpt-5",
-        reasoning={ "effort": "minimal" },
+        model=model,
+        reasoning={ "effort": "low" },
         input=[
             {
                 "role": "developer",
@@ -35,7 +37,7 @@ def scan_objects(code: str, usage: UsageTracker) -> List[ObjectInfo]:
         text_format=ObjectsResponse
     )
 
-    usage.record_model('scan-objects', 'gpt-5', UsageTokens.from_openai(response.usage))
+    usage.record_model('scan-objects', model, UsageTokens.from_openai(response.usage))
     return response.output_parsed.objects
 
 

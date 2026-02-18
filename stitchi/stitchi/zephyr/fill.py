@@ -10,7 +10,7 @@ from .data import FunctionImpl, FunctionInfo, ObjectInfo, ProjectMetadata, Funct
 from ..data.metadata import UsageTracker, UsageTokens
 from ..data.project_info import ProjectInfo
 from .validation import run_validate_stub
-from .util import parallel_run, log
+from .util import parallel_run, log, get_model
 from ..utils.colors import Colors
 from .pretty import print_function_impl, pretty_print_error
 
@@ -147,20 +147,22 @@ def prompt_fill_ctx(metadata: ProjectMetadata, valid_endpoints: List[FunctionImp
 
 def prompt_fill_batch(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], usage: UsageTracker, selective_context: bool = False) -> List[FunctionImpl]:
     client = OpenAI()
+    model = get_model()
 
     ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=False)
     res = client.responses.parse(
-        model='gpt-5',
+        model=model,
         reasoning={ "effort": "low" },
         input=ctx,
         text_format=FillBatchResponse
     )
-    usage.record_model('fill-batch', 'gpt-5', UsageTokens.from_openai(res.usage))
+    usage.record_model('fill-batch', model, UsageTokens.from_openai(res.usage))
     return res.output_parsed.endpoints
 
 
 def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], failed_endpoints: List[FunctionImplError], usage: UsageTracker, selective_context: bool = False) -> List[FunctionImpl]:
     client = OpenAI()
+    model = get_model()
     
     ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=True)
 
@@ -179,12 +181,12 @@ def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: Li
     })
 
     res = client.responses.parse(
-        model='gpt-5',
+        model=model,
         reasoning={ "effort": "low" },
         input=ctx,
         text_format=FillBatchResponse
     )
-    usage.record_model('fill-batch', 'gpt-5', UsageTokens.from_openai(res.usage))
+    usage.record_model('fill-batch', model, UsageTokens.from_openai(res.usage))
     return res.output_parsed.endpoints
 
 

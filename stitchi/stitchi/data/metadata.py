@@ -63,9 +63,43 @@ class FunctionStubHints(BaseModel):
 
 # (input/output) price ($) per million tokens
 MODEL_COST = {
-    'gpt-4.1-2025-04-14': (2.0, 8.0),
+    # GPT-5.2
+    'gpt-5.2': (1.75, 14.0),
+    'gpt-5.2-chat-latest': (1.75, 14.0),
+    'gpt-5.2-codex': (1.75, 14.0),
+    'gpt-5.2-pro': (21.0, 168.0),
+    # GPT-5.1
+    'gpt-5.1': (1.25, 10.0),
+    'gpt-5.1-chat-latest': (1.25, 10.0),
+    'gpt-5.1-codex-max': (1.25, 10.0),
+    'gpt-5.1-codex': (1.25, 10.0),
+    # GPT-5
     'gpt-5': (1.25, 10.0),
+    'gpt-5-chat-latest': (1.25, 10.0),
+    'gpt-5-codex': (1.25, 10.0),
+    'gpt-5-pro': (15.0, 120.0),
+    'gpt-5-mini': (0.25, 2.0),
+    'gpt-5-nano': (0.05, 0.4),
+    # GPT-4.1
+    'gpt-4.1': (2.0, 8.0),
+    'gpt-4.1-mini': (0.4, 1.6),
+    'gpt-4.1-nano': (0.1, 0.4),
+    # GPT-4o
+    'gpt-4o': (2.5, 10.0),
+    'gpt-4o-2024-05-13': (5.0, 15.0),
+    'gpt-4o-mini': (0.15, 0.6),
 }
+
+
+def _lookup_model_cost(model: str):
+    """Look up cost for a model, falling back to prefix matching for dated variants."""
+    if model in MODEL_COST:
+        return MODEL_COST[model]
+    # Try prefix matching: e.g. 'gpt-5-2026-01-01' -> 'gpt-5'
+    for known in sorted(MODEL_COST, key=len, reverse=True):
+        if model.startswith(known):
+            return MODEL_COST[known]
+    return None
 
 class UsageTokens(BaseModel):
     input_tokens: int = Field(description="The number of tokens used for the input", default=0)
@@ -115,10 +149,11 @@ class UsageMetrics(BaseModel):
     def cost(self) -> float:
         cost = 0.0
         for model, tokens in self.models.items():
-            if model not in MODEL_COST:
+            prices = _lookup_model_cost(model)
+            if prices is None:
                 print(f'[{Colors.RED}-{Colors.END}] Unknown model {model}')
                 continue
-            cost += tokens.cost(MODEL_COST[model][0], MODEL_COST[model][1])
+            cost += tokens.cost(prices[0], prices[1])
         return cost
     
 class UsageTracker(BaseModel):

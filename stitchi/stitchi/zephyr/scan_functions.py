@@ -4,6 +4,7 @@ import os
 from typing import List
 
 from .data import FunctionInfo
+from .util import get_model
 
 from ..utils.colors import Colors
 from ..data.metadata import UsageTracker, UsageTokens
@@ -27,10 +28,11 @@ class FunctionsResponse(BaseModel):
 
 def scan_function_names(code: str, usage: UsageTracker) -> List[str]:
     client = OpenAI()
+    model = get_model()
 
     response = client.responses.parse(
-        model="gpt-5",
-        reasoning={ "effort": "minimal" },
+        model=model,
+        reasoning={ "effort": "low" },
         input=[
             {
                 "role": "developer",
@@ -44,19 +46,20 @@ def scan_function_names(code: str, usage: UsageTracker) -> List[str]:
         text_format=FunctionsNamesResponse
     )
 
-    usage.record_model('scan-function-names', 'gpt-5', UsageTokens.from_openai(response.usage))
+    usage.record_model('scan-function-names', model, UsageTokens.from_openai(response.usage))
     return response.output_parsed.functions
 
 
 def scan_functions(code: str, names: List[str], usage: UsageTracker, retries: int = RETRIES) -> List[FunctionInfo]:
     out_functions = []
     remaining_names = [x for x in names]
+    model = get_model()
 
     for i in range(retries):
         print(f'Scanning functions (step {i + 1} of {retries})...')
         client = OpenAI()
         response = client.responses.parse(
-            model="gpt-5",
+            model=model,
             reasoning={ "effort": "low" },
             input=[
                 {
@@ -74,7 +77,7 @@ def scan_functions(code: str, names: List[str], usage: UsageTracker, retries: in
             ],
             text_format=FunctionsResponse
         )
-        usage.record_model('scan-functions', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('scan-functions', model, UsageTokens.from_openai(response.usage))
         functions = response.output_parsed.functions
 
         for f in functions:

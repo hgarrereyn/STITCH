@@ -201,7 +201,7 @@ class AutogenResult(BaseModel):
     info: ProjectInfo
 
 
-def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra: Optional[str]) -> Optional[AutogenResult]:
+def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra: Optional[str], model: str = 'gpt-5') -> Optional[AutogenResult]:
     client = OpenAI()
 
     # Find a README.md if it exists
@@ -303,7 +303,7 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
     final_configuration = None
     for _ in range(MAX_CYCLES):
         response = client.responses.parse(
-            model='gpt-5',
+            model=model,
             input=ctx,
             tools=tools,
             reasoning={
@@ -314,7 +314,7 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
 
         )
         ctx += response.output
-        usage.record_model('gen-agent', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('gen-agent', model, UsageTokens.from_openai(response.usage))
 
         for message in response.output:
             match message.type:

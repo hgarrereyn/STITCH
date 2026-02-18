@@ -16,7 +16,7 @@
   - `name`: Function name.
   - `inputs`: List of input variables, each with `name` and `type` (using `ptr_type` from objects list).
   - `outputs`: List of output variables, each with `name` and `type`.
-  - `code`: The stub C++ code; implement as a single block, focusing only on the target function and related macros.
+  - `code`: The stub C++ code as raw statements (do **not** wrap in braces `{ }`; the runtime provides the enclosing block), focusing only on the target function and related macros.
 - For any target function that **cannot** be safely or meaningfully harnessed at all (for example, it is not compatible with the platform or compiler toolchain), do **not** invent a stub or unconditionally call `FUZZ_BAIL()`:
   - Instead, add an entry to the `unharnessable` list with:
     - `name`: the exact function name from `target_functions`
@@ -26,7 +26,7 @@
   - A corresponding entry in `unharnessable`.
 
 ## Stub Construction Guidelines
-- Each fuzzer stub should be a block of C++ code that invokes the target function with fuzzable random arguments, ensuring API constraints are met.
+- Each fuzzer stub should be a sequence of raw C++ statements (not wrapped in braces `{ }`) that invokes the target function with fuzzable random arguments, ensuring API constraints are met. The runtime will place the code inside a function body; output only the inner statements.
 - Stub `inputs` are pre-defined and initialized to non-null values by the fuzzer runtime; do not redeclare them inside the stub.
 - Stub `outputs` must be defined and initialized by the stub; they should never be null.
 - Inputs that are not deleted/freed during the stub should be listed in `outputs` (common for method/lifetime functions).

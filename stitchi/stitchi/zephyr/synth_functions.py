@@ -14,7 +14,7 @@ from ..data.metadata import UsageTracker, UsageTokens
 
 from .validation import run_validate_stub
 
-from .util import parallel_run, log
+from .util import parallel_run, log, get_model
 
 from openai import OpenAI
 
@@ -43,13 +43,14 @@ def synth_functions(
     usage: UsageTracker,
 ) -> Tuple[List[FunctionImpl], List[UnharnessableFunction]]:
     client = OpenAI()
+    model = get_model()
 
     p_objects = [o.model_dump() for o in objects],
     p_functions = [f.model_dump() for f in functions]
     p_target_functions = target_functions
 
     response = client.responses.parse(
-        model="gpt-5",
+        model=model,
         reasoning={ "effort": "low" },
         input=[
             {
@@ -63,7 +64,7 @@ def synth_functions(
         ],
         text_format=SynthResponse
     )
-    usage.record_model('synth-functions', 'gpt-5', UsageTokens.from_openai(response.usage))
+    usage.record_model('synth-functions', model, UsageTokens.from_openai(response.usage))
     parsed = response.output_parsed
 
     return parsed.functions, parsed.unharnessable
@@ -78,6 +79,7 @@ def synth_functions_with_errors(
     failed_stubs: List[FunctionImplError],
 ) -> Tuple[List[FunctionImpl], List[UnharnessableFunction]]:
     client = OpenAI()
+    model = get_model()
 
     p_objects = [o.model_dump() for o in objects],
     p_functions = [f.model_dump() for f in functions]
@@ -94,7 +96,7 @@ def synth_functions_with_errors(
     p_failed_stubs = [s.model_dump() for s in truncated_failed_stubs]    
 
     response = client.responses.parse(
-        model="gpt-5",
+        model=model,
         reasoning={ "effort": "low" },
         input=[
             {
@@ -112,7 +114,7 @@ def synth_functions_with_errors(
         ],
         text_format=SynthResponse
     )
-    usage.record_model('synth-functions', 'gpt-5', UsageTokens.from_openai(response.usage))
+    usage.record_model('synth-functions', model, UsageTokens.from_openai(response.usage))
     parsed = response.output_parsed
 
     return parsed.functions, parsed.unharnessable

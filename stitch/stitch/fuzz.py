@@ -42,11 +42,19 @@ def _select_harness(project: Project, name: Optional[str]) -> Optional[Harness]:
 
 
 def do_fuzz(args):
+    from .utils.project import resolve_model
+    
     path = Path(args.path)
     project = Project(path)
     if not project.exists() or not project.has_config():
         print(f'[{Colors.RED}-{Colors.END}] Could not find project at {path.absolute()}')
         return
+    
+    config = project.get_config()
+    
+    # Resolve model: CLI flag > config > default
+    model = resolve_model(getattr(args, 'model', None), config)
+    print(f'[{Colors.GREEN}+{Colors.END}] Using model: {model}')
 
     harness = _select_harness(project, args.name)
     if harness is None:
@@ -97,7 +105,10 @@ def do_fuzz(args):
 
         env = [
             'OPENAI_API_KEY',
+            'STITCH_MODEL',
         ]
+        # Set STITCH_MODEL in environment so it gets passed to container
+        os.environ['STITCH_MODEL'] = model
 
         # Graceful shutdown:
         # - First Ctrl+C: request a safe stop via the stop-file and keep waiting.
@@ -197,4 +208,5 @@ def register(subparsers):
         help='Do not copy compatible corpus files between revisions',
         default=False,
     )
+    subparser.add_argument('-m', '--model', type=str, default=None, help='LLM model to use (overrides stitch.json default)')
     subparser.set_defaults(func=do_fuzz)

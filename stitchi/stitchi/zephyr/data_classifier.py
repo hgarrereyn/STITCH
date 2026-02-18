@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 from ..data.metadata import UsageTracker, UsageTokens
 from .data import ObjectInfo, ProjectMetadata, FunctionImpl, FunctionInfo, FunctionClassifier, DataTypeInfo
 from ..utils.colors import Colors
+from .util import get_model
 
 from openai import OpenAI
 
@@ -22,6 +23,7 @@ class ClassificationResponse(BaseModel):
 
 def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker, selective_context: bool = False) -> Tuple[List[DataTypeInfo], List[FunctionClassifier]]:
     client = OpenAI()
+    model = get_model()
 
     data_types: List[DataTypeInfo] = []
     classifiers: List[FunctionClassifier] = []
@@ -72,12 +74,12 @@ def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endp
             })
 
         response = client.responses.parse(
-            model="gpt-5",
-            reasoning={ "effort": "minimal" },
+            model=model,
+            reasoning={ "effort": "low" },
             input=ctx,
             text_format=ClassificationResponse
         )
-        usage.record_model('classify-data', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('classify-data', model, UsageTokens.from_openai(response.usage))
 
         # Validate the classifiers match expected function names
         for c in response.output_parsed.classifiers:

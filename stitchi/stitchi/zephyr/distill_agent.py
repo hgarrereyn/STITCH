@@ -14,6 +14,7 @@ from .data import ProjectMetadata
 from ..utils.crash_repro import observe_crash, build_and_observe_crash
 from .pretty import pretty_print_code
 from ..data.metadata import UsageTracker, UsageTokens
+from .util import get_model
 
 
 MAX_ITERATIONS = 10
@@ -263,6 +264,7 @@ def tool_test_compile(testcase: str) -> TestCompileOutput:
 
 def run_distill_agent(harness: ProjectMetadata, testcase: str, history: Optional[list[dict]] = None) -> CrashAssessment:
     client = OpenAI()
+    model = get_model()
 
     usage = UsageTracker()
 
@@ -427,7 +429,7 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str, history: Optional
     for i in range(MAX_ITERATIONS):
         print(f'{Colors.GREEN}[+]{Colors.END} Iteration {i+1} of {MAX_ITERATIONS}')
         response = client.responses.parse(
-            model='gpt-5',
+            model=model,
             input=ctx,
             tools=tools,
             reasoning={
@@ -435,7 +437,7 @@ def run_distill_agent(harness: ProjectMetadata, testcase: str, history: Optional
                 "summary": "auto"
             }
         )
-        usage.record_model('distill-agent', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('distill-agent', model, UsageTokens.from_openai(response.usage))
 
         ctx += response.output
 

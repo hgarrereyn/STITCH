@@ -12,7 +12,7 @@ from .data import ProjectMetadata
 from .distill_agent import CrashAssessment
 from .pretty import print_functions, pretty_print_code, print_function_impl
 from .validation import run_validate_stub
-from .util import parallel_run
+from .util import parallel_run, get_model
 from ..utils.colors import Colors
 
 
@@ -34,6 +34,7 @@ class PatcherResponse(BaseModel):
 def run_patcher_full_context(info: ProjectInfo, harness: ProjectMetadata, assessment: CrashAssessment, threads: int) -> PatchInfo:
     usage = UsageTracker()
     client = OpenAI()
+    model = get_model()
 
     p_objects = [o.model_dump_json() for o in harness.objects]
     p_functions = [f.model_dump_json() for f in harness.functions]
@@ -58,13 +59,13 @@ def run_patcher_full_context(info: ProjectInfo, harness: ProjectMetadata, assess
     for i in range(MAX_RETRIES):
         print(f'{Colors.GREEN}[+]{Colors.END} Patching fuzzer stubs (attempt {i+1})')
         response = client.responses.parse(
-            model='gpt-5',
+            model=model,
             input=ctx,
             reasoning={ "effort": "low" },
             text_format=PatcherResponse
         )
         ctx += response.output
-        usage.record_model('patcher', 'gpt-5', UsageTokens.from_openai(response.usage))
+        usage.record_model('patcher', model, UsageTokens.from_openai(response.usage))
         stubs = response.output_parsed.stubs
 
         # Validate the stubs in parallel

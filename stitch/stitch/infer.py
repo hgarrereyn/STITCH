@@ -11,7 +11,7 @@ from .utils.tee import tee_log
 
 
 def do_infer(args):
-    from .utils.project import Project
+    from .utils.project import Project, resolve_model
 
     def fail(msg: str, *, cleanup_path: Path = None):
         print(f'[{Colors.RED}-{Colors.END}] {msg}', file=sys.stderr)
@@ -23,6 +23,12 @@ def do_infer(args):
     project = Project(path)
     if not project.exists() or not project.has_config():
         fail(f'Could not find project at {path.absolute()}')
+    
+    config = project.get_config()
+    
+    # Resolve model: CLI flag > config > default
+    model = resolve_model(getattr(args, 'model', None), config)
+    print(f'[{Colors.GREEN}+{Colors.END}] Using model: {model}')
     
     harness_name = args.name
     if harness_name is None:
@@ -64,7 +70,11 @@ def do_infer(args):
             'LANGSMITH_PROJECT',
             'LANGSMITH_ENDPOINT',
             'LANGSMITH_TRACING',
+            'STITCH_MODEL',
         ]
+        # Set STITCH_MODEL in environment so it gets passed to container
+        import os
+        os.environ['STITCH_MODEL'] = model
         mounts = [
             (str(tmpdir), '/fuzz/workspace')
         ]
@@ -103,4 +113,5 @@ def register(subparsers):
     subparser.add_argument('--force', action='store_true', help='Force overwrite existing harness')
     subparser.add_argument('--threads', type=int, default=1, help='Number of threads to use for inference')
     subparser.add_argument('--verbose', action='store_true', help='Verbose output')
+    subparser.add_argument('-m', '--model', type=str, default=None, help='LLM model to use (overrides stitch.json default)')
     subparser.set_defaults(func=do_infer)

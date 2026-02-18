@@ -9,6 +9,17 @@ import traceback
 from ..utils.colors import Colors
 
 
+DEFAULT_MODEL = 'gpt-5'
+
+
+def get_model() -> str:
+    """
+    Get the LLM model to use from the STITCH_MODEL environment variable.
+    Falls back to DEFAULT_MODEL if not set.
+    """
+    return os.environ.get('STITCH_MODEL', DEFAULT_MODEL)
+
+
 def smash_fn(args) -> Any:
     fn = args[0]
     return fn(*args[1])

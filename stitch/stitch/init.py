@@ -122,7 +122,8 @@ def do_init(args):
     if not quiet:
         print(f'[{Colors.GREEN}+{Colors.END}] Pinned commit: {commit}')
    
-    config = ProjectConfig(name=repo_name, repo=args.url, commit=commit)
+    model = getattr(args, 'model', None)
+    config = ProjectConfig(name=repo_name, repo=args.url, commit=commit, model=model)
 
     # Default to the repo name unless we have a custom path
     path = Path(args.path) if args.path is not None else Path(repo_name)
@@ -155,5 +156,12 @@ def register(subparsers):
         '--quiet',
         action='store_true',
         help='Only print the full path to the initialized project directory (for scripting)',
+    )
+    subparser.add_argument(
+        '-m',
+        '--model',
+        type=str,
+        default=None,
+        help='The default LLM model to use for inference tasks (can be overridden per-command)',
     )
     subparser.set_defaults(func=do_init)
