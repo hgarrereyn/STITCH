@@ -32,7 +32,6 @@ def _ignore_bundle_copy(_src: str, names: list[str]) -> set[str]:
         ".venv",
         "venv",
         "dist",
-        "build",
         "node_modules",
         ".DS_Store",
     }
