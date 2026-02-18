@@ -1,8 +1,11 @@
 from typing import List, Tuple
+import os
 import time
 
-from .data import ObjectInfo, FunctionInfo, FunctionImplError, ProjectSynthMetadata, FunctionImpl, UnharnessableFunction
-
+from .data import (
+    ObjectInfo, FunctionInfo, FunctionImplError,
+    ProjectSynthMetadata, FunctionImpl, UnharnessableFunction,
+)
 from ..data.metadata import UsageTracker
 from ..data.project_info import ProjectInfo
 from .data import ProjectMetadata
@@ -15,25 +18,27 @@ from .fill import run_fill_batch, analyze_blocking_missing_types
 from .validation import run_validate_object
 from .build_generators import build_generator
 
-from .util import parallel_run, parallel_run_raw, log
+from . import ui
 
 SYNTH_RETRIES = 3
 
 
-def process_header_functions(header_path: str, objects: List[ObjectInfo], info: ProjectInfo, threads: int, usage: UsageTracker) -> Tuple[List[FunctionInfo], List[FunctionImpl], List[FunctionImplError], List[UnharnessableFunction]]:
+def process_header_functions(
+    header_path: str,
+    objects: List[ObjectInfo],
+    info: ProjectInfo,
+    threads: int,
+    usage: UsageTracker,
+) -> Tuple[List[FunctionInfo], List[FunctionImpl], List[FunctionImplError], List[UnharnessableFunction]]:
     code = open(header_path, 'rb').read().decode('utf-8', errors='ignore')
-    
-    log('INFO', f"Scanning header {header_path} for function names")
+
     function_names = scan_function_names(code, usage)
-    log('SCAN', f"Found {len(function_names)} function names in {header_path}")
+    functions = scan_functions(code, function_names, usage, quiet=True)
 
-    log('INFO', f"Scanning header {header_path} for functions")
-    functions = scan_functions(code, function_names, usage)
-    log('SCAN', f"Found {len(functions)} functions in {header_path}")
-
-    log('INFO', f"Synthesizing functions in {header_path}")
-    valid_stubs, failed_stubs, unharnessable = incremental_synthesis_loop(objects, functions, usage, threads, info)
-    log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed, {len(unharnessable)} unharnessable in {header_path}")
+    valid_stubs, failed_stubs, unharnessable = incremental_synthesis_loop(
+        objects, functions, usage, threads, info,
+        show_progress=False,
+    )
 
     return functions, valid_stubs, failed_stubs, unharnessable
 
@@ -49,32 +54,46 @@ def main(args):
         merged_header += '</CODE>\n'
 
     usage = UsageTracker()
-
     start_time = time.time()
+
+    ui.pipeline_header()
+
+    ui.phase("scan-objects", "Identifying objects in header files.")
 
     objects = []
 
+    header_names = ", ".join(os.path.basename(h) for h in args.headers)
+
     if len(args.headers) <= 3:
-        # Scan for objects in the combined header
-        log('INFO', f"Scanning combined header(s) for objects")
         s_objects = time.time()
-        objects = scan_objects(merged_header, usage)
+        tp = ui.TokenProgress()
+        with ui.spinner(f"Scanning [bold]{header_names}[/bold] for objects", token_progress=tp):
+            objects = scan_objects(merged_header, usage, token_progress=tp)
         t_objects = time.time() - s_objects
-        log('SCAN', f"Found {len(objects)} objects")
-
     else:
-        # Scan for objects in each header individually
-        log('INFO', f"Scanning header(s) for objects")
         s_objects = time.time()
-        objects = parallel_run(args.threads, scan_objects, [(open(header, 'rb').read().decode('utf-8', errors='ignore'), usage) for header in args.headers])
+        objects = ui.parallel_run(
+            args.threads, scan_objects,
+            [(open(h, 'rb').read().decode('utf-8', errors='ignore'), usage) for h in args.headers],
+            item_labels=[os.path.basename(h) for h in args.headers],
+        )
         t_objects = time.time() - s_objects
-        log('SCAN', f"Found {len(objects)} objects")
 
-    log('INFO', f"Validating {len(objects)} objects")
+    ui.log('SCAN', f"Found [cyan]{len(objects)}[/cyan] objects")
+
     s_validate_objects = time.time()
-    objects: List[ObjectInfo] = parallel_run(args.threads, run_validate_object, [(info, o) for o in objects])
+    objects: List[ObjectInfo] = ui.parallel_run(
+        args.threads, run_validate_object,
+        [(info, o) for o in objects],
+        item_labels=[o.ptr_type for o in objects],
+        ok=lambda r: len(r) > 0,
+    )
     t_validate_objects = time.time() - s_validate_objects
-    log('SCAN', f"Validated {len(objects)} objects")
+
+    ui.phase_result(
+        f"[cyan]{len(objects)}[/cyan] valid objects",
+        t_objects + t_validate_objects,
+    )
 
     functions = []
     valid_stubs = []
@@ -85,42 +104,75 @@ def main(args):
     t_synthesis = 0
 
     if len(args.headers) <= 3:
-        # For a few headers, we run on the merged header for better context preservation
-        log('INFO', 'Small project -- using merged header')
+        ui.phase("scan-names", "Discovering function names in source code.")
 
         s_functions = time.time()
-        log('INFO', 'Scanning merged header for function names')
-        function_names = scan_function_names(merged_header, usage)
-        log('SCAN', f"Found {len(function_names)} function names in merged header")
+        tp = ui.TokenProgress()
+        with ui.spinner(f"Scanning [bold]{header_names}[/bold] for function names", token_progress=tp):
+            function_names = scan_function_names(merged_header, usage, token_progress=tp)
+        ui.log('SCAN', f"Found [cyan]{len(function_names)}[/cyan] function names")
 
-        log('INFO', 'Scanning merged header for functions')
-        functions = scan_functions(merged_header, function_names, usage)
-        log('SCAN', f"Found {len(functions)} functions in merged header")
+        ui.phase("scan-funcs", "Analyzing function signatures and parameters.")
+
+        tp = ui.TokenProgress()
+        with ui.spinner(f"Scanning [bold]{header_names}[/bold] for function signatures", token_progress=tp):
+            functions = scan_functions(merged_header, function_names, usage, quiet=True, token_progress=tp)
         t_functions = time.time() - s_functions
+        ui.phase_result(
+            f"[cyan]{len(function_names)}[/cyan] names  ·  "
+            f"[cyan]{len(functions)}[/cyan] functions",
+            t_functions,
+        )
 
-        log('INFO', 'Synthesizing functions')
+        ui.phase("synth-functions", "Synthesizing function implementations.")
+
         s_synthesis = time.time()
-        valid_stubs, failed_stubs, unharnessable = incremental_synthesis_loop(objects, functions, usage, args.threads, info)
-        log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed, {len(unharnessable)} unharnessable")
+        valid_stubs, failed_stubs, unharnessable = incremental_synthesis_loop(
+            objects, functions, usage, args.threads, info,
+            verbose=args.verbose,
+            token_progress=ui.TokenProgress(),
+        )
         unharnessable_functions.extend(unharnessable)
         t_synthesis = time.time() - s_synthesis
-    else:
-        # For many headers, we perform independent scans/synthesis to avoid context explosion
-        log('INFO', 'Large project -- performing independent scans/synthesis')
 
-        # Scan for functions in each header individually
-        log('INFO', f"Scanning header(s) for functions")
-        s_synthesis = time.time()
-        res = parallel_run_raw(args.threads, process_header_functions, [(header_path, objects, info, args.threads, usage) for header_path in args.headers])
+        parts = [f"[green]{len(valid_stubs)}[/green] synthesized"]
+        if failed_stubs:
+            parts.append(f"[red]{len(failed_stubs)}[/red] failed")
+        if unharnessable:
+            parts.append(f"[yellow]{len(unharnessable)}[/yellow] unharnessable")
+        ui.phase_result("  ·  ".join(parts), t_synthesis)
+
+    else:
+        ui.phase("scan-names", "Discovering function names in source code.")
+        ui.phase("scan-funcs", "Analyzing function signatures and parameters.")
+        ui.info("Large project — independent header processing")
+
+        s_functions = time.time()
+        res = ui.parallel_run_raw(
+            args.threads, process_header_functions,
+            [(hp, objects, info, args.threads, usage) for hp in args.headers],
+            item_labels=[os.path.basename(hp) for hp in args.headers],
+        )
         for p_functions, p_valid_stubs, p_failed_stubs, p_unharnessable in res:
             functions.extend(p_functions)
             valid_stubs.extend(p_valid_stubs)
             failed_stubs.extend(p_failed_stubs)
             unharnessable_functions.extend(p_unharnessable)
-        t_synthesis = time.time() - s_synthesis
-        log('SCAN', f"Found {len(functions)} functions total")
-        log('SYNTH', f"Synthesized {len(valid_stubs)} functions, {len(failed_stubs)} failed")
+        t_synthesis = time.time() - s_functions
 
+        ui.phase_result(
+            f"[cyan]{len(functions)}[/cyan] functions scanned",
+            t_synthesis,
+        )
+
+        ui.phase("synth-functions", "Synthesizing function implementations.")
+
+        parts = [f"[green]{len(valid_stubs)}[/green] synthesized"]
+        if failed_stubs:
+            parts.append(f"[red]{len(failed_stubs)}[/red] failed")
+        if unharnessable_functions:
+            parts.append(f"[yellow]{len(unharnessable_functions)}[/yellow] unharnessable")
+        ui.phase_result("  ·  ".join(parts), t_synthesis)
 
     meta = ProjectMetadata(
         objects=objects,
@@ -134,45 +186,73 @@ def main(args):
         endpoint_failures=failed_stubs,
     )
 
-    # If we have too many endpoints, use a more restricted context for filling
-    # Otherwise, we can use the full context
     selective_context = len(meta.endpoints) > 300 or len(meta.objects) > 300
 
-    log('INFO', f"Constructability analysis")
-    target_types = analyze_blocking_missing_types(valid_stubs, objects, max_depth=6)
+    ui.phase("synth-fill", "Filling missing types for constructability.")
+
+    with ui.spinner("Analyzing constructability"):
+        target_types = analyze_blocking_missing_types(valid_stubs, objects, max_depth=6)
 
     t_fill = 0
     if len(target_types) > 0:
-        log('INFO', f"Filling {len(target_types)} types")
+        ui.log('FILL', f"Found [yellow]{len(target_types)}[/yellow] blocking types to fill")
+
         s_fill = time.time()
-        valid_stubs, failed_stubs = run_fill_batch(info, meta, target_types, usage, args.threads, selective_context)
+        valid_stubs, failed_stubs = run_fill_batch(
+            info, meta, target_types, usage, args.threads, selective_context,
+            verbose=args.verbose,
+            token_progress=ui.TokenProgress(),
+        )
         meta.endpoints.extend(valid_stubs)
         synth_meta.endpoint_failures.extend(failed_stubs)
-        log('FILL', f"Filled {len(valid_stubs)} functions, {len(failed_stubs)} failed")
         t_fill = time.time() - s_fill
-    else:
-        log('FILL', "No types to fill")
 
-    # Perform per-endpoint classification
-    log('INFO', f"Classifying data")
+        parts = [f"[green]{len(valid_stubs)}[/green] filled"]
+        if failed_stubs:
+            parts.append(f"[red]{len(failed_stubs)}[/red] failed")
+        ui.phase_result("  ·  ".join(parts), t_fill)
+    else:
+        ui.success("All types constructible — nothing to fill")
+
+    ui.phase("classify-data", "Classifying data types and endpoints.")
+
     s_classify = time.time()
-    data_types, classifiers = classify_data(meta.objects, meta.functions, meta.endpoints, usage, selective_context)
+    data_types, classifiers = classify_data(
+        meta.objects, meta.functions, meta.endpoints, usage, selective_context,
+        token_progress=ui.TokenProgress(),
+    )
     t_classify = time.time() - s_classify
     meta.data_types = data_types
     meta.endpoint_classifiers = classifiers
-    log('CLASSIFY', f"Classified {len(data_types)} data types, {len(classifiers)} classifiers")
 
-    # Build generators
-    log('INFO', f"Building generators")
+    ui.phase_result(
+        f"[cyan]{len(data_types)}[/cyan] data types  ·  "
+        f"[cyan]{len(classifiers)}[/cyan] classifiers",
+        t_classify,
+    )
+
+    ui.phase("build-generators", "Constructing data generators.")
+
     s_build_generators = time.time()
-    generators = parallel_run(args.threads, build_generator, [(d, meta.objects, meta.functions, meta.endpoints, meta.endpoint_classifiers, usage, selective_context) for d in meta.data_types])
+    generators = ui.parallel_run(
+        args.threads, build_generator,
+        [
+            (d, meta.objects, meta.functions, meta.endpoints,
+             meta.endpoint_classifiers, usage, selective_context, True)
+            for d in meta.data_types
+        ],
+        item_labels=[d.data_type for d in meta.data_types],
+        ok=lambda r: len(r) > 0,
+    )
     t_build_generators = time.time() - s_build_generators
     meta.generators = generators
-    log('GENERATOR', f"Built {len(meta.generators)} generators")
 
-    # Print usage
-    log('INFO', f"Usage: {usage.cost_by_task()}")
-    
+    ui.phase_result(
+        f"[green]{len(meta.generators)}[/green] generators built",
+        t_build_generators,
+    )
+
+    # ── Summary ──────────────────────────────────────────────────────────
     end_time = time.time()
     meta.metadata['total_time'] = end_time - start_time
     meta.metadata['scan_objects'] = t_objects
@@ -182,6 +262,8 @@ def main(args):
     meta.metadata['fill'] = t_fill
     meta.metadata['classify'] = t_classify
     meta.metadata['build_generators'] = t_build_generators
+
+    ui.pipeline_summary(meta, end_time - start_time, usage)
 
     open(args.output, 'w').write(meta.model_dump_json(indent=2))
     open(args.output.replace('.json', '_failed.json'), 'w').write(synth_meta.model_dump_json(indent=2))

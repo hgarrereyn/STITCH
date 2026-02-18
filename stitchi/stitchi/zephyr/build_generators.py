@@ -1,15 +1,17 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 import json
 import os
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 
-from ..data.metadata import UsageTracker, UsageTokens
+from ..data.metadata import UsageTracker
 from .data import DataGenerator, ObjectInfo, ProjectMetadata, FunctionImpl, FunctionInfo, DataTypeInfo, FunctionClassifier
 from .pretty import pretty_print_generator, pretty_print_code
-from ..utils.colors import Colors
-from .util import sample_generator, validate_generator, parallel_run, get_model
+from .util import sample_generator, validate_generator, get_model, call_llm
 
-from openai import OpenAI
+if TYPE_CHECKING:
+    from .ui import TokenProgress
 
 
 REGEN_ATTEMPTS = 3
@@ -21,13 +23,21 @@ class BuildGeneratorResponse(BaseModel):
     generator: str
 
 
-def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], endpoint_classifiers: List[FunctionClassifier], usage: UsageTracker, selective_context: bool = False) -> List[DataGenerator]:
-    client = OpenAI()
+def build_generator(
+    data_type_info: DataTypeInfo,
+    objects: List[ObjectInfo],
+    functions: List[FunctionInfo],
+    endpoints: List[FunctionImpl],
+    endpoint_classifiers: List[FunctionClassifier],
+    usage: UsageTracker,
+    selective_context: bool = False,
+    quiet: bool = False,
+    token_progress: Optional[TokenProgress] = None,
+) -> List[DataGenerator]:
     usage = UsageTracker()
 
     data_type = data_type_info.data_type
     
-    # Group endpoints by data type
     endpoints_by_name = {e.name: e for e in endpoints}
     endpoint_classifiers_by_name = {c.name: c for c in endpoint_classifiers}
 
@@ -38,9 +48,7 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
                 by_type[dt] = []
             by_type[dt].append(endpoints_by_name[name])
 
-    # Bail early if this data type is not used
     if data_type not in by_type:
-        print(f'[{Colors.RED}-{Colors.END}] Data type {Colors.YELLOW}{data_type}{Colors.END} not used, skipping...')
         return []
 
     ctx = [
@@ -75,23 +83,22 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
     generator = None
     model = get_model()
     for i in range(REGEN_ATTEMPTS):
-        print(f'[{Colors.GREEN}+{Colors.END}] Building generator for {data_type} (attempt {i+1})')
-        response = client.responses.parse(
+        parsed: BuildGeneratorResponse = call_llm(
             model=model,
-            reasoning={ "effort": "low" },
             input=ctx,
-            text_format=BuildGeneratorResponse
+            text_format=BuildGeneratorResponse,
+            usage=usage,
+            task='build-generators',
+            reasoning={"effort": "low"},
+            token_progress=token_progress,
         )
-        usage.record_model('build-generators', model, UsageTokens.from_openai(response.usage))
-        
-        generator = response.output_parsed.generator
+
+        generator = parsed.generator
         error = validate_generator(generator)
         if error is not None:
-            print(f'[{Colors.RED}-{Colors.END}] Error validating generator for {data_type}: {error}')
+            if not quiet:
+                pretty_print_code(generator, language="python")
 
-            pretty_print_code(generator, language="python")
-            
-            # Append assistant output and the error result
             ctx.append({
                 "role": "assistant",
                 "content": generator
@@ -101,28 +108,37 @@ def build_generator(data_type_info: DataTypeInfo, objects: List[ObjectInfo], fun
                 "content": f'Error validating generator for {data_type}: {error}'
             })
         else:
-            print(f'[{Colors.GREEN}+{Colors.END}] Generator for {data_type} built successfully')
             validated = True
             break
 
     if not validated:
-        print(f'[{Colors.RED}-{Colors.END}] Failed to build generator for {data_type}')
         return []
 
     gen = DataGenerator(data_type=data_type, generator=generator)
 
-    pretty_print_generator(gen)
-    samples = sample_generator(generator, n=10)
-    for i, sample in enumerate(samples):
-        print(f'[{Colors.CYAN}*{Colors.END}] Sample {i}: {sample}')
+    if not quiet:
+        pretty_print_generator(gen)
+        samples = sample_generator(generator, n=10)
+        for i, sample in enumerate(samples):
+            from . import ui
+            ui.info(f"Sample {i}: {sample}")
 
     return [gen]
 
 
 def main_build_generators(args):
+    from . import ui
+
     harness = ProjectMetadata.model_validate_json(open(args.harness).read())
 
-    generators = parallel_run(args.threads, build_generator, [(d, harness.objects, harness.functions, harness.endpoints, harness.endpoint_classifiers, harness.usage, args.selective_context) for d in harness.data_types])
+    generators = ui.parallel_run(
+        args.threads, build_generator,
+        [(d, harness.objects, harness.functions, harness.endpoints,
+          harness.endpoint_classifiers, harness.usage, args.selective_context, False)
+         for d in harness.data_types],
+        item_labels=[d.data_type for d in harness.data_types],
+        ok=lambda r: len(r) > 0,
+    )
     print(harness.usage.cost_by_task())
 
     harness.generators = generators

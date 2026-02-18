@@ -16,12 +16,11 @@ class ValidateStubResult(BaseModel):
 
 def _find_valid_object_type(info: ProjectInfo, object: ObjectInfo) -> Optional[str]:
     """Find a valid object type for the given object."""
-    if validate_object(object.ptr_type, info, True) is None:
+    if validate_object(object.ptr_type, info, False) is None:
         return object.ptr_type
     
-    # Check if any of the aliases are valid
     for alias in object.aliases:
-        if validate_object(alias, info, True) is None:
+        if validate_object(alias, info, False) is None:
             return alias
 
     return None

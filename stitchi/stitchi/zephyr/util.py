@@ -1,15 +1,39 @@
+from __future__ import annotations
+
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, List, Optional, Callable, TypeVar
+from typing import Any, List, Optional, Callable, Type, TypeVar, TYPE_CHECKING
 import tempfile
 import importlib.util
 import os
 import traceback
 
-from ..utils.colors import Colors
+from openai import OpenAI
+import tiktoken
 
+from ..utils.colors import Colors
+from ..data.metadata import UsageTracker, UsageTokens
+
+if TYPE_CHECKING:
+    from .ui import TokenProgress
 
 DEFAULT_MODEL = 'gpt-5'
+
+
+def _get_encoder(model: str) -> tiktoken.Encoding:
+    try:
+        return tiktoken.encoding_for_model(model)
+    except KeyError:
+        return tiktoken.get_encoding("o200k_base")
+
+_client: Optional[OpenAI] = None
+
+
+def _get_client() -> OpenAI:
+    global _client
+    if _client is None:
+        _client = OpenAI()
+    return _client
 
 
 def get_model() -> str:
@@ -18,6 +42,63 @@ def get_model() -> str:
     Falls back to DEFAULT_MODEL if not set.
     """
     return os.environ.get('STITCH_MODEL', DEFAULT_MODEL)
+
+
+T = TypeVar("T")
+
+
+def call_llm(
+    *,
+    input: list,
+    text_format: Type[T],
+    usage: UsageTracker,
+    task: str,
+    model: Optional[str] = None,
+    reasoning: Optional[dict] = None,
+    token_progress: Optional[TokenProgress] = None,
+) -> T:
+    """Stream an OpenAI Responses API call and return the parsed output.
+
+    Updates *token_progress* in real time so the spinner can display
+    input/output token counts as they accumulate.
+    """
+    if model is None:
+        model = get_model()
+
+    client = _get_client()
+
+    kwargs: dict[str, Any] = dict(
+        model=model,
+        input=input,
+        text_format=text_format,
+    )
+    if reasoning is not None:
+        kwargs["reasoning"] = reasoning
+
+    rough_input = 0
+    rough_output = 0
+
+    if token_progress is not None:
+        enc = _get_encoder(model)
+        rough_input = sum(len(enc.encode(msg.get("content", ""))) for msg in input if isinstance(msg, dict))
+        token_progress.input_tokens += rough_input
+
+    with client.responses.stream(**kwargs) as stream:
+        for event in stream:
+            if token_progress is not None and hasattr(event, "delta") and isinstance(getattr(event, "delta", None), str):
+                increment = max(1, len(event.delta) // 4)
+                rough_output += increment
+                token_progress.output_tokens += increment
+
+        response = stream.get_final_response()
+
+    if token_progress is not None:
+        token_progress.input_tokens += response.usage.input_tokens - rough_input
+        token_progress.output_tokens += response.usage.output_tokens - rough_output
+        token_progress.calls += 1
+
+    usage.record_model(task, model, UsageTokens.from_openai(response.usage))
+    return response.output_parsed
 
 
 def smash_fn(args) -> Any:
@@ -87,7 +168,6 @@ def sample_generator(generator: str, n: int = 1000, allow_errors: bool = False) 
                 outputs.append(output)
             except Exception as e:
                 if allow_errors:
-                    print(f"Generator crashed at sample {i}: {e}\n{traceback.format_exc()}")
                     continue
                 raise Exception(f"Generator crashed at sample {i}: {e}\n{traceback.format_exc()}")
         
@@ -118,12 +198,9 @@ def validate_generator(generator: str) -> Optional[str]:
         # Check for uniqueness - at least 10% of outputs should be different
         unique_outputs = set(outputs)
         if len(unique_outputs) < 0.1 * len(outputs):
-            print(f"Generator produced duplicate outputs in 1000 iterations. Expected at least {0.1 * len(outputs)} unique outputs, got {len(unique_outputs)}")
             return f'Generator produced duplicate outputs in 1000 iterations. Expected at least {0.1 * len(outputs)} unique outputs, got {len(unique_outputs)}'
 
-        # If we get here, all tests passed
         return None
                 
     except Exception as e:
-        print(f"Error validating generator: {e}")
         return f'Error validating generator: {e}'

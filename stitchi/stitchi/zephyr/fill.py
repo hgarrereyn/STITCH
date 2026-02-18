@@ -1,4 +1,6 @@
-from typing import List, Tuple, Dict, Set
+from __future__ import annotations
+
+from typing import List, Tuple, Dict, Set, Optional, TYPE_CHECKING
 import os
 from argparse import ArgumentParser
 from pathlib import Path
@@ -7,15 +9,16 @@ import json
 from pydantic import BaseModel
 
 from .data import FunctionImpl, FunctionInfo, ObjectInfo, ProjectMetadata, FunctionImplError
-from ..data.metadata import UsageTracker, UsageTokens
+from ..data.metadata import UsageTracker
 from ..data.project_info import ProjectInfo
 from .validation import run_validate_stub
-from .util import parallel_run, log, get_model
-from ..utils.colors import Colors
+from .util import parallel_run as _parallel_run, call_llm
 from .pretty import print_function_impl, pretty_print_error
 
-from openai import OpenAI
 import openai
+
+if TYPE_CHECKING:
+    from .ui import TokenProgress
 
 
 PROMPT_FILL_BATCH = open(os.path.join(os.path.dirname(__file__), 'prompts/fill_batch.md')).read()
@@ -24,7 +27,6 @@ PROMPT_WITH_ERRORS = open(os.path.join(os.path.dirname(__file__), 'prompts/with_
 MAX_RETRIES = 3
 BATCH_SIZE = 20
 
-# max number of characters for an error message before it is truncated
 MAX_ERROR_SIZE = 4000
 
 
@@ -34,7 +36,6 @@ def analyze_blocking_missing_types(endpoints: List[FunctionImpl], objects: List[
     A type is considered blocking if it is (a) not constructible within depth and (b) appears
     as an input type for at least one endpoint.
     """
-    # Normalize inputs/outputs and producers
     endpoint_inputs: Dict[str, List[str]] = {}
     endpoint_outputs: Dict[str, List[str]] = {}
     types_seen: Set[str] = set()
@@ -83,7 +84,6 @@ def analyze_blocking_missing_types(endpoints: List[FunctionImpl], objects: List[
         memo[key] = ok
         return ok
 
-    # Compute missing types across seen types and declared object types
     declared_types: Set[str] = {o.ptr_type for o in (objects or [])}
     all_types: Set[str] = declared_types | types_seen
     missing: Set[str] = set()
@@ -91,7 +91,6 @@ def analyze_blocking_missing_types(endpoints: List[FunctionImpl], objects: List[
         if not type_constructible(t, max_depth):
             missing.add(t)
 
-    # Only return those missing types that are used as inputs to at least one endpoint
     input_types: Set[str] = set()
     for in_list in endpoint_inputs.values():
         input_types.update(in_list)
@@ -112,19 +111,13 @@ def prompt_fill_ctx(metadata: ProjectMetadata, valid_endpoints: List[FunctionImp
         }
     ]    
     if selective_context:
-        # Identify just the endpoints/objects/functions that are likely relevant for this batch
-        
-        # Provide all objects (for context about types)
         p_objects = [o.model_dump() for o in metadata.objects]
 
-        # Find existing endpoints that reference the target types
         relevant_endpoints = [e for e in metadata.endpoints + valid_endpoints if any(io.type in batch_types for io in e.inputs + e.outputs)]
         relevant_endpoint_names = [e.name for e in relevant_endpoints]
 
-        # Find functions that are referenced by the relevant endpoints
         relevant_functions = [f for f in metadata.functions if f.name in relevant_endpoint_names]
 
-        # Provide the relevant endpoints/objects/functions
         p_endpoints = [e.model_dump() for e in relevant_endpoints]
         p_functions = [f.model_dump() for f in relevant_functions]
 
@@ -133,7 +126,6 @@ def prompt_fill_ctx(metadata: ProjectMetadata, valid_endpoints: List[FunctionImp
             "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nEndpoints:\n{json.dumps(p_endpoints)}\n\nTarget types:\n{json.dumps(batch_types)}'
         })
     else:
-        # Provide all endpoints/objects/functions
         p_endpoints = [e.model_dump() for e in metadata.endpoints + valid_endpoints]
         p_objects = [o.model_dump() for o in metadata.objects]
         p_functions = [f.model_dump() for f in metadata.functions]
@@ -145,25 +137,20 @@ def prompt_fill_ctx(metadata: ProjectMetadata, valid_endpoints: List[FunctionImp
     return ctx
 
 
-def prompt_fill_batch(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], usage: UsageTracker, selective_context: bool = False) -> List[FunctionImpl]:
-    client = OpenAI()
-    model = get_model()
-
+def prompt_fill_batch(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], usage: UsageTracker, selective_context: bool = False, token_progress: Optional[TokenProgress] = None) -> List[FunctionImpl]:
     ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=False)
-    res = client.responses.parse(
-        model=model,
-        reasoning={ "effort": "low" },
+    parsed: FillBatchResponse = call_llm(
         input=ctx,
-        text_format=FillBatchResponse
+        text_format=FillBatchResponse,
+        usage=usage,
+        task='fill-batch',
+        reasoning={"effort": "low"},
+        token_progress=token_progress,
     )
-    usage.record_model('fill-batch', model, UsageTokens.from_openai(res.usage))
-    return res.output_parsed.endpoints
+    return parsed.endpoints
 
 
-def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], failed_endpoints: List[FunctionImplError], usage: UsageTracker, selective_context: bool = False) -> List[FunctionImpl]:
-    client = OpenAI()
-    model = get_model()
-    
+def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: List[FunctionImpl], batch_types: List[str], failed_endpoints: List[FunctionImplError], usage: UsageTracker, selective_context: bool = False, token_progress: Optional[TokenProgress] = None) -> List[FunctionImpl]:
     ctx = prompt_fill_ctx(metadata, valid_endpoints, batch_types, selective_context, with_errors=True)
 
     truncated_failed_endpoints = []
@@ -180,94 +167,130 @@ def prompt_fill_batch_with_errors(metadata: ProjectMetadata, valid_endpoints: Li
         "content": f'Previous failure messages:\n{json.dumps(p_failed_endpoints)}'
     })
 
-    res = client.responses.parse(
-        model=model,
-        reasoning={ "effort": "low" },
+    parsed: FillBatchResponse = call_llm(
         input=ctx,
-        text_format=FillBatchResponse
+        text_format=FillBatchResponse,
+        usage=usage,
+        task='fill-batch',
+        reasoning={"effort": "low"},
+        token_progress=token_progress,
     )
-    usage.record_model('fill-batch', model, UsageTokens.from_openai(res.usage))
-    return res.output_parsed.endpoints
+    return parsed.endpoints
 
 
-def run_fill_batch(info: ProjectInfo, metadata: ProjectMetadata, target_types: List[str], usage: UsageTracker, threads: int, selective_context: bool = False) -> List[FunctionImpl]:
-    """Ask the LLM to synthesize constructor endpoints for target object types; return new validated endpoints."""
+def run_fill_batch(
+    info: ProjectInfo,
+    metadata: ProjectMetadata,
+    target_types,
+    usage: UsageTracker,
+    threads: int,
+    selective_context: bool = False,
+    verbose: bool = False,
+    token_progress: Optional[TokenProgress] = None,
+) -> List[FunctionImpl]:
+    """Ask the LLM to synthesize constructor endpoints for target object types."""
+    from . import ui
+
     if len(target_types) == 0:
-        return []
+        return [], []
 
-    # Keep track of valid and failed endpoints
     valid_endpoints = []
     total_failed_endpoints = []
 
-    # Failed endpoints by name (we only keep the latest error for each endpoint)
     failed_endpoints: Dict[str, FunctionImplError] = {}
 
-    # Types left to synthesize and how many times we've tried to synthesize them
     remaining_types: Dict[str, int] = {t: 0 for t in target_types}
 
     step = 0
     while len(remaining_types) > 0:
         step += 1
-        log('INFO', f"Fill step {step} -- {len(remaining_types)} types remaining")
+        batch_size = min(BATCH_SIZE, len(remaining_types))
 
-        # Prepare the next batch of types
-        target_types = [t for t in remaining_types][:BATCH_SIZE]
+        ui.step_header(
+            f"Fill step {step}  ·  "
+            f"[yellow]{len(remaining_types)}[/yellow] types remaining"
+        )
 
-        # Extract the failed functions relevant for this batch
-        filtered_failed = [failed_endpoints[f] for f in target_types if f in failed_endpoints]
+        batch_types = [t for t in remaining_types][:BATCH_SIZE]
 
-        # Query the LLM
+        filtered_failed = [failed_endpoints[f] for f in batch_types if f in failed_endpoints]
+
         stubs = None
-        if len(filtered_failed) > 0:
-            try:
-                stubs = prompt_fill_batch_with_errors(metadata, valid_endpoints, target_types, filtered_failed, usage, selective_context)
-            except openai.BadRequestError:
-                log('ERROR', f"Context too large in prompt_fill_batch_with_errors")
-        else:
-            try:
-                stubs = prompt_fill_batch(metadata, valid_endpoints, target_types, usage, selective_context)
-            except openai.BadRequestError:
-                log('ERROR', f"Context too large in prompt_fill_batch")
+        tp = token_progress or ui.TokenProgress()
+        with ui.spinner(f"Querying LLM (batch of {batch_size})", token_progress=tp):
+            if len(filtered_failed) > 0:
+                try:
+                    stubs = prompt_fill_batch_with_errors(metadata, valid_endpoints, batch_types, filtered_failed, usage, selective_context, token_progress=tp)
+                except openai.BadRequestError:
+                    stubs = None
+            else:
+                try:
+                    stubs = prompt_fill_batch(metadata, valid_endpoints, batch_types, usage, selective_context, token_progress=tp)
+                except openai.BadRequestError:
+                    stubs = None
 
-        res: List[FunctionImpl] = stubs
-        
-        # Validate the endpoints in parallel
-        results = parallel_run(threads, run_validate_stub, [(info, s, metadata.objects) for s in res])
+        if stubs is None:
+            ui.error("Context too large — skipping batch")
+            for t in batch_types:
+                if t in remaining_types:
+                    remaining_types[t] += 1
+                    if remaining_types[t] > MAX_RETRIES:
+                        remaining_types.pop(t)
+            continue
+
+        results = ui.parallel_run(
+            threads, run_validate_stub,
+            [(info, s, metadata.objects) for s in stubs],
+            item_labels=[s.name for s in stubs],
+            ok=lambda r: isinstance(r[0].result, FunctionImpl),
+        )
+
+        n_valid = 0
+        n_failed = 0
 
         for r in results:
             if isinstance(r.result, FunctionImpl):
                 stub: FunctionImpl = r.result
 
-                print_function_impl(stub)
+                if verbose:
+                    print_function_impl(stub)
 
                 if stub.name in remaining_types:
-                    log('VALID', f"Valid endpoint for {Colors.YELLOW}{stub.name}{Colors.END}")
                     valid_endpoints.append(stub)
                     remaining_types.pop(stub.name)
+                    n_valid += 1
                 else:
-                    log('VALID', f"Extraneous stub for {Colors.YELLOW}{stub.name}{Colors.END} (not in remaining types)")
                     continue
             else:
-                error: FunctionImplError = r.result
-                pretty_print_error(error)
+                err: FunctionImplError = r.result
 
-                if error.stub.name in remaining_types:
-                    log('ERROR', f"Invalid endpoint for {Colors.YELLOW}{error.stub.name}{Colors.END}")
-                    failed_endpoints[error.stub.name] = error
-                    remaining_types[error.stub.name] += 1 # Increment the retry count
-                    if remaining_types[error.stub.name] > MAX_RETRIES:
-                        log('ERROR', f"Failed to synthesize endpoint for {Colors.YELLOW}{error.stub.name}{Colors.END} after {MAX_RETRIES} attempts")
-                        remaining_types.pop(error.stub.name)
-                        total_failed_endpoints.append(error)
+                if verbose:
+                    pretty_print_error(err)
+
+                if err.stub.name in remaining_types:
+                    failed_endpoints[err.stub.name] = err
+                    remaining_types[err.stub.name] += 1
+                    if remaining_types[err.stub.name] > MAX_RETRIES:
+                        remaining_types.pop(err.stub.name)
+                        total_failed_endpoints.append(err)
+                    n_failed += 1
                 else:
-                    log('ERROR', f"Extraneous stub for {Colors.YELLOW}{error.stub.name}{Colors.END} (not in remaining functions)")
                     continue
 
+        parts = []
+        if n_valid:
+            parts.append(f"[green]{n_valid} valid[/green]")
+        if n_failed:
+            parts.append(f"[red]{n_failed} failed[/red]")
+        if parts:
+            ui.success(" · ".join(parts))
 
     return valid_endpoints, total_failed_endpoints
 
 
 def main(args):
+    from . import ui
+
     info = ProjectInfo.model_validate_json(open(args.info).read())
     metadata = ProjectMetadata.model_validate_json(open(args.metadata).read())
     target_types = analyze_blocking_missing_types(metadata.endpoints, metadata.objects, max_depth=6)

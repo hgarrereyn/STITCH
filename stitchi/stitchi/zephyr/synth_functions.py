@@ -1,27 +1,27 @@
-from cmd import PROMPT
+from __future__ import annotations
+
 import json
 from pydantic import BaseModel, Field
 import os
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, TYPE_CHECKING
 
 from ..data.project_info import ProjectInfo
 
 from .data import FunctionImpl, FunctionImplError, ObjectInfo, FunctionInfo, UnharnessableFunction
-from .pretty import print_functions, print_function_impl, pretty_print_error
+from .pretty import print_function_impl, pretty_print_error
 
-from ..utils.colors import Colors
-from ..data.metadata import UsageTracker, UsageTokens
+from ..data.metadata import UsageTracker
 
 from .validation import run_validate_stub
 
-from .util import parallel_run, log, get_model
+from .util import parallel_run as _parallel_run, call_llm
 
-from openai import OpenAI
+if TYPE_CHECKING:
+    from .ui import TokenProgress
 
 
 RETRIES = 3
 
-# max number of characters for an error message before it is truncated
 MAX_ERROR_SIZE = 4000
 
 PROMPT_SYNTH_FUNCTIONS = open(os.path.join(os.path.dirname(__file__), 'prompts/synth_functions.md')).read()
@@ -41,32 +41,23 @@ def synth_functions(
     functions: List[FunctionInfo],
     target_functions: List[str],
     usage: UsageTracker,
+    token_progress: Optional[TokenProgress] = None,
 ) -> Tuple[List[FunctionImpl], List[UnharnessableFunction]]:
-    client = OpenAI()
-    model = get_model()
-
     p_objects = [o.model_dump() for o in objects],
     p_functions = [f.model_dump() for f in functions]
     p_target_functions = target_functions
 
-    response = client.responses.parse(
-        model=model,
-        reasoning={ "effort": "low" },
+    parsed: SynthResponse = call_llm(
         input=[
-            {
-                "role": "developer",
-                "content": PROMPT_SYNTH_FUNCTIONS
-            },
-            {
-                "role": "user",
-                "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nTarget functions:\n{json.dumps(p_target_functions)}'
-            },
+            {"role": "developer", "content": PROMPT_SYNTH_FUNCTIONS},
+            {"role": "user", "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nTarget functions:\n{json.dumps(p_target_functions)}'},
         ],
-        text_format=SynthResponse
+        text_format=SynthResponse,
+        usage=usage,
+        task='synth-functions',
+        reasoning={"effort": "low"},
+        token_progress=token_progress,
     )
-    usage.record_model('synth-functions', model, UsageTokens.from_openai(response.usage))
-    parsed = response.output_parsed
-
     return parsed.functions, parsed.unharnessable
 
 
@@ -77,10 +68,8 @@ def synth_functions_with_errors(
     usage: UsageTracker,
     existing_stubs: List[FunctionImpl],
     failed_stubs: List[FunctionImplError],
+    token_progress: Optional[TokenProgress] = None,
 ) -> Tuple[List[FunctionImpl], List[UnharnessableFunction]]:
-    client = OpenAI()
-    model = get_model()
-
     p_objects = [o.model_dump() for o in objects],
     p_functions = [f.model_dump() for f in functions]
     p_target_functions = target_functions
@@ -93,30 +82,20 @@ def synth_functions_with_errors(
         else:
             truncated_failed_stubs.append(fs)
 
-    p_failed_stubs = [s.model_dump() for s in truncated_failed_stubs]    
+    p_failed_stubs = [s.model_dump() for s in truncated_failed_stubs]
 
-    response = client.responses.parse(
-        model=model,
-        reasoning={ "effort": "low" },
+    parsed: SynthResponse = call_llm(
         input=[
-            {
-                "role": "developer",
-                "content": PROMPT_SYNTH_FUNCTIONS + '\n' + PROMPT_WITH_ERRORS
-            },
-            {
-                "role": "user",
-                "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nTarget functions:\n{json.dumps(p_target_functions)}'
-            },
-            {
-                "role": "user",
-                "content": f'Existing stubs:\n{json.dumps(p_existing_stubs)}\n\nFailed stubs:\n{json.dumps(p_failed_stubs)}'
-            },
+            {"role": "developer", "content": PROMPT_SYNTH_FUNCTIONS + '\n' + PROMPT_WITH_ERRORS},
+            {"role": "user", "content": f'Objects:\n{json.dumps(p_objects)}\n\nFunctions:\n{json.dumps(p_functions)}\n\nTarget functions:\n{json.dumps(p_target_functions)}'},
+            {"role": "user", "content": f'Existing stubs:\n{json.dumps(p_existing_stubs)}\n\nFailed stubs:\n{json.dumps(p_failed_stubs)}'},
         ],
-        text_format=SynthResponse
+        text_format=SynthResponse,
+        usage=usage,
+        task='synth-functions',
+        reasoning={"effort": "low"},
+        token_progress=token_progress,
     )
-    usage.record_model('synth-functions', model, UsageTokens.from_openai(response.usage))
-    parsed = response.output_parsed
-
     return parsed.functions, parsed.unharnessable
 
 
@@ -128,97 +107,124 @@ def incremental_synthesis_loop(
     info: ProjectInfo,
     retry_count: int = 2,
     max_batch_size: int = 20,
+    show_progress: bool = True,
+    verbose: bool = False,
+    token_progress: Optional[TokenProgress] = None,
 ) -> Tuple[List[FunctionImpl], List[FunctionImplError], List[UnharnessableFunction]]:
-    # Maintain a state of the current harness, including validated and failed functions.
-    # We will attempt each function up to retry_count times.
-    # Functions are queried in batches of max_batch_size.
+    from . import ui
 
-    # The current state of the harness
     valid_functions: List[FunctionImpl] = []
     total_failed_functions: List[FunctionImplError] = []
 
-    # Functions that have been explicitly marked as unharnessable by the model
     total_unharnessable: List[UnharnessableFunction] = []
     unharnessable_by_name: Dict[str, UnharnessableFunction] = {}
 
-    # Failed functions by name (we only keep the latest error for each function)
     failed_functions: Dict[str, FunctionImplError] = {}
 
-    # Functions left to synthesize and how many times we've tried to synthesize them
     remaining_functions: Dict[str, int] = {f.name: 0 for f in functions}
 
     step = 0
     while len(remaining_functions) > 0:
         step += 1
-        log('INFO', f"Synthesis step {step} -- {len(remaining_functions)} functions remaining")
+        batch_size = min(max_batch_size, len(remaining_functions))
 
-        # Prepare the next batch of functions
+        if show_progress:
+            ui.step_header(
+                f"Synthesis step {step}  ·  "
+                f"[cyan]{len(remaining_functions)}[/cyan] functions remaining"
+            )
+
         target_functions = [f for f in remaining_functions][:max_batch_size]
 
-        # Extract the failed functions relevant for this batch
         filtered_failed = [failed_functions[f] for f in target_functions if f in failed_functions]
 
-        # Query the LLM
         stubs = None
         newly_unharnessable: List[UnharnessableFunction] = []
-        if len(valid_functions) > 0 or len(filtered_failed) > 0:
-            stubs, newly_unharnessable = synth_functions_with_errors(
-                objects,
-                functions,
-                target_functions,
-                usage,
-                valid_functions,
-                filtered_failed,
-            )
-        else:
-            stubs, newly_unharnessable = synth_functions(
-                objects,
-                functions,
-                target_functions,
-                usage,
-            )
 
-        # Immediately record any functions the model has declared unharnessable
+        def _query_llm():
+            nonlocal stubs, newly_unharnessable
+            if len(valid_functions) > 0 or len(filtered_failed) > 0:
+                stubs, newly_unharnessable = synth_functions_with_errors(
+                    objects, functions, target_functions, usage,
+                    valid_functions, filtered_failed,
+                    token_progress=token_progress,
+                )
+            else:
+                stubs, newly_unharnessable = synth_functions(
+                    objects, functions, target_functions, usage,
+                    token_progress=token_progress,
+                )
+
+        if show_progress:
+            tp = token_progress or ui.TokenProgress()
+            with ui.spinner(f"Querying LLM (batch of {batch_size})", token_progress=tp):
+                _query_llm()
+        else:
+            _query_llm()
+
+        n_unharnessable = 0
         for uh in newly_unharnessable:
             if uh.name in remaining_functions:
-                log('INFO', f"Marking function as unharnessable: {Colors.YELLOW}{uh.name}{Colors.END} -- {uh.reason}")
                 unharnessable_by_name[uh.name] = uh
                 total_unharnessable.append(uh)
                 remaining_functions.pop(uh.name)
-            else:
-                log('INFO', f"Extraneous unharnessable entry for {Colors.YELLOW}{uh.name}{Colors.END} (not in remaining functions)")
+                n_unharnessable += 1
 
-        # Validate the stubs in parallel
-        results = parallel_run(threads, run_validate_stub, [(info, s, objects) for s in stubs])
+        if show_progress:
+            results = ui.parallel_run(
+                threads, run_validate_stub,
+                [(info, s, objects) for s in stubs],
+                item_labels=[s.name for s in stubs],
+                ok=lambda r: isinstance(r[0].result, FunctionImpl),
+            )
+        else:
+            results = _parallel_run(
+                threads, run_validate_stub,
+                [(info, s, objects) for s in stubs],
+            )
+
+        n_valid = 0
+        n_failed = 0
 
         for r in results:
             if isinstance(r.result, FunctionImpl):
                 stub: FunctionImpl = r.result
 
-                print_function_impl(stub)
+                if verbose and show_progress:
+                    print_function_impl(stub)
 
                 if stub.name in remaining_functions:
-                    log('VALID', f"Valid stub for {Colors.YELLOW}{stub.name}{Colors.END}")
                     valid_functions.append(stub)
                     remaining_functions.pop(stub.name)
+                    n_valid += 1
                 else:
-                    log('VALID', f"Extraneous stub for {Colors.YELLOW}{stub.name}{Colors.END} (not in remaining functions)")
                     continue
             else:
                 error: FunctionImplError = r.result
-                pretty_print_error(error)
+
+                if verbose and show_progress:
+                    pretty_print_error(error)
 
                 if error.stub.name in remaining_functions:
-                    log('ERROR', f"Invalid stub for {Colors.YELLOW}{error.stub.name}{Colors.END}")
                     failed_functions[error.stub.name] = error
-                    remaining_functions[error.stub.name] += 1 # Increment the retry count
+                    remaining_functions[error.stub.name] += 1
                     if remaining_functions[error.stub.name] > retry_count:
-                        log('ERROR', f"Failed to synthesize stub for {Colors.YELLOW}{error.stub.name}{Colors.END} after {retry_count} attempts")
                         remaining_functions.pop(error.stub.name)
                         total_failed_functions.append(error)
+                    n_failed += 1
                 else:
-                    log('ERROR', f"Extraneous stub for {Colors.YELLOW}{error.stub.name}{Colors.END} (not in remaining functions)")
                     continue
+
+        if show_progress:
+            parts = []
+            if n_valid:
+                parts.append(f"[green]{n_valid} valid[/green]")
+            if n_failed:
+                parts.append(f"[red]{n_failed} failed[/red]")
+            if n_unharnessable:
+                parts.append(f"[yellow]{n_unharnessable} unharnessable[/yellow]")
+            if parts:
+                ui.success(" · ".join(parts))
 
     return valid_functions, total_failed_functions, total_unharnessable
 
@@ -231,10 +237,9 @@ def main(args):
     stubs, unharnessable = synth_functions(objects, functions, target_functions, usage)
     print(usage.cost_by_task())
 
-    # Pretty print the functions with syntax highlighting
+    from .pretty import print_functions
     print_functions(stubs)
 
-    # Still save to JSON if output file is specified
     if args.output:
         functions_json = [x.model_dump() for x in stubs]
         meta = {

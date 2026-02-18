@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 import json
 import os
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
-from ..data.metadata import UsageTracker, UsageTokens
+from ..data.metadata import UsageTracker
 from .data import ObjectInfo
-from .util import get_model
+from .util import call_llm
 
-from openai import OpenAI
+if TYPE_CHECKING:
+    from .ui import TokenProgress
 
 
 PROMPT_SCAN_OBJECTS = open(os.path.join(os.path.dirname(__file__), 'prompts/scan_objects.md')).read()
@@ -17,28 +20,19 @@ class ObjectsResponse(BaseModel):
     objects: List[ObjectInfo]
 
 
-def scan_objects(code: str, usage: UsageTracker) -> List[ObjectInfo]:
-    client = OpenAI()
-    model = get_model()
-
-    response = client.responses.parse(
-        model=model,
-        reasoning={ "effort": "low" },
+def scan_objects(code: str, usage: UsageTracker, token_progress: Optional[TokenProgress] = None) -> List[ObjectInfo]:
+    parsed: ObjectsResponse = call_llm(
         input=[
-            {
-                "role": "developer",
-                "content": PROMPT_SCAN_OBJECTS
-            },
-            {
-                "role": "user",
-                "content": code
-            },
+            {"role": "developer", "content": PROMPT_SCAN_OBJECTS},
+            {"role": "user", "content": code},
         ],
-        text_format=ObjectsResponse
+        text_format=ObjectsResponse,
+        usage=usage,
+        task='scan-objects',
+        reasoning={"effort": "low"},
+        token_progress=token_progress,
     )
-
-    usage.record_model('scan-objects', model, UsageTokens.from_openai(response.usage))
-    return response.output_parsed.objects
+    return parsed.objects
 
 
 def main(args):

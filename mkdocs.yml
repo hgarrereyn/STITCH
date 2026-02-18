@@ -1,0 +1,7 @@
+site_name: STITCH
+site_description: Documentation for the STITCH repository.
+theme:
+  name: mkdocs
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md

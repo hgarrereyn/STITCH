@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 from pydantic import BaseModel
 import json
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
-from ..data.metadata import UsageTracker, UsageTokens
+from ..data.metadata import UsageTracker
 from .data import ObjectInfo, ProjectMetadata, FunctionImpl, FunctionInfo, FunctionClassifier, DataTypeInfo
-from ..utils.colors import Colors
-from .util import get_model
+from .util import call_llm
 
-from openai import OpenAI
+if TYPE_CHECKING:
+    from .ui import TokenProgress
 
 
 BATCH_SIZE = 20
@@ -21,27 +23,35 @@ class ClassificationResponse(BaseModel):
     new_data_types: List[DataTypeInfo]
 
 
-def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker, selective_context: bool = False) -> Tuple[List[DataTypeInfo], List[FunctionClassifier]]:
-    client = OpenAI()
-    model = get_model()
+def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endpoints: List[FunctionImpl], usage: UsageTracker, selective_context: bool = False, token_progress: Optional[TokenProgress] = None) -> Tuple[List[DataTypeInfo], List[FunctionClassifier]]:
+    from . import ui
 
     data_types: List[DataTypeInfo] = []
     classifiers: List[FunctionClassifier] = []
 
-    # Only run endpoints that have FUZZ_PARAM_STR or FUZZ_PARAM_FILENAME calls
     remaining_endpoints: List[FunctionImpl] = []
     for e in endpoints:
         if 'FUZZ_PARAM_STR' in e.code or 'FUZZ_PARAM_FILENAME' in e.code:
             remaining_endpoints.append(e)
         else:
-            # Empty classifier
             classifiers.append(FunctionClassifier(name=e.name, data_types=[]))
 
     remaining_names = set([e.name for e in remaining_endpoints])
 
-    for i in range(0, len(remaining_endpoints), BATCH_SIZE):
-        print(f'Classifying data (step {i + 1} of {len(remaining_endpoints)})...')
+    if not remaining_endpoints:
+        ui.info("No endpoints require data classification")
+        return data_types, classifiers
+
+    total_batches = (len(remaining_endpoints) + BATCH_SIZE - 1) // BATCH_SIZE
+    for batch_idx, i in enumerate(range(0, len(remaining_endpoints), BATCH_SIZE)):
         batch_endpoints = remaining_endpoints[i:i+BATCH_SIZE]
+        batch_size = len(batch_endpoints)
+
+        if total_batches > 1:
+            ui.step_header(
+                f"Classification batch {batch_idx + 1} of {total_batches}  ·  "
+                f"[cyan]{batch_size}[/cyan] endpoints"
+            )
 
         ctx = [
             {
@@ -67,41 +77,42 @@ def classify_data(objects: List[ObjectInfo], functions: List[FunctionInfo], endp
             p_functions = [f.model_dump_json() for f in functions]
             p_endpoints = [e.model_dump_json() for e in batch_endpoints]
             p_data_types = [d.model_dump_json() for d in data_types]
-            
+
             ctx.append({
                 "role": "user",
                 "content": f'Objects: {json.dumps(p_objects)}\nFunctions: {json.dumps(p_functions)}\nTarget fuzzer stubs: {json.dumps(p_endpoints)}\nKnown data types: {json.dumps(p_data_types)}'
             })
 
-        response = client.responses.parse(
-            model=model,
-            reasoning={ "effort": "low" },
-            input=ctx,
-            text_format=ClassificationResponse
-        )
-        usage.record_model('classify-data', model, UsageTokens.from_openai(response.usage))
+        tp = token_progress or ui.TokenProgress()
+        with ui.spinner(f"Classifying endpoints (batch of {batch_size})", token_progress=tp):
+            parsed: ClassificationResponse = call_llm(
+                input=ctx,
+                text_format=ClassificationResponse,
+                usage=usage,
+                task='classify-data',
+                reasoning={"effort": "low"},
+                token_progress=tp,
+            )
 
-        # Validate the classifiers match expected function names
-        for c in response.output_parsed.classifiers:
+        n_classified = 0
+        for c in parsed.classifiers:
             if c.name not in remaining_names:
-                print(f'{Colors.RED}Function {Colors.YELLOW}{c.name}{Colors.END} not found in remaining names, skipping...')
                 continue
-
             remaining_names.remove(c.name)
             classifiers.append(c)
+            n_classified += 1
 
-            print(f'{Colors.GREEN}Classified function {Colors.YELLOW}{c.name}{Colors.END} with data types: {Colors.YELLOW}{c.data_types}{Colors.END}')
-
-        # Validate the new data types aren't duplicates
-        for d in response.output_parsed.new_data_types:
+        for d in parsed.new_data_types:
             if d.data_type in data_types:
-                print(f'{Colors.RED}Data type {Colors.YELLOW}{d.data_type}{Colors.END} already exists, skipping...')
                 continue
             data_types.append(d)
-            print(f'{Colors.GREEN}Added new data type {Colors.YELLOW}{d.data_type}{Colors.END} with description: {Colors.YELLOW}{d.description}{Colors.END}')
+
+        ui.success(
+            f"[green]{n_classified}[/green] classified  ·  "
+            f"[cyan]{len(parsed.new_data_types)}[/cyan] new data types"
+        )
 
     for n in remaining_names:
-        print(f'{Colors.RED}Function {Colors.YELLOW}{n}{Colors.END} missed')
         classifiers.append(FunctionClassifier(name=n, data_types=[]))
 
     return data_types, classifiers
