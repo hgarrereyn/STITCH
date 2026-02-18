@@ -216,6 +216,8 @@ def do_replay(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     harness = select_harness(project, args.name)
     if harness is None:
         return
@@ -268,6 +270,8 @@ def do_save(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     harness = select_harness(project, args.name)
     if harness is None:
         return
@@ -309,6 +313,8 @@ def do_triage(args):
     project = Project(path)
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
+
+    project.require_build_config()
 
     harness = select_harness(project, args.name)
     if harness is None:
@@ -374,6 +380,8 @@ def do_analyze(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     harness = select_harness(project, args.name)
     if harness is None:
         return
@@ -434,6 +442,8 @@ def do_report(args):
     project = Project(path)
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
+
+    project.require_build_config()
 
     info = ProjectInfo.model_validate_json((project.path / "config" / "info.json").read_text())
 
@@ -551,6 +561,8 @@ def do_run(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     asan = not args.no_asan
     if asan:
         ok("Using ASAN")
@@ -649,6 +661,8 @@ def do_exec(args):
     project = Project(path)
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
+
+    project.require_build_config()
 
     harness = select_harness(project, args.name)
     if harness is None:

@@ -164,6 +164,12 @@ class Project:
     def has_build_config(self) -> bool:
         return (self.path / "config").exists()
 
+    def require_build_config(self) -> None:
+        if not self.has_build_config():
+            err("No build configuration found")
+            print(f"  {Colors.CYAN}Hint:{Colors.END} Run {Colors.BOLD}stitch gen{Colors.END} first to generate a build configuration.")
+            raise SystemExit(1)
+
     def get_harnesses(self) -> List[Harness]:
         harness_path = self.path / "harnesses"
         if not harness_path.exists():
@@ -188,7 +194,7 @@ class Project:
                 "docker", "build",
                 "--platform", "linux/amd64",
                 "-t", f"{name}_base",
-                "-f", str(REPO_PATH / "stitch2" / "stitch2" / "docker" / f"{name}.Dockerfile"),
+                "-f", str(REPO_PATH / "stitch" / "stitch" / "docker" / f"{name}.Dockerfile"),
                 str(REPO_PATH),
             ],
             check=True,

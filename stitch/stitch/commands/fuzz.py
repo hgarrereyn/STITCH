@@ -228,6 +228,8 @@ def do_fuzz(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     if args.no_triage:
         return _do_fuzz_raw(args, project)
     return _do_fuzz_full(args, project)

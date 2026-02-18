@@ -1,127 +1,64 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-from typing import Iterable, List
-
-
-def _list_harness_names(project_path: Path) -> List[str]:
-    from .utils.project import Project
-
-    project = Project(project_path)
-    if not project.exists():
-        return []
-    try:
-        return sorted(h.path.name for h in project.get_harnesses())
-    except Exception:
-        return []
-
-
-def _complete_project_path(prefix: str, **_kwargs) -> Iterable[str]:
-    if not prefix:
-        prefix = "."
-    p = Path(prefix)
-    base = p.parent if p.parent != Path("") else Path(".")
-    needle = p.name
-    if not base.exists():
-        return []
-    return sorted(
-        str(x) + ("/" if x.is_dir() else "")
-        for x in base.iterdir()
-        if x.is_dir() and x.name.startswith(needle)
-    )
-
-
-def _complete_harness_name(prefix: str, parsed_args, **_kwargs) -> Iterable[str]:
-    path_value = getattr(parsed_args, "path", ".")
-    names = _list_harness_names(Path(path_value))
-    return [name for name in names if name.startswith(prefix)]
-
-
-def _wire_completers(parser: argparse.ArgumentParser) -> None:
-    for action in parser._actions:
-        if isinstance(action, argparse._SubParsersAction):
-            for sub in action.choices.values():
-                _wire_completers(sub)
-            continue
-
-        if action.dest == "path":
-            action.completer = _complete_project_path
-        elif action.dest == "name" and "--name" in action.option_strings:
-            action.completer = _complete_harness_name
+import os
+import sys
 
 
 def build_parser() -> argparse.ArgumentParser:
-    # Keep imports lazy to minimize startup overhead and side effects.
-    from . import (
-        analyze_crashes,
+    from .commands import (
+        bugs,
         clear,
         completion,
         cover,
         dev,
-        execute,
         fuzz,
-        fuzzraw,
         gen,
-        infer,
         info,
+        infer,
         init,
-        monitor,
-        multi,
-        replay,
-        report,
-        run,
-        save,
-        status,
-        stats,
-        test,
-        triage,
+        test_cmd,
     )
 
     parser = argparse.ArgumentParser(
         prog="stitch",
-        description="STITCH fuzzing CLI: project setup, inference, and fuzz orchestration",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="STITCH — autonomous fuzzing CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="Disable ANSI colors for this invocation",
-    )
-    subparsers = parser.add_subparsers(dest="command")
+    parser.add_argument("--no-color", action="store_true", help="Disable colored output")
 
-    init.register(subparsers)
-    infer.register(subparsers)
-    info.register(subparsers)
-    gen.register(subparsers)
-    dev.register(subparsers)
-    fuzz.register(subparsers)
-    fuzzraw.register(subparsers)
-    triage.register(subparsers)
-    test.register(subparsers)
-    cover.register(subparsers)
-    stats.register(subparsers)
-    replay.register(subparsers)
-    run.register(subparsers)
-    save.register(subparsers)
-    report.register(subparsers)
-    status.register(subparsers)
-    monitor.register(subparsers)
-    multi.register(subparsers)
-    execute.register(subparsers)
-    clear.register(subparsers)
-    analyze_crashes.register(subparsers)
-    completion.register(subparsers)
+    sub = parser.add_subparsers(dest="command", metavar="<command>")
 
-    _wire_completers(parser)
+    # ── Setup ────────────────────────────────────────────────────────
+    init.register(sub)
+    gen.register(sub)
+    test_cmd.register(sub)
+
+    # ── Core workflow ────────────────────────────────────────────────
+    infer.register(sub)
+    fuzz.register(sub)
+
+    # ── Analysis ─────────────────────────────────────────────────────
+    info.register(sub)
+    cover.register(sub)
+    bugs.register(sub)
+
+    # ── Management ───────────────────────────────────────────────────
+    clear.register(sub)
+
+    # ── Development ──────────────────────────────────────────────────
+    dev.register(sub)
+
+    # ── Meta ─────────────────────────────────────────────────────────
+    completion.register(sub)
+
+    from ._complete import wire_completers
+
+    wire_completers(parser)
     return parser
 
 
 def main() -> int:
-    import os
-    import sys
-
-    # Must happen before subcommand modules import Colors.
     if "--no-color" in sys.argv:
         os.environ["STITCH_NO_COLOR"] = "1"
 

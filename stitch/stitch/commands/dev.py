@@ -13,6 +13,8 @@ def do_dev(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     harness = None
     if not args.base:
         harness = select_harness(project, args.name)

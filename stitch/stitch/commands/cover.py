@@ -33,6 +33,8 @@ def do_cover(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     harness = select_harness(project, args.name)
     if harness is None:
         return

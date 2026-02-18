@@ -13,6 +13,8 @@ def do_test(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
+    project.require_build_config()
+
     image_tag = project.build_docker()
 
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -5,7 +5,7 @@ import shutil
 import sys
 import tempfile
 
-from .._colors import Colors, err, ok, fatal
+from .._colors import Colors, ok, fatal
 from .._env import check_env
 
 
@@ -18,10 +18,7 @@ def do_infer(args):
     if not project.exists() or not project.has_config():
         fatal(f"Could not find project at {path.absolute()}")
 
-    if not project.has_build_config():
-        err("No build configuration found")
-        print(f"  {Colors.CYAN}Hint:{Colors.END} Run {Colors.BOLD}stitch gen{Colors.END} first to generate a build configuration.")
-        raise SystemExit(1)
+    project.require_build_config()
 
     config = project.get_config()
     model = resolve_model(getattr(args, "model", None), config)
