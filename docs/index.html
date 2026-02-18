@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STITCH — Automatic, Expressive, Scalable Testing</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --base-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --base-font-size: 16px;
+      --base-line-height: 1.6;
+      --code-font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      --code-font-size: 0.9em;
+
+      --theme-color: #a78bfa;
+      --mono-hue: 252;
+      --mono-saturation: 20%;
+
+      --color-bg: #0a0a0f;
+      --color-surface: #12121a;
+      --color-surface-raised: #1a1a26;
+      --color-border: #2a2a3a;
+      --color-text: #e2e2ef;
+      --color-text-muted: #8888a0;
+      --color-accent: #a78bfa;
+      --color-accent-glow: rgba(167, 139, 250, 0.15);
+      --color-green: #34d399;
+      --color-amber: #fbbf24;
+      --color-cyan: #22d3ee;
+
+      --cover-bg: #0a0a0f;
+      --sidebar-background: var(--color-surface);
+      --sidebar-border-color: var(--color-border);
+      --sidebar-nav-link-color--active: var(--color-accent);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--base-font-family);
+    }
+
+    /* ── Coverpage ─────────────────────────────────── */
+    section.cover {
+      background: var(--color-bg) !important;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    section.cover .cover-main {
+      max-width: 800px;
+      margin: 0 auto;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    section.cover .cover-main > p:first-child {
+      display: none;
+    }
+
+    .cover-main blockquote {
+      border: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .cover-main blockquote p {
+      font-size: 1.1rem !important;
+      color: var(--color-text-muted) !important;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Hero Branding ────────────────────────────── */
+    .hero-title {
+      font-size: clamp(3.5rem, 8vw, 6rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      margin: 0 0 0.3em;
+      background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 30%, #818cf8 60%, #67e8f9 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 40px rgba(167, 139, 250, 0.3));
+    }
+
+    .hero-subtitle {
+      font-size: clamp(1rem, 2.5vw, 1.35rem);
+      font-weight: 400;
+      color: var(--color-text-muted);
+      letter-spacing: 0.06em;
+      margin: 0 0 3rem;
+      text-transform: uppercase;
+    }
+
+    /* ── Terminal ──────────────────────────────────── */
+    .terminal-window {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: left;
+      margin: 0 auto 2.5rem;
+      max-width: 650px;
+      box-shadow:
+        0 0 0 1px rgba(167, 139, 250, 0.05),
+        0 20px 60px -10px rgba(0, 0, 0, 0.5),
+        0 0 80px -20px rgba(167, 139, 250, 0.1);
+    }
+
+    .terminal-header {
+      background: var(--color-surface-raised);
+      border-bottom: 1px solid var(--color-border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--color-border);
+    }
+
+    .terminal-dot.red { background: #f87171; }
+    .terminal-dot.yellow { background: #fbbf24; }
+    .terminal-dot.green { background: #34d399; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--color-text-muted);
+      font-family: var(--code-font-family);
+    }
+
+    .terminal-body {
+      padding: 1.25rem 1.5rem;
+      font-family: var(--code-font-family);
+      font-size: 0.88rem;
+      line-height: 1.9;
+      min-height: 230px;
+    }
+
+    .term-line {
+      white-space: nowrap;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+
+    .term-prompt {
+      color: var(--color-accent);
+      margin-right: 0.6em;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .term-prompt::before {
+      content: '❯';
+    }
+
+    .term-command {
+      color: var(--color-text);
+    }
+
+    .term-command .cmd-name {
+      color: var(--color-green);
+    }
+
+    .term-command .cmd-flag {
+      color: var(--color-amber);
+    }
+
+    .term-command .cmd-arg {
+      color: var(--color-cyan);
+    }
+
+    .term-comment {
+      color: var(--color-text-muted);
+      font-style: italic;
+    }
+
+    .term-cursor {
+      display: inline-block;
+      width: 9px;
+      height: 1.2em;
+      background: var(--color-accent);
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      margin-left: 1px;
+      border-radius: 1px;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .term-line.hidden {
+      display: none;
+    }
+
+    /* ── CTA Buttons (cover) ──────────────────────── */
+    .cover-main > p:last-child a {
+      border-radius: 8px !important;
+      padding: 0.65em 2em !important;
+      font-weight: 600 !important;
+      font-size: 0.95rem !important;
+      text-transform: none !important;
+      letter-spacing: 0.01em !important;
+      transition: all 0.2s ease !important;
+    }
+
+    .cover-main > p:last-child a:first-child {
+      background: var(--color-accent) !important;
+      color: #0a0a0f !important;
+      border: none !important;
+    }
+
+    .cover-main > p:last-child a:first-child:hover {
+      background: #c4b5fd !important;
+      box-shadow: 0 0 30px rgba(167, 139, 250, 0.3) !important;
+    }
+
+    .cover-main > p:last-child a:last-child {
+      border: 1px solid var(--color-border) !important;
+      color: var(--color-text) !important;
+    }
+
+    .cover-main > p:last-child a:last-child:hover {
+      border-color: var(--color-accent) !important;
+      color: var(--color-accent) !important;
+    }
+
+    /* ── Sidebar ──────────────────────────────────── */
+    .sidebar {
+      background: var(--color-surface) !important;
+      border-right: 1px solid var(--color-border) !important;
+    }
+
+    .sidebar-nav a {
+      color: var(--color-text-muted) !important;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+
+    .sidebar-nav a:hover,
+    .sidebar-nav a.active {
+      color: var(--color-accent) !important;
+    }
+
+    .app-name-link {
+      font-weight: 800 !important;
+      font-size: 1.2rem !important;
+      background: linear-gradient(135deg, #c4b5fd, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ── Content ──────────────────────────────────── */
+    .markdown-section {
+      max-width: 800px;
+    }
+
+    .markdown-section h1 {
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .markdown-section h2 {
+      font-weight: 700;
+      color: var(--color-text);
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: 0.4em;
+    }
+
+    .markdown-section code {
+      font-family: var(--code-font-family);
+      background: var(--color-surface-raised);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 0.15em 0.4em;
+      font-size: 0.88em;
+    }
+
+    .markdown-section pre {
+      background: var(--color-surface) !important;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 1.2em 1.5em;
+    }
+
+    .markdown-section pre code {
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    .markdown-section table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    .markdown-section th {
+      background: var(--color-surface-raised);
+      font-weight: 600;
+    }
+
+    .markdown-section th,
+    .markdown-section td {
+      border: 1px solid var(--color-border);
+      padding: 0.6em 1em;
+    }
+
+    .markdown-section blockquote {
+      border-left: 3px solid var(--color-accent);
+      background: var(--color-accent-glow);
+      padding: 0.8em 1.2em;
+      border-radius: 0 6px 6px 0;
+      margin: 1.5em 0;
+    }
+
+    .markdown-section a {
+      color: var(--color-accent);
+      text-decoration: none;
+    }
+
+    .markdown-section a:hover {
+      text-decoration: underline;
+    }
+
+    /* ── Search ────────────────────────────────────── */
+    .search input {
+      background: var(--color-surface-raised) !important;
+      border: 1px solid var(--color-border) !important;
+      border-radius: 6px !important;
+      color: var(--color-text) !important;
+    }
+
+    /* ── Scrollbar ─────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-border);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    window.$docsify = {
+      name: 'STITCH',
+      repo: '',
+      coverpage: true,
+      onlyCover: false,
+      loadSidebar: true,
+      subMaxLevel: 3,
+      auto2top: true,
+      search: {
+        placeholder: 'Search docs…',
+        noData: 'No results.',
+        depth: 3
+      },
+      copyCode: {
+        buttonText: 'Copy',
+        successText: 'Copied'
+      },
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-rust.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-cpp.min.js"></script>
+
+  <script>
+    const PROJECTS = [
+      'https://github.com/madler/zlib',
+      'https://github.com/curl/curl',
+      'https://github.com/openssl/openssl',
+      'https://github.com/sqlite/sqlite',
+      'https://github.com/libexpat/libexpat',
+      'https://github.com/json-c/json-c',
+      'https://github.com/libjpeg-turbo/libjpeg-turbo',
+      'https://github.com/libarchive/libarchive',
+      'https://github.com/yaml/libyaml',
+      'https://github.com/redis/redis',
+    ];
+
+    function projectToDir(url) {
+      const parts = url.replace('https://github.com/', '').split('/');
+      return parts.join('_');
+    }
+
+    const LINES = [
+      { type: 'static',  text: 'pip install stitch-fuzz',             parts: [{t: 'cmd-name', v: 'pip'}, {t: '', v: ' install '}, {t: 'cmd-arg', v: 'stitch-fuzz'}] },
+      { type: 'dynamic', prefix: 'stitch init ',                      parts_before: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' init '}], dynamic_class: 'cmd-arg' },
+      { type: 'cd',      prefix: 'cd ' },
+      { type: 'static',  text: 'stitch gen',                          parts: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' gen'}],    comment: 'Automatically configure' },
+      { type: 'static',  text: 'stitch infer',                        parts: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' infer'}],  comment: 'Automatically infer a specification' },
+      { type: 'static',  text: 'stitch fuzz',                         parts: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' fuzz'}],   comment: 'Automatically fuzz and triage bugs' },
+    ];
+
+    const TYPE_SPEED = 38;
+    const DELETE_SPEED = 22;
+    const PAUSE_BEFORE_DELETE = 1600;
+    const PAUSE_AFTER_DELETE = 300;
+    const PAUSE_BETWEEN_LINES = 150;
+    const INITIAL_DELAY = 600;
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function buildLine(termBody, lineConfig, content) {
+      const row = document.createElement('div');
+      row.className = 'term-line';
+
+      const prompt = document.createElement('span');
+      prompt.className = 'term-prompt';
+      row.appendChild(prompt);
+
+      const cmd = document.createElement('span');
+      cmd.className = 'term-command';
+      row.appendChild(cmd);
+
+      if (content) {
+        cmd.innerHTML = content;
+      }
+
+      termBody.appendChild(row);
+      return { row, cmd };
+    }
+
+    function renderParts(parts) {
+      return parts.map(p => p.t ? `<span class="${p.t}">${p.v}</span>` : escapeHtml(p.v)).join('');
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    async function typeText(cmdEl, text, cssClass, existingHtml) {
+      for (let i = 0; i <= text.length; i++) {
+        const typed = cssClass
+          ? `<span class="${cssClass}">${escapeHtml(text.slice(0, i))}</span>`
+          : escapeHtml(text.slice(0, i));
+        cmdEl.innerHTML = existingHtml + typed + '<span class="term-cursor"></span>';
+        await sleep(TYPE_SPEED);
+      }
+    }
+
+    async function deleteText(cmdEl, text, cssClass, existingHtml) {
+      for (let i = text.length; i >= 0; i--) {
+        const typed = cssClass
+          ? `<span class="${cssClass}">${escapeHtml(text.slice(0, i))}</span>`
+          : escapeHtml(text.slice(0, i));
+        cmdEl.innerHTML = existingHtml + typed + '<span class="term-cursor"></span>';
+        await sleep(DELETE_SPEED);
+      }
+    }
+
+    function addComment(cmdEl, comment) {
+      const currentHtml = cmdEl.innerHTML.replace(/<span class="term-cursor"><\/span>/, '');
+      cmdEl.innerHTML = currentHtml + `  <span class="term-comment"># ${comment}</span>`;
+    }
+
+    function removeCursor(cmdEl) {
+      cmdEl.innerHTML = cmdEl.innerHTML.replace(/<span class="term-cursor"><\/span>/, '');
+    }
+
+    async function runAnimation() {
+      const coverEl = document.querySelector('.cover-main');
+      if (!coverEl) return;
+
+      let termWindow = coverEl.querySelector('.terminal-window');
+      if (!termWindow) {
+        const marker = coverEl.querySelector('.terminal-marker');
+        if (!marker) return;
+
+        termWindow = document.createElement('div');
+        termWindow.className = 'terminal-window';
+        termWindow.innerHTML = `
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">terminal</span>
+            <span style="width:52px"></span>
+          </div>
+          <div class="terminal-body" id="term-body"></div>
+        `;
+        marker.replaceWith(termWindow);
+      }
+
+      const termBody = document.getElementById('term-body');
+      if (!termBody) return;
+
+      let projectIdx = 0;
+
+      while (true) {
+        termBody.innerHTML = '';
+        const project = PROJECTS[projectIdx % PROJECTS.length];
+        const dirName = projectToDir(project);
+        projectIdx++;
+
+        await sleep(INITIAL_DELAY);
+
+        for (let i = 0; i < LINES.length; i++) {
+          const line = LINES[i];
+
+          if (line.type === 'static') {
+            const prefixHtml = renderParts(line.parts);
+            const { cmd } = buildLine(termBody, line, '');
+            await typeText(cmd, line.text, null, '');
+            removeCursor(cmd);
+            cmd.innerHTML = prefixHtml;
+            if (line.comment) addComment(cmd, line.comment);
+          } else if (line.type === 'dynamic') {
+            const prefixHtml = renderParts(line.parts_before);
+            const { cmd } = buildLine(termBody, line, '');
+            await typeText(cmd, line.prefix, null, '');
+            removeCursor(cmd);
+            cmd.innerHTML = prefixHtml + '<span class="term-cursor"></span>';
+
+            await typeText(cmd, project, line.dynamic_class, prefixHtml);
+            removeCursor(cmd);
+            cmd.innerHTML = prefixHtml + `<span class="${line.dynamic_class}">${escapeHtml(project)}</span>`;
+          } else if (line.type === 'cd') {
+            const { cmd } = buildLine(termBody, line, '');
+            const fullText = line.prefix + dirName;
+            await typeText(cmd, fullText, null, '');
+            removeCursor(cmd);
+            cmd.innerHTML = `<span class="cmd-name">cd</span> <span class="cmd-arg">${escapeHtml(dirName)}</span>`;
+          }
+
+          await sleep(PAUSE_BETWEEN_LINES);
+        }
+
+        await sleep(PAUSE_BEFORE_DELETE);
+
+        const allLines = termBody.querySelectorAll('.term-line');
+        for (let i = allLines.length - 1; i >= 0; i--) {
+          allLines[i].remove();
+          await sleep(60);
+        }
+
+        await sleep(PAUSE_AFTER_DELETE);
+      }
+    }
+
+    let animStarted = false;
+    const observer = new MutationObserver(() => {
+      const cover = document.querySelector('.cover-main');
+      if (cover && !animStarted) {
+        animStarted = true;
+        setTimeout(runAnimation, 500);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  </script>
+</body>
+</html>

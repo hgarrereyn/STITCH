@@ -1,8 +1,6 @@
 # STITCH
 
-**LLM-driven fuzzing that combines a core fuzzing engine with automated workflow orchestration.**
-
----
+> LLM-driven fuzzing that combines a core fuzzing engine with automated workflow orchestration.
 
 STITCH automates the process of generating fuzz harnesses, running fuzzing campaigns, and triaging crashes — all powered by large language models.
 
@@ -27,13 +25,12 @@ STITCH uses four LLM-powered components to drive the fuzzing workflow:
 ## Quick Start
 
 ```bash
-cd stitch
-poetry install
-poetry run stitch init <repo-url>
-poetry run stitch gen
-poetry run stitch infer
-poetry run stitch fuzz
+pip install stitch-fuzz
+stitch init https://github.com/madler/zlib
+cd madler_zlib
+stitch gen       # Automatically configure
+stitch infer     # Automatically infer a specification
+stitch fuzz      # Automatically fuzz and triage bugs
 ```
 
-!!! tip "New to STITCH?"
-    Head over to the [Getting Started](getting-started.md) guide for a full walkthrough.
+> **New to STITCH?** Head over to the [Getting Started](getting-started.md) guide for a full walkthrough.

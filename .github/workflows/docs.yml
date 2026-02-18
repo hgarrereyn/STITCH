@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "docs/**"
-      - "mkdocs.yml"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -29,21 +28,10 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install documentation dependencies
-        run: pip install mkdocs-material
-
-      - name: Build documentation site
-        run: mkdocs build --strict
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: docs
 
   deploy:
     environment:
