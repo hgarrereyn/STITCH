@@ -1,6 +1,4 @@
 **/target/
-**/target/
-**/target/
 **/.cache
 **/.DS_Store
 **/*.egg-info
@@ -15,3 +13,6 @@
 **/crashes
 sync.sh
 examples/
+
+# MkDocs generated site
+site/

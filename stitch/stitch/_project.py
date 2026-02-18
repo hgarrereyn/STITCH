@@ -440,6 +440,8 @@ class Project:
         if effective_tty:
             full_cmd.insert(2, "-it")
 
+        uid = None
+        gid = None
         if run_as_host_user:
             uid = getattr(os, "getuid", lambda: None)()
             gid = getattr(os, "getgid", lambda: None)()
@@ -453,6 +455,15 @@ class Project:
         full_cmd += ["--security-opt", f"seccomp={CUSTOM_SECCOMP}"]
 
         image_tag = image or f"main_{self.get_config().name}"
+
+        if uid is not None and gid is not None:
+            passwd_fix = (
+                f"if ! getent passwd {uid} >/dev/null 2>&1; then "
+                f"echo \"fuzzer:x:{uid}:{gid}:fuzzer:/home/fuzzer:/bin/bash\" >> /etc/passwd; "
+                f"fi && "
+            )
+            cmd = passwd_fix + cmd
+
         full_cmd += [image_tag, "bash", "-c", cmd]
 
         if popen:

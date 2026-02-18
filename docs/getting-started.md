@@ -1,45 +1,91 @@
 # Getting Started
 
-These are minimal setup instructions for using STITCH.
+## Prerequisites
+
+- Python 3.11+
+- [Poetry](https://python-poetry.org/) for dependency management
+- Docker (for running fuzzer containers)
+- An OpenAI API key
 
 ## Install the CLI
 
 ```bash
 cd stitch
 poetry install
+```
+
+Verify the installation:
+
+```bash
 poetry run stitch --help
 ```
 
-## Enable Shell Completion (optional)
+!!! tip "Shell access"
+    Run `poetry shell` to make `stitch` available directly without the `poetry run` prefix.
 
-```bash
-poetry run stitch install-completions
-```
+## Enable Shell Completion
+
+=== "Auto-install"
+
+    ```bash
+    poetry run stitch install-completions
+    ```
+
+=== "Manual (zsh)"
+
+    ```bash
+    poetry run stitch completion show --shell zsh
+    ```
 
 ## Typical Workflow
 
-1. Initialize a target project:
+### 1. Initialize a target project
 
-   ```bash
-   poetry run stitch init <repo-url>
-   ```
+Point STITCH at a Git repository. Optionally pin a specific commit with `-c <commit>`.
 
-2. Generate configuration:
+```bash
+poetry run stitch init https://github.com/madler/zlib
+cd madler_zlib
+```
 
-   ```bash
-   poetry run stitch gen
-   ```
+### 2. Generate configuration
 
-3. Infer a harness specification:
+Run the Configure Agent to produce a `Dockerfile`, `test.cpp`, `info.json`, and `usage.json` inside a `config/` folder.
 
-   ```bash
-   poetry run stitch infer
-   ```
+```bash
+poetry run stitch gen
+```
 
-4. Start fuzzing:
+### 3. Infer a harness specification
 
-   ```bash
-   poetry run stitch fuzz
-   ```
+Run the Inference Workflow to generate harness code blocks.
 
-For deeper details, see the repository `README.md`.
+```bash
+poetry run stitch infer
+```
+
+!!! info "Performance tip"
+    Pass `--threads <n>` to parallelize compilation tasks. Use `--name <name>` to label the harness (defaults to `harn1`).
+
+### 4. Start fuzzing
+
+STITCH supports two fuzzing modes:
+
+=== "Loop mode (default)"
+
+    Runs until a crash is found, then uses the Triage and Patch agents to diagnose and repair.
+    Restartable — resumes from the last revision automatically.
+
+    ```bash
+    poetry run stitch fuzz
+    ```
+
+=== "Raw mode"
+
+    Runs the fuzzer continuously without LLM-assisted triage. Useful for benchmarking.
+
+    ```bash
+    poetry run stitch fuzz-raw -o outputs
+    ```
+
+Results are saved to the `harnesses/<name>/campaign/` directory, including a `reports/` folder with triaged crashes.

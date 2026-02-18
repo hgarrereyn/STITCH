@@ -1,18 +1,39 @@
-# STITCH Documentation
+# STITCH
 
-STITCH is a fuzzing system that combines a core fuzzing engine with LLM-driven workflow automation.
+**LLM-driven fuzzing that combines a core fuzzing engine with automated workflow orchestration.**
 
-This site is intentionally minimal for now and serves as the starting point for repository documentation.
+---
+
+STITCH automates the process of generating fuzz harnesses, running fuzzing campaigns, and triaging crashes — all powered by large language models.
 
 ## Components
 
-- `stitch_core`: Rust library for core runtime and mutation functionality
-- `stitch_libafl`: LibAFL-based fuzzing engine
-- `stitch`: top-level CLI package for project setup and orchestration
-- `stitchi`: internal package used inside fuzzing containers
+| Package | Language | Description |
+|---------|----------|-------------|
+| `stitch_core` | Rust | Core runtime, testcase execution, and mutation |
+| `stitch_libafl` | Rust | LibAFL-based fuzzing engine (uses `stitch_core`) |
+| `stitch` | Python | Top-level CLI for project setup, orchestration, and the Configure Agent |
+| `stitchi` | Python | Internal package for fuzzer containers — Inference Workflow, Triage Agent, and Patch Agent |
 
-## Next Steps
+## LLM Agents
 
-- Expand command reference for the `stitch` CLI
-- Add architecture documentation and data-flow diagrams
-- Add contributor and development environment guides
+STITCH uses four LLM-powered components to drive the fuzzing workflow:
+
+- **Config Agent** — generates project build configuration and a test program
+- **Inference Workflow** (codename *Zephyr*) — infers a harness specification from the target project
+- **Triage Agent** — diagnoses crashes found during fuzzing
+- **Patch Agent** — repairs the schema and restarts the fuzzer after a crash
+
+## Quick Start
+
+```bash
+cd stitch
+poetry install
+poetry run stitch init <repo-url>
+poetry run stitch gen
+poetry run stitch infer
+poetry run stitch fuzz
+```
+
+!!! tip "New to STITCH?"
+    Head over to the [Getting Started](getting-started.md) guide for a full walkthrough.

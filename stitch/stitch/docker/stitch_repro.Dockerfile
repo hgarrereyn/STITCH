@@ -27,3 +27,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install casr into a globally accessible prefix; the binaries will be placed
 # under /usr/local/bin, which is already on PATH for all users.
 RUN cargo install casr --root /usr/local
+
+RUN groupadd -g 1000 fuzzer && \
+    useradd -m -u 1000 -g fuzzer -s /bin/bash fuzzer && \
+    chmod 0666 /etc/passwd

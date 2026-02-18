@@ -72,3 +72,7 @@ COPY /stitchi /src/stitchi
 
 RUN cd /src/stitchi && \
     pip install -e .
+
+RUN groupadd -g 1000 fuzzer && \
+    useradd -m -u 1000 -g fuzzer -s /bin/bash fuzzer && \
+    chmod 0666 /etc/passwd
