@@ -406,172 +406,113 @@
       'https://github.com/redis/redis',
     ];
 
-    function projectToDir(url) {
-      const parts = url.replace('https://github.com/', '').split('/');
-      return parts.join('_');
+    function dirName(url) {
+      return url.replace('https://github.com/', '').replace('/', '_');
     }
 
-    const LINES = [
-      { type: 'static',  text: 'pip install stitch-fuzz',             parts: [{t: 'cmd-name', v: 'pip'}, {t: '', v: ' install '}, {t: 'cmd-arg', v: 'stitch-fuzz'}] },
-      { type: 'dynamic', prefix: 'stitch init ',                      parts_before: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' init '}], dynamic_class: 'cmd-arg' },
-      { type: 'cd',      prefix: 'cd ' },
-      { type: 'static',  text: 'stitch gen',                          parts: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' gen'}],    comment: 'Automatically configure' },
-      { type: 'static',  text: 'stitch infer',                        parts: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' infer'}],  comment: 'Automatically infer a specification' },
-      { type: 'static',  text: 'stitch fuzz',                         parts: [{t: 'cmd-name', v: 'stitch'}, {t: '', v: ' fuzz'}],   comment: 'Automatically fuzz and triage bugs' },
-    ];
-
-    const TYPE_SPEED = 38;
-    const DELETE_SPEED = 22;
-    const PAUSE_BEFORE_DELETE = 1600;
-    const PAUSE_AFTER_DELETE = 300;
-    const PAUSE_BETWEEN_LINES = 150;
-    const INITIAL_DELAY = 600;
-
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-    function buildLine(termBody, lineConfig, content) {
-      const row = document.createElement('div');
-      row.className = 'term-line';
-
-      const prompt = document.createElement('span');
-      prompt.className = 'term-prompt';
-      row.appendChild(prompt);
-
-      const cmd = document.createElement('span');
-      cmd.className = 'term-command';
-      row.appendChild(cmd);
-
-      if (content) {
-        cmd.innerHTML = content;
-      }
-
-      termBody.appendChild(row);
-      return { row, cmd };
-    }
-
-    function renderParts(parts) {
-      return parts.map(p => p.t ? `<span class="${p.t}">${p.v}</span>` : escapeHtml(p.v)).join('');
-    }
-
-    function escapeHtml(s) {
+    function esc(s) {
       return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    async function typeText(cmdEl, text, cssClass, existingHtml) {
+    const CURSOR = '<span class="term-cursor"></span>';
+    const TYPE_MS = 32;
+    const DEL_MS = 18;
+    const HOLD_MS = 2000;
+    const PAUSE_MS = 400;
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function makeLine(body, html) {
+      const row = document.createElement('div');
+      row.className = 'term-line';
+      row.innerHTML = `<span class="term-prompt"></span><span class="term-command">${html}</span>`;
+      body.appendChild(row);
+      return row.querySelector('.term-command');
+    }
+
+    async function typeInto(el, baseHtml, text, cls) {
       for (let i = 0; i <= text.length; i++) {
-        const typed = cssClass
-          ? `<span class="${cssClass}">${escapeHtml(text.slice(0, i))}</span>`
-          : escapeHtml(text.slice(0, i));
-        cmdEl.innerHTML = existingHtml + typed + '<span class="term-cursor"></span>';
-        await sleep(TYPE_SPEED);
+        const chunk = cls
+          ? `<span class="${cls}">${esc(text.slice(0, i))}</span>`
+          : esc(text.slice(0, i));
+        el.innerHTML = baseHtml + chunk + CURSOR;
+        await sleep(TYPE_MS);
       }
     }
 
-    async function deleteText(cmdEl, text, cssClass, existingHtml) {
+    async function deleteFrom(el, baseHtml, text, cls) {
       for (let i = text.length; i >= 0; i--) {
-        const typed = cssClass
-          ? `<span class="${cssClass}">${escapeHtml(text.slice(0, i))}</span>`
-          : escapeHtml(text.slice(0, i));
-        cmdEl.innerHTML = existingHtml + typed + '<span class="term-cursor"></span>';
-        await sleep(DELETE_SPEED);
+        const chunk = cls
+          ? `<span class="${cls}">${esc(text.slice(0, i))}</span>`
+          : esc(text.slice(0, i));
+        el.innerHTML = baseHtml + chunk + CURSOR;
+        await sleep(DEL_MS);
       }
     }
 
-    function addComment(cmdEl, comment) {
-      const currentHtml = cmdEl.innerHTML.replace(/<span class="term-cursor"><\/span>/, '');
-      cmdEl.innerHTML = currentHtml + `  <span class="term-comment"># ${comment}</span>`;
-    }
-
-    function removeCursor(cmdEl) {
-      cmdEl.innerHTML = cmdEl.innerHTML.replace(/<span class="term-cursor"><\/span>/, '');
+    function setStatic(el, html) {
+      el.innerHTML = html;
     }
 
     async function runAnimation() {
       const coverEl = document.querySelector('.cover-main');
       if (!coverEl) return;
 
-      let termWindow = coverEl.querySelector('.terminal-window');
-      if (!termWindow) {
-        const marker = coverEl.querySelector('.terminal-marker');
-        if (!marker) return;
+      const marker = coverEl.querySelector('.terminal-marker');
+      if (!marker) return;
 
-        termWindow = document.createElement('div');
-        termWindow.className = 'terminal-window';
-        termWindow.innerHTML = `
-          <div class="terminal-header">
-            <span class="terminal-dot red"></span>
-            <span class="terminal-dot yellow"></span>
-            <span class="terminal-dot green"></span>
-            <span class="terminal-title">terminal</span>
-            <span style="width:52px"></span>
-          </div>
-          <div class="terminal-body" id="term-body"></div>
-        `;
-        marker.replaceWith(termWindow);
-      }
+      const termWindow = document.createElement('div');
+      termWindow.className = 'terminal-window';
+      termWindow.innerHTML = `
+        <div class="terminal-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">terminal</span>
+          <span style="width:52px"></span>
+        </div>
+        <div class="terminal-body"></div>
+      `;
+      marker.replaceWith(termWindow);
 
-      const termBody = document.getElementById('term-body');
-      if (!termBody) return;
+      const body = termWindow.querySelector('.terminal-body');
 
-      let projectIdx = 0;
+      const INIT_PREFIX = '<span class="cmd-name">stitch</span> init ';
+      const CD_PREFIX = '<span class="cmd-name">cd</span> ';
+
+      const pipCmd   = makeLine(body, '<span class="cmd-name">pip</span> install <span class="cmd-arg">stitch-fuzz</span>');
+      const initCmd  = makeLine(body, INIT_PREFIX + CURSOR);
+      const cdCmd    = makeLine(body, CD_PREFIX);
+      const genCmd   = makeLine(body, '<span class="cmd-name">stitch</span> gen  <span class="term-comment"># Automatically configure</span>');
+      const inferCmd = makeLine(body, '<span class="cmd-name">stitch</span> infer  <span class="term-comment"># Automatically infer a specification</span>');
+      const fuzzCmd  = makeLine(body, '<span class="cmd-name">stitch</span> fuzz  <span class="term-comment"># Automatically fuzz and triage bugs</span>');
+
+      let idx = 0;
 
       while (true) {
-        termBody.innerHTML = '';
-        const project = PROJECTS[projectIdx % PROJECTS.length];
-        const dirName = projectToDir(project);
-        projectIdx++;
+        const project = PROJECTS[idx % PROJECTS.length];
+        const dir = dirName(project);
+        idx++;
 
-        await sleep(INITIAL_DELAY);
+        await typeInto(initCmd, INIT_PREFIX, project, 'cmd-arg');
 
-        for (let i = 0; i < LINES.length; i++) {
-          const line = LINES[i];
+        setStatic(cdCmd, CD_PREFIX + `<span class="cmd-arg">${esc(dir)}</span>`);
 
-          if (line.type === 'static') {
-            const prefixHtml = renderParts(line.parts);
-            const { cmd } = buildLine(termBody, line, '');
-            await typeText(cmd, line.text, null, '');
-            removeCursor(cmd);
-            cmd.innerHTML = prefixHtml;
-            if (line.comment) addComment(cmd, line.comment);
-          } else if (line.type === 'dynamic') {
-            const prefixHtml = renderParts(line.parts_before);
-            const { cmd } = buildLine(termBody, line, '');
-            await typeText(cmd, line.prefix, null, '');
-            removeCursor(cmd);
-            cmd.innerHTML = prefixHtml + '<span class="term-cursor"></span>';
+        await sleep(HOLD_MS);
 
-            await typeText(cmd, project, line.dynamic_class, prefixHtml);
-            removeCursor(cmd);
-            cmd.innerHTML = prefixHtml + `<span class="${line.dynamic_class}">${escapeHtml(project)}</span>`;
-          } else if (line.type === 'cd') {
-            const { cmd } = buildLine(termBody, line, '');
-            const fullText = line.prefix + dirName;
-            await typeText(cmd, fullText, null, '');
-            removeCursor(cmd);
-            cmd.innerHTML = `<span class="cmd-name">cd</span> <span class="cmd-arg">${escapeHtml(dirName)}</span>`;
-          }
+        setStatic(cdCmd, CD_PREFIX);
 
-          await sleep(PAUSE_BETWEEN_LINES);
-        }
+        await deleteFrom(initCmd, INIT_PREFIX, project, 'cmd-arg');
 
-        await sleep(PAUSE_BEFORE_DELETE);
-
-        const allLines = termBody.querySelectorAll('.term-line');
-        for (let i = allLines.length - 1; i >= 0; i--) {
-          allLines[i].remove();
-          await sleep(60);
-        }
-
-        await sleep(PAUSE_AFTER_DELETE);
+        await sleep(PAUSE_MS);
       }
     }
 
-    let animStarted = false;
+    let started = false;
     const observer = new MutationObserver(() => {
-      const cover = document.querySelector('.cover-main');
-      if (cover && !animStarted) {
-        animStarted = true;
-        setTimeout(runAnimation, 500);
+      if (!started && document.querySelector('.cover-main .terminal-marker')) {
+        started = true;
+        setTimeout(runAnimation, 400);
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
