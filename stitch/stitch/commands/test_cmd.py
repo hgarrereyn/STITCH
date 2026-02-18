@@ -42,7 +42,7 @@ def do_test(args):
             project.invoke(
                 mounts=mounts,
                 image=image_tag,
-                cmd="cd /fuzz/workspace && stitchi build test-setup",
+                cmd="cd /fuzz/workspace && stitchi validate setup",
                 check=True,
             )
             ok("Codegen configuration test passed")

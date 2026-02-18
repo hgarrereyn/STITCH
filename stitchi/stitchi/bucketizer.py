@@ -123,7 +123,7 @@ def minimize_crash(args):
         
         # 2. Convert to external code
         external_file = tmp_dir / 'minimized.cpp'
-        subprocess.run(['stitchi', 'write', fuzzer, str(out_file), '-o', str(external_file)], check=True, capture_output=True)
+        subprocess.run(['stitchi', 'util', 'write', fuzzer, str(out_file), '-o', str(external_file)], check=True, capture_output=True)
         if not external_file.exists():
             print(f'[{Colors.RED}FAIL{Colors.END}] {crash_path.name} :: External code generation failed')
             (output_dir / '.minimized' / f'{crash_path.name}.fail').touch()
@@ -203,8 +203,8 @@ def main(args):
             break
 
 
-def register(subparsers: ArgumentParser):
-    parser = subparsers.add_parser('bucketizer')
+def register(subparsers: ArgumentParser, command_name: str = 'bucketize'):
+    parser = subparsers.add_parser(command_name, help='Bucketize and minimize crashes')
     parser.add_argument('--info', type=str, default='info.json', help='Path to the project info')
     parser.add_argument('--fuzzer', type=str, required=True)
     parser.add_argument('--crashes', type=str, required=True, help='Path to the crashes directory')

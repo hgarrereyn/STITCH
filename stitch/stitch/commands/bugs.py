@@ -253,7 +253,7 @@ def do_replay(args):
         project.invoke(
             mounts=mounts,
             image=image_tag,
-            cmd=f"cd /fuzz/workspace && stitchi zephyr replay /fuzz/campaign /fuzz/bugs{flags}",
+            cmd=f"cd /fuzz/workspace && stitchi inference replay /fuzz/campaign /fuzz/bugs{flags}",
         )
 
 
@@ -297,7 +297,7 @@ def do_save(args):
         project.invoke(
             mounts=mounts,
             image=image_tag,
-            cmd=f"cd /fuzz/workspace && stitchi zephyr save /fuzz/campaign /fuzz/bugs{flags}",
+            cmd=f"cd /fuzz/workspace && stitchi inference save /fuzz/campaign /fuzz/bugs{flags}",
         )
 
 
@@ -360,9 +360,9 @@ def do_triage(args):
                 image=image_tag,
                 cmd=(
                     "cd /fuzz/workspace &&"
-                    " stitchi zephyr to-schema --meta harness.json --output test.json &&"
+                    " stitchi inference to-schema --meta harness.json --output test.json &&"
                     " stitchi build full test &&"
-                    f" stitchi run-triage ./test /fuzz/buckets /fuzz/analysis --nproc {args.nproc}{watch_flag}{no_min_flag}"
+                    f" stitchi crash triage ./test /fuzz/buckets /fuzz/analysis --nproc {args.nproc}{watch_flag}{no_min_flag}"
                 ),
             )
 
@@ -421,7 +421,7 @@ def do_analyze(args):
             image=image_tag,
             cmd=(
                 "cd /fuzz/workspace && export PYTHONUNBUFFERED=1 &&"
-                " stitchi zephyr analyze-crashes --harness harness.json --crashes /fuzz/crashes --output /fuzz/output"
+                " stitchi inference analyze-crashes --harness harness.json --crashes /fuzz/crashes --output /fuzz/output"
             ),
         )
 
@@ -695,7 +695,7 @@ def do_exec(args):
             image=image_tag,
             cmd=(
                 "cd /fuzz/workspace &&"
-                " stitchi zephyr to-schema --meta harness.json --output fuzzer.json &&"
+                " stitchi inference to-schema --meta harness.json --output fuzzer.json &&"
                 " stitchi build full fuzzer &&"
                 " ./fuzzer -e testcase.json"
             ),

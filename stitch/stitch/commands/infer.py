@@ -72,7 +72,7 @@ def do_infer(args):
         mounts = [(str(tmpdir), "/fuzz/workspace")]
         header_args = " ".join(headers)
         cmd = (
-            f"cd /fuzz/workspace && stitchi zephyr run"
+            f"cd /fuzz/workspace && stitchi inference run"
             f" --headers {header_args}"
             f" --output meta.json"
             f" --threads {args.threads}"

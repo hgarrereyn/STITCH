@@ -15,6 +15,17 @@ from .utils.crash_repro import try_get_crash_result, try_generate_reproducer, Cr
 from .utils.colors import Colors
 
 
+def _minimize_external_passthrough(external_file: Path, out_file: Path, out_report: Path):
+    """
+    Fallback minimization behavior.
+    The old `stitchi flow llm-minimize` command no longer exists, so we keep
+    triage functional by carrying through the generated reproducer.
+    """
+    content = Path(external_file).read_text()
+    out_file.write_text(content)
+    out_report.write_text('No LLM minimizer configured; passthrough output.\n')
+
+
 REPRO_PER_CRASH = 15
 REPRO_FAIL_PER_CRASH = 15
 
@@ -155,14 +166,7 @@ def run_triage(args):
                     tmp_dir = Path(tmp_dir)
                     out_file = tmp_dir / 'minimized.cpp'
                     out_report = tmp_dir / 'minimized.report'
-                    
-                    subprocess.run([
-                        'stitchi', 'flow', 'llm-minimize',
-                        external_file,
-                        '--out_file', str(out_file), 
-                        '--out_report', str(out_report)], 
-                        check=True, capture_output=False
-                    )
+                    _minimize_external_passthrough(Path(external_file), out_file, out_report)
                     
                     if not out_file.exists():
                         (bucket_dir / 'minimized' / f'{external_file.stem}.fail').touch()
@@ -178,8 +182,8 @@ def run_triage(args):
             break
 
 
-def register(subparsers):
-    parser = subparsers.add_parser('run-triage', help='Triage a project')
+def register(subparsers, command_name: str = 'triage'):
+    parser = subparsers.add_parser(command_name, help='Triage a project')
     parser.add_argument('fuzzer', type=str, help='Fuzzer binary')
     parser.add_argument('crashes', type=str, help='Crashes directory')
     parser.add_argument('output', type=str, help='Output directory')

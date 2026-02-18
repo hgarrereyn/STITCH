@@ -157,7 +157,7 @@ def test_configuration(config: ProjectConfig, dockerfile: str, test_program: str
         res = project.invoke(
             mounts=mounts,
             image=image_tag,
-            cmd="cd /fuzz/workspace && stitchi build test-setup",
+            cmd="cd /fuzz/workspace && stitchi validate setup",
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True,

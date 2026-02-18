@@ -2,11 +2,11 @@
 
 from pathlib import Path
 import json
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
 from .._colors import Colors, ok, err, warn, info as info_msg
-from .._project import Project
+from .._project import Project, ProjectConfig
 from ..data.metadata import MODEL_COST
 
 
@@ -115,6 +115,75 @@ def _print_harness_stats(harness_data: dict, max_depth: int) -> None:
             print(f"    - {t}")
 
 
+# ── Project overview ─────────────────────────────────────────────────
+
+
+def _check(label: str, passed: bool, hint: Optional[str] = None) -> None:
+    if passed:
+        print(f"  {Colors.GREEN}✓{Colors.END} {label}")
+    else:
+        msg = f"  {Colors.RED}✗{Colors.END} {label}"
+        if hint:
+            msg += f"  {Colors.DIM}({hint}){Colors.END}"
+        print(msg)
+
+
+def _print_project_overview(project: Project, config: ProjectConfig) -> None:
+    print(f"{Colors.BOLD}Project:{Colors.END} {Colors.CYAN}{config.name}{Colors.END}")
+
+    if config.local_path:
+        print(f"  Source: {Colors.DIM}{config.local_path}{Colors.END}")
+    elif config.repo:
+        print(f"  Source: {Colors.DIM}{config.repo}{Colors.END}")
+
+    if config.commit:
+        print(f"  Commit: {Colors.DIM}{config.commit[:12]}{Colors.END}")
+
+    if config.model:
+        print(f"  Model:  {Colors.DIM}{config.model}{Colors.END}")
+
+    has_build = project.has_build_config()
+    harnesses = project.get_harnesses()
+    campaigns = []
+    for h in harnesses:
+        reports_dir = h.path / "campaign" / "reports"
+        if reports_dir.is_dir() and any(reports_dir.iterdir()):
+            campaigns.append(h)
+
+    print(f"\n{Colors.BOLD}Pipeline status:{Colors.END}")
+    _check("Initialized", True)
+    _check("Build configured", has_build, hint="run stitch gen" if not has_build else None)
+
+    if has_build:
+        info_path = project.path / "config" / "info.json"
+        if info_path.exists():
+            try:
+                from ..data.project_info import ProjectInfo
+                pi = ProjectInfo.model_validate_json(info_path.read_text())
+                parts = []
+                if pi.codegen.headers:
+                    parts.append(f"{len(pi.codegen.headers)} header(s)")
+                if pi.build_flags:
+                    parts.append(f"{len(pi.build_flags)} build flag(s)")
+                if parts:
+                    print(f"    {Colors.DIM}{', '.join(parts)}{Colors.END}")
+            except Exception:
+                pass
+
+    has_harness = len(harnesses) > 0
+    _check(
+        f"Harness inferred ({len(harnesses)})" if has_harness else "Harness inferred",
+        has_harness,
+        hint="run stitch infer" if not has_harness else None,
+    )
+    _check(
+        f"Fuzz campaigns ({len(campaigns)})" if campaigns else "Fuzz campaigns",
+        len(campaigns) > 0,
+        hint="run stitch fuzz" if not campaigns else None,
+    )
+    print()
+
+
 # ── Main info command ────────────────────────────────────────────────
 
 
@@ -125,9 +194,11 @@ def do_info(args):
         err(f"Could not find project at {path.absolute()}")
         return
 
+    config = project.get_config()
+    _print_project_overview(project, config)
+
     harnesses = project.get_harnesses()
     if not harnesses:
-        warn("No harnesses found in project")
         return
 
     ok(f"Found {Colors.BOLD}{len(harnesses)}{Colors.END} harness(es)")

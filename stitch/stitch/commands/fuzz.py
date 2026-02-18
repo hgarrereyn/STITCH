@@ -90,7 +90,7 @@ def _do_fuzz_raw(args, project: Project):
             image=image_tag,
             cmd=(
                 "set -e && cd /fuzz/workspace &&"
-                " stitchi zephyr to-schema --meta harness.json --output fuzzer.json &&"
+                " stitchi inference to-schema --meta harness.json --output fuzzer.json &&"
                 " stitchi build full fuzzer &&"
                 " mkdir -p /fuzz/out/inputs /fuzz/out/queue /fuzz/out/crashes &&"
                 f" {timeout_prefix}./fuzzer -i /fuzz/out/inputs -o /fuzz/out"
@@ -180,9 +180,9 @@ def _do_fuzz_full(args, project: Project):
                 " export PYTHONUNBUFFERED=1 &&"
                 " ("
                 "   command -v stdbuf >/dev/null 2>&1 &&"
-                f"  exec stdbuf -oL -eL stitchi zephyr looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions}{reset_flag}{corpus_flag}"
+                f"  exec stdbuf -oL -eL stitchi inference looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions}{reset_flag}{corpus_flag}"
                 " ) || ("
-                f"  exec stitchi zephyr looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions}{reset_flag}{corpus_flag}"
+                f"  exec stitchi inference looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions}{reset_flag}{corpus_flag}"
                 " )"
             ),
             popen=True,

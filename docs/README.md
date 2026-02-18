@@ -26,8 +26,7 @@ STITCH uses four LLM-powered components to drive the fuzzing workflow:
 
 ```bash
 pip install stitch-fuzz
-stitch init https://github.com/madler/zlib
-cd madler_zlib
+stitch init https://github.com/madler/zlib .
 stitch gen       # Automatically configure
 stitch infer     # Automatically infer a specification
 stitch fuzz      # Automatically fuzz and triage bugs

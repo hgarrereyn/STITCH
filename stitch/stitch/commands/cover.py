@@ -92,9 +92,9 @@ def do_cover(args):
             image=image_tag,
             cmd=(
                 "cd /fuzz/workspace &&"
-                " stitchi zephyr to-schema --meta harness.json --output fuzzer.json &&"
+                " stitchi inference to-schema --meta harness.json --output fuzzer.json &&"
                 " stitchi build full fuzzer &&"
-                f" stitchi run-cover ./fuzzer {q_container} /fuzz/coverage --nproc {args.nproc}{verbose}"
+                f" stitchi crash cover ./fuzzer {q_container} /fuzz/coverage --nproc {args.nproc}{verbose}"
             ),
         )
 

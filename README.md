@@ -15,9 +15,9 @@ Note that this repository is still in a bit of a prototype state, everything is 
 ## LLM reference
 
 - `Config Agent` -> [stitch/stitch/gen_agent/agent.py](stitch/stitch/gen_agent/agent.py)
-- `Inference Workflow` -> (codename "Zephyr") -> [stitchi/stitchi/zephyr/run.py](stitchi/stitchi/zephyr/run.py)
-- `Triage Agent` -> [stitchi/stitchi/zephyr/distill_agent.py](stitchi/stitchi/zephyr/distill_agent.py)
-- `Patch Agent` -> [stitchi/stitchi/zephyr/patcher_agent.py](stitchi/stitchi/zephyr/patcher_agent.py)
+- `Inference Workflow` -> [stitchi/stitchi/inference/run.py](stitchi/stitchi/inference/run.py)
+- `Triage Agent` -> [stitchi/stitchi/inference/distill_agent.py](stitchi/stitchi/inference/distill_agent.py)
+- `Patch Agent` -> [stitchi/stitchi/inference/patcher_agent.py](stitchi/stitchi/inference/patcher_agent.py)
 
 ## Usage
 

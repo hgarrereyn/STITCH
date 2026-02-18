@@ -125,8 +125,8 @@ def run_cover(args):
     print(f'[{Colors.GREEN}*{Colors.END}] Done')
 
 
-def register(subparsers):
-    parser = subparsers.add_parser('run-cover', help='Compute coverage for a project')
+def register(subparsers, command_name: str = 'cover'):
+    parser = subparsers.add_parser(command_name, help='Compute coverage for a project')
     parser.add_argument('fuzzer', type=str, help='Fuzzer binary')
     parser.add_argument('queue', type=str, help='Queue directory')
     parser.add_argument('coverage', type=str, help='Coverage directory')

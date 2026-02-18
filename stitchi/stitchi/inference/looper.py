@@ -173,7 +173,7 @@ def copy_compatible_corpus(prev_revision_dir: Path, next_revision_dir: Path,
 
 def compile_harness(workdir: Path):
     print(f'{Colors.GREEN}[+]{Colors.END} Converting harness: {workdir}')
-    subprocess.run(['stitchi', 'zephyr', 'to-schema', '--meta', workdir / 'harness.json', '--output', workdir / 'fuzzer.json'])
+    subprocess.run(['stitchi', 'inference', 'to-schema', '--meta', workdir / 'harness.json', '--output', workdir / 'fuzzer.json'])
 
     print(f'{Colors.GREEN}[+]{Colors.END} Building fuzzer: {workdir}')
     subprocess.run(['stitchi', 'build', 'full', workdir / 'fuzzer'])
@@ -413,7 +413,7 @@ def run_campaign(
 
     # Keep output for bucketizer to help debug problems with crash reproduction
     p_bucketizer = RestartableProcess([
-        'stitchi', 'bucketizer',
+        'stitchi', 'crash', 'bucketize',
         '--info', info,
         '--fuzzer', str(fuzzer_bin),
         '--crashes', str(fuzzer_crashes),
@@ -631,7 +631,7 @@ def run_campaign(
             history_arg = []
         try:
             subprocess.run([
-                'stitchi', 'zephyr', 'distill-agent',
+                'stitchi', 'inference', 'distill-agent',
                 '--harness', str((workdir / 'harness.json').absolute()),
                 '--external-code', str(new_crash),
                 '--output', str(assessment_path),
@@ -655,7 +655,7 @@ def run_campaign(
         patch_path = tmpdir / 'patch.json'
         try:
             subprocess.run([
-                'stitchi', 'zephyr', 'patcher-agent',
+                'stitchi', 'inference', 'patcher-agent',
                 '--info', info,
                 '--harness', str((workdir / 'harness.json').absolute()),
                 '--assessment', str(assessment_path),

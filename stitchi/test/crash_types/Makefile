@@ -18,7 +18,7 @@ test: CFLAGS += -w
 test: all
 	@for bin in $(BINS); do \
 		printf "\n=== Running crash-summary on %s ===\n" "$$bin"; \
-		stitchi crash-summary $(CURDIR)/$$bin; \
+		stitchi crash summary $(CURDIR)/$$bin; \
 	done
 
 .PHONY: all clean test

@@ -59,7 +59,7 @@ def fn_test_setup(args):
 
 
 def register(subparsers):
-    sub = subparsers.add_parser('build')
+    sub = subparsers.add_parser('build', help='Build fuzzers and reproducers')
     sub_sub = sub.add_subparsers()
 
     parser_build_full = sub_sub.add_parser('full', help='Build the full fuzzer')
@@ -83,16 +83,21 @@ def register(subparsers):
     parser_dryrun.add_argument('--info', type=str, default='info.json')
     parser_dryrun.set_defaults(func=fn_dryrun)
 
-    parser_test_func = sub_sub.add_parser('test-func', help='Test a function')
+
+def register_validate(subparsers):
+    sub = subparsers.add_parser('validate', help='Validate project/codegen configuration')
+    sub_sub = sub.add_subparsers()
+
+    parser_test_func = sub_sub.add_parser('function', help='Validate a function declaration')
     parser_test_func.add_argument('--info', type=str, default='info.json')
     parser_test_func.add_argument('function', type=str)
     parser_test_func.set_defaults(func=fn_test_func)
 
-    parser_test_obj = sub_sub.add_parser('test-obj', help='Test an object')
+    parser_test_obj = sub_sub.add_parser('object', help='Validate an object declaration')
     parser_test_obj.add_argument('--info', type=str, default='info.json')
     parser_test_obj.add_argument('object', type=str)
     parser_test_obj.set_defaults(func=fn_test_obj)
 
-    parser_test_setup = sub_sub.add_parser('test-setup', help='Test the project setup')
+    parser_test_setup = sub_sub.add_parser('setup', help='Validate overall project setup')
     parser_test_setup.add_argument('--info', type=str, default='info.json')
     parser_test_setup.set_defaults(func=fn_test_setup)

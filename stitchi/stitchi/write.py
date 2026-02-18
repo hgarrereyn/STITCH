@@ -63,8 +63,8 @@ def do_write(args):
     write_graph(args.fuzzer, args.testcase, args.output)
 
 
-def register(subparsers):
-    parser = subparsers.add_parser('write', help='Extract C++ code from fuzzer write mode')
+def register(subparsers, command_name: str = 'write'):
+    parser = subparsers.add_parser(command_name, help='Extract C++ code from fuzzer write mode')
     parser.add_argument('fuzzer', help='Path to the fuzzer binary')
     parser.add_argument('testcase', help='Path to the testcase file')
     parser.add_argument('-o', '--output', help='Optional path to write the extracted code to')

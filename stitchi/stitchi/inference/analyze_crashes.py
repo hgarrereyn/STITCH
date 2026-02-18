@@ -98,7 +98,7 @@ def compile_harness(workdir: Path):
     """Build the fuzzer from harness.json."""
     print(f'{Colors.GREEN}[+]{Colors.END} Converting harness: {workdir}')
     subprocess.run([
-        'stitchi', 'zephyr', 'to-schema',
+        'stitchi', 'inference', 'to-schema',
         '--meta', str(workdir / 'harness.json'),
         '--output', str(workdir / 'fuzzer.json')
     ], check=True)

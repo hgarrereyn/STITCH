@@ -196,7 +196,7 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
         
     # Step 2: Generate external reproducer
     external_file = tmp_path / 'reproducer.cpp'
-    write_cmd = ['stitchi', 'write', fuzzer, str(minimized_file), '-o', str(external_file)]
+    write_cmd = ['stitchi', 'util', 'write', fuzzer, str(minimized_file), '-o', str(external_file)]
     try:
         subprocess.run(write_cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
@@ -237,8 +237,8 @@ def try_generate_reproducer(tmp_path: Path, fuzzer: str, crash_file: Path) -> Op
     )
 
 
-def register(subparsers):
-    crash_parser = subparsers.add_parser('crash-summary')
+def register(subparsers, command_name: str = 'summary'):
+    crash_parser = subparsers.add_parser(command_name, help='Summarize a crashing command')
     crash_parser.add_argument('cmd', nargs=argparse.REMAINDER, help='Command to execute')
     crash_parser.set_defaults(func=run_crash_repro)
 

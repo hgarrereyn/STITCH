@@ -103,9 +103,10 @@ def do_init(args):
 
     project = Project(path)
     if project.exists():
+        is_empty = not any(path.iterdir())
         if args.force:
             shutil.rmtree(path)
-        else:
+        elif not is_empty:
             fatal("Project already exists. Use --force to overwrite")
 
     project.create()
