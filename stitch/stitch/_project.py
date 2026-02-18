@@ -14,6 +14,42 @@ CUSTOM_SECCOMP = (Path(__file__).parent / "seccomp.json").absolute()
 DEFAULT_MODEL = "gpt-5"
 
 
+def _has_required_build_assets(root: Path) -> bool:
+    required = ("stitch_core", "stitch_libafl", "stitchi", "rust-toolchain.toml")
+    return all((root / item).exists() for item in required)
+
+
+def get_build_assets_root() -> Path:
+    package_dir = Path(__file__).resolve().parent
+    repo_root_candidate = package_dir.parent.parent
+    if _has_required_build_assets(repo_root_candidate):
+        return repo_root_candidate
+
+    bundled_root = package_dir / "_bundled"
+    if _has_required_build_assets(bundled_root):
+        return bundled_root
+
+    missing = ", ".join(["stitch_core", "stitch_libafl", "stitchi", "rust-toolchain.toml"])
+    raise FileNotFoundError(
+        "Could not locate STITCH build assets. "
+        f"Expected {missing} either at {repo_root_candidate} or in {bundled_root}."
+    )
+
+
+def get_base_dockerfile_path(name: str) -> Path:
+    package_dir = Path(__file__).resolve().parent
+    assets_root = get_build_assets_root()
+    repo_dockerfile = assets_root / "stitch" / "stitch" / "docker" / f"{name}.Dockerfile"
+    if repo_dockerfile.exists():
+        return repo_dockerfile
+
+    package_dockerfile = package_dir / "docker" / f"{name}.Dockerfile"
+    if package_dockerfile.exists():
+        return package_dockerfile
+
+    raise FileNotFoundError(f"Could not find dockerfile for base image '{name}'.")
+
+
 class BuildError(BaseModel):
     stdout: str
     stderr: str
@@ -188,14 +224,15 @@ class Project:
             i += 1
 
     def build_base_image(self, name: str):
-        REPO_PATH = Path(__file__).parent.parent.parent.absolute()
+        assets_root = get_build_assets_root()
+        dockerfile_path = get_base_dockerfile_path(name)
         subprocess.run(
             [
                 "docker", "build",
                 "--platform", "linux/amd64",
                 "-t", f"{name}_base",
-                "-f", str(REPO_PATH / "stitch" / "stitch" / "docker" / f"{name}.Dockerfile"),
-                str(REPO_PATH),
+                "-f", str(dockerfile_path),
+                str(assets_root),
             ],
             check=True,
         )

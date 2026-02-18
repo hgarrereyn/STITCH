@@ -21,25 +21,26 @@ Note that this repository is still in a bit of a prototype state, everything is 
 
 ## Usage
 
-Install the `stitch` CLI with Poetry:
+Install the `stitch` CLI from PyPI:
 ```
-cd stitch
-poetry install
-poetry run stitch --help
+pip install stitch
+stitch --help
 ```
 
-If you want `stitch` available directly in your shell:
+For local development from this repository:
 ```
-poetry shell
+cd stitch
+pip install -e .
+stitch --help
 ```
 
 Enable shell completion (supports harness-aware `--name` completion):
 ```
-poetry run stitch install-completions
+stitch install-completions
 ```
 or to print a completion script manually:
 ```
-poetry run stitch completion show --shell zsh
+stitch completion show --shell zsh
 ```
 
 Normal usage is to configure a project, then infer a specification, and then run the fuzz loop:
@@ -53,13 +54,13 @@ export OPENAI_API_KEY=...
 
 Set up a new project (optionally pin to a specific commit with `-c <commit>`):
 ```
-poetry run stitch init https://github.com/madler/zlib
+stitch init https://github.com/madler/zlib
 ```
 
 This will create a new project folder, here with the name `madler_zlib`. Next run the configure agent to generate a configuration:
 ```
 cd madler_zlib
-poetry run stitch gen
+stitch gen
 ```
 
 Once generation completes, you should see a `config` folder with the following files:
@@ -70,7 +71,7 @@ Once generation completes, you should see a `config` folder with the following f
 
 Next, run the inference workflow to infer a specification:
 ```
-poetry run stitch infer
+stitch infer
 ```
 You can run with `--threads <n>` to use multiple threads for the compilation tasks, which will be faster. You can also give this harness a specific name with `--name <name>` (by default it is `harn1`).
 
@@ -80,14 +81,14 @@ Next, you can chose to fuzz in two modes.
 
 Raw fuzzing mode (i.e. just run the fuzzer continuously) -- which is what we did for RQ1:
 ```
-poetry run stitch fuzz-raw -o outputs
+stitch fuzz-raw -o outputs
 ```
 This will run the fuzzer continuously until you stop it, saving all the artifacts to the specified output directory.
 
 Alternatively, can run STITCH in loop mode (normal mode) -- which is what we did for RQ2. This will run until hitting a crash and then use the Triage agent to diagnose the crash and (optionally) the Patch agent to repair the schema and restart the fuzzer.
 
 ```
-poetry run stitch fuzz
+stitch fuzz
 ```
 
 This command is restartable, so if it generates two revisions and then you stop it, it will properly resume the campaign from the third revision. All data gets saved to the `campaign` directory which is in the harness folder (i.e. `harnesses/harn1/campaign`). Of interest, this will contain a `reports` folder containing the triaged crashes.
@@ -102,3 +103,13 @@ There are a few other tools used mainly for debugging:
 - `stitch replay -b <hash>` -> replay a specific minimized crash contained in a report folder
 - `stitch bug -t <file.cpp>` -> replay an external reproducer for a bug, optionally add `-d` to launch `pwndbg`
 - `stitch install-completions` -> auto-detect shell and install autocompletion (with y/n prompt)
+
+## PyPI release flow
+
+PyPI publishing is automated through GitHub Actions.
+
+- The package definition lives in `stitch/pyproject.toml` and the build hook in `stitch/setup.py`.
+- Release by tagging a version in git:
+  - `git tag v0.1.0`
+  - `git push origin v0.1.0`
+- The `publish-pypi.yml` workflow builds `stitch` and publishes to PyPI using trusted publishing (OIDC).

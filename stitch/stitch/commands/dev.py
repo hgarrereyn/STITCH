@@ -4,7 +4,7 @@ import tempfile
 
 from .._colors import ok, fatal
 from .._harness import select_harness
-from .._project import Project
+from .._project import Project, get_build_assets_root
 
 
 def do_dev(args):
@@ -42,7 +42,9 @@ def do_dev(args):
             if args.coverage:
                 mounts.append((str(harness.coverage_dir().absolute()), "/fuzz/coverage"))
         if args.edit:
-            stitchi_path = Path(__file__).parent.parent.parent.parent / "stitchi"
+            stitchi_path = get_build_assets_root() / "stitchi"
+            if not stitchi_path.exists():
+                fatal("--edit was requested but stitchi sources are unavailable in this installation.")
             mounts.append((str(stitchi_path.absolute()), "/src/stitchi"))
 
         env = ["OPENAI_API_KEY"]

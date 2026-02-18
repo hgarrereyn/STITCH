@@ -9,6 +9,9 @@
 .vscode
 .ipynb_checkpoints
 /build/
+stitch/dist/
+stitch/stitch.egg-info/
+stitch/stitch/_bundled/
 **/queue
 **/crashes
 sync.sh
