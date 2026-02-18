@@ -1,115 +1,47 @@
-# STITCH
+<p align="center">
+  <img src="docs/assets/stitch_banner.png" alt="STITCH banner" />
+</p>
 
-This repository contains the implementation of STITCH.
+<p align="center">
+  <a href="https://pypi.org/project/stitch-fuzz/"><img alt="PyPI" src="https://img.shields.io/pypi/v/stitch-fuzz?color=1d4ed8"></a>
+  <a href="https://pypi.org/project/stitch-fuzz/"><img alt="Python Version" src="https://img.shields.io/pypi/pyversions/stitch-fuzz?color=0f766e"></a>
+  <a href="docs/README.md"><img alt="Documentation" src="https://img.shields.io/badge/docs-read-blue"></a>
+</p>
 
-The fuzzer consists of two components:
-- `stitch_core`: a Rust library that handles core functionality, runtime testcase execution, testcase mutation, etc.
-- `stitch_libafl`: the core fuzzing engine built with LibAFL, this uses `stitch_core` as a dependency.
+STITCH is an LLM-assisted fuzzing framework that performs fully-automatic, flexible fuzzing of C and C++ libraries.
 
-There are two packages that manage the high level workflow and operate the LLM integration:
-- `stitch` is the main top-level python package that acts as a CLI for STITCH, it also contains the Configure Agent
-- `stitchi` ("STITCH Internal") is the python package that gets installed inside fuzzer docker containers and manages the internal fuzzing loop, containing the Inference Workflow, Triage Agent, and Patch Agent.
+Read our preprint: [Automatic, Expressive, and Scalable Fuzzing with Stitching](todo).
 
-Note that this repository is still in a bit of a prototype state, everything is runnable but there is some extra unused functionality remaining from our tests which we plan to clean up before the full public release.
+## Quick Start (60 seconds)
 
-## LLM reference
-
-- `Config Agent` -> [stitch/stitch/gen_agent/agent.py](stitch/stitch/gen_agent/agent.py)
-- `Inference Workflow` -> [stitchi/stitchi/inference/run.py](stitchi/stitchi/inference/run.py)
-- `Triage Agent` -> [stitchi/stitchi/inference/distill_agent.py](stitchi/stitchi/inference/distill_agent.py)
-- `Patch Agent` -> [stitchi/stitchi/inference/patcher_agent.py](stitchi/stitchi/inference/patcher_agent.py)
-
-## Usage
-
-Install the `stitch` CLI from PyPI:
-```
+```bash
 pip install stitch-fuzz
-stitch --help
-```
-
-For local development from this repository:
-```
-cd stitch
-pip install -e .
-stitch --help
-```
-
-Enable shell completion (supports harness-aware `--name` completion):
-```
-stitch install-completions
-```
-or to print a completion script manually:
-```
-stitch completion show --shell zsh
-```
-
-Normal usage is to configure a project, then infer a specification, and then run the fuzz loop:
-
-For example, to test [zlib](https://github.com/madler/zlib), do the following:
-
-Set your OpenAI API key (fuzzing zlib will cost about $1 using GPT-5):
-```
 export OPENAI_API_KEY=...
-```
-
-Set up a new project (optionally pin to a specific commit with `-c <commit>`):
-```
 stitch init https://github.com/madler/zlib
-```
-
-This will create a new project folder, here with the name `madler_zlib`. Next run the configure agent to generate a configuration:
-```
 cd madler_zlib
-stitch gen
+stitch gen # generate build configuration
+stitch infer # infer a harness specification
+stitch fuzz # start a fuzzing campaign
 ```
 
-Once generation completes, you should see a `config` folder with the following files:
-- `Dockerfile`: the Dockerfile for the project
-- `test.cpp`: a simple test program using the project API
-- `info.json`: the project build configuration
-- `usage.json`: the usage tokens for the LLM calls
+That flow initializes a target repo, generates configuration, infers a harness, and starts a restartable fuzzing loop with automated triage.
 
-Next, run the inference workflow to infer a specification:
-```
-stitch infer
-```
-You can run with `--threads <n>` to use multiple threads for the compilation tasks, which will be faster. You can also give this harness a specific name with `--name <name>` (by default it is `harn1`).
+## Overview
 
-Once this completes, you should have a `harnesses` folder with a new harness `harn1/harness.json` containing all the generated code blocks (as well as all the other metadata from the inference workflow).
+Fuzzing is performed with the high-level `stitch` CLI which manages sandboxed fuzzing containers for each target.  
 
-Next, you can chose to fuzz in two modes.
+## Common Commands
 
-Raw fuzzing mode (i.e. just run the fuzzer continuously) -- which is what we did for RQ1:
-```
-stitch fuzz-raw -o outputs
-```
-This will run the fuzzer continuously until you stop it, saving all the artifacts to the specified output directory.
-
-Alternatively, can run STITCH in loop mode (normal mode) -- which is what we did for RQ2. This will run until hitting a crash and then use the Triage agent to diagnose the crash and (optionally) the Patch agent to repair the schema and restart the fuzzer.
-
-```
-stitch fuzz
+```bash
+stitch fuzz                 # loop mode (triage + patch workflow)
+stitch fuzz-raw -o outputs  # raw continuous fuzzing
+stitch info                 # project and token usage details
+stitch install-completions  # shell completion setup
 ```
 
-This command is restartable, so if it generates two revisions and then you stop it, it will properly resume the campaign from the third revision. All data gets saved to the `campaign` directory which is in the harness folder (i.e. `harnesses/harn1/campaign`). Of interest, this will contain a `reports` folder containing the triaged crashes.
+## Learn More
 
-## Other tools
-
-There are a few other tools used mainly for debugging:
-- `stitch info` -> display a bunch of information about the project and costs
-- `stitch dev` -> launch a shell inside the fuzzer docker container
-- `stitch test` -> run the configuration test.cpp pass
-- `stitch stats --harness <name>` -> run a constructability analysis on a specific harness
-- `stitch replay -b <hash>` -> replay a specific minimized crash contained in a report folder
-- `stitch bug -t <file.cpp>` -> replay an external reproducer for a bug, optionally add `-d` to launch `pwndbg`
-- `stitch install-completions` -> auto-detect shell and install autocompletion (with y/n prompt)
-
-## PyPI release flow
-
-PyPI publishing is automated through GitHub Actions.
-
-- The package definition lives in `stitch/pyproject.toml` and the build hook in `stitch/setup.py`.
-- Release by tagging a version in git:
-  - `git tag v0.1.0`
-  - `git push origin v0.1.0`
-- The `publish-pypi.yml` workflow builds `stitch` and publishes to PyPI using trusted publishing (OIDC).
+- [Getting Started](docs/getting-started.md): prerequisites and full walkthrough
+- [CLI Reference](docs/cli-reference.md): command details and flags
+- [Architecture](docs/architecture.md): system design and data flow
+- [Docs Home](docs/README.md): full documentation index
