@@ -1,11 +1,13 @@
 <p align="center">
-  <img src="docs/assets/stitch_banner.png" alt="STITCH banner" />
+  <a href="https://hgarrereyn.github.io/STITCH/">
+    <img src="docs/assets/stitch_banner.png" alt="STITCH banner" />
+  </a>
 </p>
 
 <p align="center">
   <a href="https://pypi.org/project/stitch-fuzz/"><img alt="PyPI" src="https://img.shields.io/pypi/v/stitch-fuzz?color=1d4ed8"></a>
   <a href="https://pypi.org/project/stitch-fuzz/"><img alt="Python Version" src="https://img.shields.io/pypi/pyversions/stitch-fuzz?color=0f766e"></a>
-  <a href="docs/README.md"><img alt="Documentation" src="https://img.shields.io/badge/docs-read-blue"></a>
+  <a href="https://hgarrereyn.github.io/STITCH/"><img alt="Documentation" src="https://img.shields.io/badge/docs-read-blue"></a>
 </p>
 
 STITCH is an LLM-assisted fuzzing framework that performs fully-automatic, flexible fuzzing of C and C++ libraries.
