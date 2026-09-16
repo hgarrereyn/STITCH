@@ -12,9 +12,9 @@ use libafl::inputs::Input;
 #[allow(unused_imports)]
 use libafl_targets::{libfuzzer_initialize, libfuzzer_test_one_input, std_edges_map_observer};
 
-use mimalloc::MiMalloc;
-#[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+// Use Rust's system allocator so allocations go through the linked ASan runtime.
+// A separate allocator can map memory outside ASan's supported address range
+// when the Linux/amd64 fuzzer runs under emulation on an ARM host.
 
 pub mod components;
 pub mod fuzzer;

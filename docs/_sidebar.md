@@ -1,4 +1,0 @@
-- [Home](/)
-- [Getting Started](getting-started.md)
-- [Architecture](architecture.md)
-- [CLI Reference](cli-reference.md)

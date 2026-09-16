@@ -12,21 +12,23 @@
 
 STITCH is an LLM-assisted fuzzing framework that performs fully-automatic, flexible fuzzing of C and C++ libraries.
 
-Read our preprint: [Automatic, Expressive, and Scalable Fuzzing with Stitching](todo).
+## Quickstart
 
-## Quick Start (60 seconds)
+Requires Python 3.10+, Git, Docker with `linux/amd64` support, and an OpenAI API key. Start Docker first.
 
 ```bash
 pip install stitch-fuzz
-export OPENAI_API_KEY=...
+export OPENAI_API_KEY="your-api-key"
 stitch init https://github.com/madler/zlib
 cd madler_zlib
 stitch gen # generate build configuration
-stitch infer # infer a harness specification
-stitch fuzz # start a fuzzing campaign
+stitch infer --name harn1 # infer a harness specification
+stitch fuzz --name harn1 # start a fuzzing campaign
 ```
 
-That flow initializes a target repo, generates configuration, infers a harness, and starts a restartable fuzzing loop with automated triage.
+To install from an artifact checkout, use `pip install ./stitch` at the repository root. The first run builds Docker images; LLM steps use your API account.
+
+Press Ctrl+C to request a graceful stop. Rerun `stitch fuzz --name harn1` to resume. Reports are saved in `harnesses/harn1/campaign/reports/`.
 
 ## Overview
 
@@ -35,15 +37,16 @@ Fuzzing is performed with the high-level `stitch` CLI which manages sandboxed fu
 ## Common Commands
 
 ```bash
-stitch fuzz                 # loop mode (triage + patch workflow)
-stitch fuzz-raw -o outputs  # raw continuous fuzzing
-stitch info                 # project and token usage details
-stitch install-completions  # shell completion setup
+stitch bugs replay --name harn1         # reproduce triaged bugs
+stitch fuzz --name harn1 --no-triage -o outputs --time-limit-seconds 3600
+stitch cover --name harn1 --outputs outputs --nproc 4
+stitch info                            # project and LLM usage details
 ```
 
 ## Learn More
 
-- [Getting Started](docs/getting-started.md): prerequisites and full walkthrough
+- [Documentation site](https://hgarrereyn.github.io/STITCH/): quickstart and examples
+- [Getting Started](docs/getting-started.md): setup, bug reproduction, and coverage
 - [CLI Reference](docs/cli-reference.md): command details and flags
 - [Architecture](docs/architecture.md): system design and data flow
 - [Docs Home](docs/README.md): full documentation index

@@ -7,6 +7,10 @@ class CodegenHeader(BaseModel):
     language: Literal['c', 'cpp']
 
 
+class CodegenScanOnlyHeader(BaseModel):
+    path: str
+
+
 class CodegenDefine(BaseModel):
     name: str
     value: str
@@ -15,6 +19,9 @@ class CodegenDefine(BaseModel):
 class CodegenConfig(BaseModel):
     # Target headers
     headers: List[CodegenHeader] = Field(default_factory=list)
+
+    # Extra headers used only for API scanning/inference.
+    scan_only_headers: List[CodegenScanOnlyHeader] = Field(default_factory=list)
 
     # Extra defines
     defines: List[CodegenDefine] = Field(default_factory=list)

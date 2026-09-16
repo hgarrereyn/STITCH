@@ -57,6 +57,8 @@ def do_infer(args):
         shutil.copy(info_path, tmpdir / "info.json")
 
         headers = [x.path for x in info.codegen.headers]
+        scan_only_headers = [x.path for x in info.codegen.scan_only_headers]
+        scan_headers = headers + scan_only_headers
         if not headers:
             _cleanup_fatal("Build configuration has 0 headers")
 
@@ -70,7 +72,7 @@ def do_infer(args):
             "STITCH_MODEL",
         ]
         mounts = [(str(tmpdir), "/fuzz/workspace")]
-        header_args = " ".join(headers)
+        header_args = " ".join(scan_headers)
         cmd = (
             f"cd /fuzz/workspace && stitchi inference run"
             f" --headers {header_args}"

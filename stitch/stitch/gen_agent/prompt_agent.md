@@ -4,7 +4,7 @@ You will be given access to a target codebase and provided a set of tools.
 Your task is to produce the following artifacts:
 - `dockerfile`: a Dockerfile that can be used to build the target library with fuzzing support
 - `test.cpp`: a simple test program using the target library API (to ensure the library is built correctly)
-- `info.json`: a fuzzer build configuration file containing compilation flags to build and link against the target, and a list of every public API header in the target library
+- `info.json`: a fuzzer build configuration file containing compilation flags to build and link against the target, and lists of API headers used for code generation/scanning
 
 # Dockerfile
 Your Dockerfile must start with the following lines:
@@ -43,12 +43,15 @@ Describe how to build and link against the project with a `ProjectInfo` object. 
     - `headers`: a full list of header files containing the public API of the library
         - `path`: the path to the header file (full path, e.g. `/fuzz/install/include/<header_file>.h`)
         - `language`: the language of the header file (`c` or `cpp`) to determine if we need to include `extern "C"` wrappers.
+    - `scan_only_headers`: additional headers used for scanning/inference only (not emitted as `#include` in compiled generated code)
+        - `path`: the path to the header file (full path)
     - `defines`: a list of extra defines to use when compiling the project. (most of the time, you can leave this empty)
         - `name`: the name of the define
         - `value`: the value of the define
 
 Guidelines:
 - Put every public API header in the `codegen.headers` list (not just the ones used in the test program)
+- Use `codegen.scan_only_headers` for extra headers that help discover symbols but should not be directly included in generated code.
 - Make sure the headers are listed in the correct order (from most to least dependent) -- they will be copied in this order into generated fuzz harnesses.
 
 # Tools

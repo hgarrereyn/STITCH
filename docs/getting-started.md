@@ -1,80 +1,80 @@
-# Getting Started
+# Quickstart
 
-## Prerequisites
-
-- Python 3.11+
-- Docker (for running fuzzer containers)
-- An OpenAI API key
-
-## Install
+Requires Python 3.10+, Git, Docker with `linux/amd64` support, and an OpenAI API key. Start Docker first.
 
 ```bash
 pip install stitch-fuzz
-```
+export OPENAI_API_KEY="your-api-key"
 
-Verify the installation:
-
-```bash
-stitch --help
-```
-
-## Enable Shell Completion
-
-**Auto-install:**
-
-```bash
-stitch install-completions
-```
-
-**Manual (zsh):**
-
-```bash
-stitch completion show --shell zsh
-```
-
-## Typical Workflow
-
-### 1. Initialize a target project
-
-Point STITCH at a Git repository. Optionally pin a specific commit with `-c <commit>`.
-
-```bash
 stitch init https://github.com/madler/zlib
 cd madler_zlib
+
+stitch gen                  # Configure the build
+stitch infer --name harn1    # Infer a harness
+stitch fuzz --name harn1     # Fuzz and triage crashes
 ```
 
-### 2. Generate configuration
+To install from an artifact checkout, replace `pip install stitch-fuzz` with `pip install ./stitch`, run at the repository root.
 
-Run the Configure Agent to produce a `Dockerfile`, `test.cpp`, `info.json`, and `usage.json` inside a `config/` folder.
+The first run builds Docker images. Setup and inference time depend on the target; LLM steps use your API account. Press Ctrl+C to request a graceful stop, then rerun `stitch fuzz --name harn1` to resume.
+
+## Project layout
+
+Each target has a project directory. Build settings are shared; each harness keeps its own fuzzing and coverage results.
+
+```text
+madler_zlib/
+├── stitch.json             Source revision and project settings
+├── config/                 Dockerfile, build metadata, and test program
+├── harnesses/
+│   └── harn1/              One directory per harness
+│       ├── harness.json    Inferred harness specification
+│       ├── campaign/
+│       │   ├── reports/    Crash reports and triage results
+│       │   └── revisions/  Harness revisions and fuzzing outputs
+│       └── coverage/       HTML and JSON coverage reports
+└── bugs/                   Exported C++ reproducers
+```
+
+Main files and folders are shown above; they appear as you run each stage. Raw fuzzing writes to the directory given by `-o` (`outputs/` in the coverage example below).
+
+## Reproduce bugs
+
+From a project with triaged campaign reports:
 
 ```bash
-stitch gen
+stitch bugs replay --name harn1
 ```
 
-### 3. Infer a harness specification
+This recompiles and runs minimized testcases with AddressSanitizer. Add `-b <bug-hash>` to select a report by its directory name under `harnesses/harn1/campaign/reports/`.
 
-Run the Inference Workflow to generate harness code blocks.
+To run a saved C++ reproducer in the configured project:
 
 ```bash
-stitch infer
+stitch bugs run -t testcase.cpp
 ```
 
-> **Performance tip:** Pass `--threads <n>` to parallelize compilation tasks. Use `--name <name>` to label the harness (defaults to `harn1`).
+Add `-d` for the debugger or `-c <commit>` to test another target revision.
 
-### 4. Start fuzzing
+## Measure coverage
 
-STITCH supports two fuzzing modes:
-
-**Loop mode (default)** — Runs until a crash is found, then uses the Triage and Patch agents to diagnose and repair. Restartable — resumes from the last revision automatically.
+From a project with an inferred harness, run a one-hour experiment:
 
 ```bash
-stitch fuzz
+stitch fuzz --name harn1 --no-triage -o outputs \
+  --time-limit-seconds 3600
+stitch cover --name harn1 --outputs outputs --nproc 4
 ```
 
-**Raw mode** — Runs the fuzzer continuously without LLM-assisted triage. Useful for benchmarking.
+The time limit excludes the build. The raw fuzzing run does not use LLM triage, and coverage requires a nonempty `outputs/queue/`.
+
+Open `harnesses/harn1/coverage/html/index.html` for the report, or read `harnesses/harn1/coverage/coverage.json`. Coverage profiles accumulate within a harness; use a fresh project copy for each independent trial. Pin the target with `stitch init <repo-url> -c <commit>` and retain its generated configuration and harness for repeatable experiments.
+
+## Inspect a project
 
 ```bash
-stitch fuzz-raw -o outputs
+stitch info
+stitch info --harness harn1
 ```
 
-Results are saved to the `harnesses/<name>/campaign/` directory, including a `reports/` folder with triaged crashes.
+These show the source revision, harnesses, recorded LLM usage, and harness statistics. See the [command reference](cli-reference.md) for more options.

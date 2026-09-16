@@ -1,35 +1,23 @@
-# STITCH
+# STITCH documentation
 
-> LLM-driven fuzzing that combines a core fuzzing engine with automated workflow orchestration.
+STITCH uses LLMs to configure builds and infer harness specifications for C and C++ libraries, then runs coverage-guided fuzzing with automatic crash triage.
 
-STITCH automates the process of generating fuzz harnesses, running fuzzing campaigns, and triaging crashes — all powered by large language models.
+The [documentation site](https://hgarrereyn.github.io/STITCH/) starts with a quickstart, followed by bug reproduction and coverage examples.
 
-## Components
+For instructions in Markdown:
 
-| Package | Language | Description |
-|---------|----------|-------------|
-| `stitch_core` | Rust | Core runtime, testcase execution, and mutation |
-| `stitch_libafl` | Rust | LibAFL-based fuzzing engine (uses `stitch_core`) |
-| `stitch` | Python | Top-level CLI for project setup, orchestration, and the Configure Agent |
-| `stitchi` | Python | Internal package for fuzzer containers — Inference Workflow, Triage Agent, and Patch Agent |
+- [Quickstart and examples](getting-started.md)
+- [Command reference](cli-reference.md)
+- [Architecture](architecture.md)
 
-## LLM Agents
+## Preview and edit the site
 
-STITCH uses four LLM-powered components to drive the fuzzing workflow:
-
-- **Config Agent** — generates project build configuration and a test program
-- **Inference Workflow** (codename *Zephyr*) — infers a harness specification from the target project
-- **Triage Agent** — diagnoses crashes found during fuzzing
-- **Patch Agent** — repairs the schema and restarts the fuzzer after a crash
-
-## Quick Start
+Open `docs/index.html` directly, or run this from the repository root:
 
 ```bash
-pip install stitch-fuzz
-stitch init https://github.com/madler/zlib .
-stitch gen       # Automatically configure
-stitch infer     # Automatically infer a specification
-stitch fuzz      # Automatically fuzz and triage bugs
+python3 -m http.server 8000 --directory docs
 ```
 
-> **New to STITCH?** Head over to the [Getting Started](getting-started.md) guide for a full walkthrough.
+Visit <http://localhost:8000>. The site is plain HTML, CSS, and JavaScript; no build step or network access is needed to read it. JavaScript only adds copy buttons and redirects old documentation bookmarks.
+
+Edit `index.html` for content and `assets/site.css` for styling. Keep command examples in the Markdown guides consistent with the site. The existing GitHub Pages workflow publishes `docs/` when documentation changes are pushed to `main`.

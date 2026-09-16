@@ -1,1006 +1,138 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>STITCH — Automatic, Expressive, Scalable Testing</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Chango&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --base-font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      --base-font-size: 16px;
-      --base-line-height: 1.6;
-      --code-font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      --code-font-size: 0.9em;
-
-      --theme-color: #c0c0c8;
-      --mono-hue: 0;
-      --mono-saturation: 0%;
-
-      --color-bg: #0c0c0f;
-      --color-surface: #141416;
-      --color-surface-raised: #1c1c20;
-      --color-border: #2c2c32;
-      --color-text: #e0e0e4;
-      --color-text-muted: #808088;
-      --color-accent: #c0c0c8;
-      --color-accent-glow: rgba(192, 192, 200, 0.08);
-      --color-green: #5cd89a;
-      --color-amber: #d4b84c;
-      --color-cyan: #50c8e0;
-
-      --cover-bg: transparent;
-      --cover-background-color: transparent;
-      --cover-background-image: none;
-      --cover-background-mask-color: transparent;
-      --cover-background-mask-visibility: hidden;
-      --sidebar-background: var(--color-surface);
-      --sidebar-border-color: var(--color-border);
-      --sidebar-nav-link-color--active: var(--color-text);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      background: var(--color-bg);
-      color: var(--color-text);
-      font-family: var(--base-font-family);
-    }
-
-    /* ── WebGL Canvas ────────────────────────────────── */
-    #bg-canvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    #app {
-      position: relative;
-      z-index: 1;
-    }
-
-    main {
-      background: var(--color-bg);
-    }
-
-    /* ── Coverpage ─────────────────────────────────── */
-    section.cover {
-      background: transparent !important;
-      background-color: transparent !important;
-      background-image: none !important;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    section.cover .mask,
-    section.cover .cover-main::before,
-    section.cover::before,
-    section.cover::after {
-      background: transparent !important;
-      background-color: transparent !important;
-      background-image: none !important;
-      opacity: 0 !important;
-    }
-
-    section.cover .cover-main {
-      max-width: 900px;
-      margin: 0 auto;
-      text-align: center;
-      padding: 3rem 3.5rem;
-    }
-
-    section.cover .cover-main > p:first-child {
-      display: none;
-    }
-
-    .cover-main blockquote {
-      border: none !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-
-    .cover-main blockquote p {
-      font-size: 1.1rem !important;
-      color: var(--color-text-muted) !important;
-      letter-spacing: 0.04em;
-    }
-
-    /* ── Hero Branding ────────────────────────────── */
-    .hero-title {
-      font-family: 'Chango', cursive;
-      font-size: clamp(5rem, 12vw, 10rem);
-      font-weight: 400;
-      letter-spacing: -0.02em;
-      line-height: 1;
-      margin: 0 0 0.25em;
-      color: #e8e8f0;
-      -webkit-text-fill-color: #e8e8f0;
-      text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
-    }
-
-    .hero-subtitle {
-      font-family: 'Chango', cursive;
-      font-size: clamp(1rem, 2.5vw, 1.4rem);
-      font-weight: 400;
-      color: #e2e2ef;
-      letter-spacing: 0.03em;
-      margin: 0 0 2.5rem;
-      text-transform: uppercase;
-    }
-
-    /* ── Terminal ──────────────────────────────────── */
-    .terminal-window {
-      background: var(--color-surface);
-      border: 1px solid var(--color-border);
-      border-radius: 12px;
-      overflow: hidden;
-      text-align: left;
-      margin: 0 auto 2.5rem;
-      max-width: 650px;
-      box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.03),
-        0 20px 60px -10px rgba(0, 0, 0, 0.5);
-    }
-
-    .terminal-header {
-      background: var(--color-surface-raised);
-      border-bottom: 1px solid var(--color-border);
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .terminal-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: var(--color-border);
-    }
-
-    .terminal-dot.red { background: #f87171; }
-    .terminal-dot.yellow { background: #fbbf24; }
-    .terminal-dot.green { background: #34d399; }
-
-    .terminal-title {
-      flex: 1;
-      text-align: center;
-      font-size: 0.8rem;
-      color: var(--color-text-muted);
-      font-family: var(--code-font-family);
-    }
-
-    .terminal-body {
-      padding: 1.25rem 1.5rem;
-      font-family: var(--code-font-family);
-      font-size: 0.88rem;
-      line-height: 1.9;
-      min-height: 200px;
-    }
-
-    .term-line {
-      white-space: nowrap;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-    }
-
-    .term-prompt {
-      color: var(--color-text-muted);
-      margin-right: 0.6em;
-      user-select: none;
-      flex-shrink: 0;
-    }
-
-    .term-prompt::before {
-      content: '❯';
-    }
-
-    .term-command {
-      color: var(--color-text);
-    }
-
-    .term-command .cmd-name {
-      color: var(--color-green);
-    }
-
-    .term-command .cmd-flag {
-      color: var(--color-amber);
-    }
-
-    .term-command .cmd-arg {
-      color: var(--color-cyan);
-    }
-
-    .term-comment {
-      color: var(--color-text-muted);
-      font-style: italic;
-    }
-
-    .term-cursor {
-      display: inline-block;
-      width: 9px;
-      height: 1.2em;
-      background: var(--color-text);
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
-      margin-left: 1px;
-      border-radius: 1px;
-    }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0; }
-    }
-
-    .term-line.hidden {
-      display: none;
-    }
-
-    /* ── CTA Buttons (cover) ──────────────────────── */
-    .cover-main > p:last-child { display: none !important; }
-
-    .cta-buttons {
-      display: flex;
-      justify-content: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .cta-buttons a {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.45em;
-      border-radius: 8px;
-      padding: 0.65em 1.8em;
-      font-weight: 600;
-      font-size: 0.95rem;
-      font-family: var(--base-font-family);
-      text-decoration: none;
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
-
-    .cta-primary {
-      background: #e8e8f0;
-      color: #0a0a0f !important;
-      border: none;
-    }
-
-    .cta-primary:hover {
-      background: #fff;
-      box-shadow: 0 0 24px rgba(232, 232, 240, 0.25);
-    }
-
-    .cta-outline {
-      border: 1px solid var(--color-border) !important;
-      color: var(--color-text) !important;
-      background: transparent;
-    }
-
-    .cta-outline:hover {
-      border-color: var(--color-text) !important;
-      color: var(--color-text) !important;
-    }
-
-    .cta-icon {
-      width: 1.05em;
-      height: 1.05em;
-      flex-shrink: 0;
-    }
-
-    .cta-ext {
-      width: 0.7em;
-      height: 0.7em;
-      flex-shrink: 0;
-      opacity: 0.55;
-      margin-left: -0.1em;
-    }
-
-    /* ── Sidebar ──────────────────────────────────── */
-    .sidebar {
-      background: var(--color-surface) !important;
-      border-right: 1px solid var(--color-border) !important;
-    }
-
-    .sidebar-nav a {
-      color: var(--color-text-muted) !important;
-      font-weight: 500;
-      transition: color 0.15s ease;
-    }
-
-    .sidebar-nav a:hover,
-    .sidebar-nav a.active {
-      color: var(--color-text) !important;
-    }
-
-    .app-name-link {
-      font-weight: 800 !important;
-      font-size: 1.2rem !important;
-      color: var(--color-text) !important;
-      -webkit-text-fill-color: var(--color-text) !important;
-    }
-
-    /* ── Content ──────────────────────────────────── */
-    .markdown-section {
-      max-width: 800px;
-    }
-
-    .markdown-section h1 {
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
-    .markdown-section h2 {
-      font-weight: 700;
-      color: var(--color-text);
-      border-bottom: 1px solid var(--color-border);
-      padding-bottom: 0.4em;
-    }
-
-    .markdown-section code {
-      font-family: var(--code-font-family);
-      background: var(--color-surface-raised);
-      border: 1px solid var(--color-border);
-      border-radius: 4px;
-      padding: 0.15em 0.4em;
-      font-size: 0.88em;
-    }
-
-    .markdown-section pre {
-      background: var(--color-surface) !important;
-      border: 1px solid var(--color-border);
-      border-radius: 8px;
-      padding: 1.2em 1.5em;
-    }
-
-    .markdown-section pre code {
-      background: none;
-      border: none;
-      padding: 0;
-    }
-
-    .markdown-section table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-
-    .markdown-section th {
-      background: var(--color-surface-raised);
-      font-weight: 600;
-    }
-
-    .markdown-section th,
-    .markdown-section td {
-      border: 1px solid var(--color-border);
-      padding: 0.6em 1em;
-    }
-
-    .markdown-section blockquote {
-      border-left: 3px solid var(--color-border);
-      background: var(--color-accent-glow);
-      padding: 0.8em 1.2em;
-      border-radius: 0 6px 6px 0;
-      margin: 1.5em 0;
-    }
-
-    .markdown-section a {
-      color: var(--color-text);
-      text-decoration: underline;
-      text-decoration-color: var(--color-text-muted);
-      text-underline-offset: 2px;
-    }
-
-    .markdown-section a:hover {
-      text-decoration-color: var(--color-text);
-    }
-
-    /* ── Prism (dark mode) ────────────────────────────── */
-    .token.comment, .token.prolog,
-    .token.doctype, .token.cdata {
-      color: #606068;
-    }
-
-    .token.punctuation { color: #909098; }
-
-    .token.property, .token.tag, .token.boolean,
-    .token.number, .token.constant, .token.symbol {
-      color: #5cc8e0;
-    }
-
-    .token.selector, .token.attr-name,
-    .token.string, .token.char, .token.builtin {
-      color: #5cd89a;
-    }
-
-    .token.operator, .token.entity, .token.url { color: #b0b0b8; }
-
-    .token.atrule, .token.attr-value,
-    .token.keyword {
-      color: #e0e0e8;
-    }
-
-    .token.function, .token.class-name {
-      color: #d4b84c;
-    }
-
-    .token.regex, .token.important,
-    .token.variable {
-      color: #d4b84c;
-    }
-
-    /* ── Search ────────────────────────────────────── */
-    .search input {
-      background: var(--color-surface-raised) !important;
-      border: 1px solid var(--color-border) !important;
-      border-radius: 6px !important;
-      color: var(--color-text) !important;
-    }
-
-    /* ── Scrollbar ─────────────────────────────────── */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb {
-      background: var(--color-border);
-      border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
-
-    /* ── Light Mode ──────────────────────────────────── */
-    [data-theme="light"] {
-      --theme-color: #1a1a1e;
-      --color-bg: #f4f4f6;
-      --color-surface: #ffffff;
-      --color-surface-raised: #eaeaee;
-      --color-border: #d0d0d6;
-      --color-text: #1a1a1e;
-      --color-text-muted: #6a6a72;
-      --color-accent: #444448;
-      --color-accent-glow: rgba(0, 0, 0, 0.04);
-      --color-green: #1a7a3a;
-      --color-amber: #a05a10;
-      --color-cyan: #0070a0;
-      --cover-bg: transparent;
-      --sidebar-background: #ffffff;
-      --mono-hue: 0;
-      --mono-saturation: 0%;
-    }
-
-    [data-theme="light"] body {
-      background: var(--color-bg);
-    }
-
-    [data-theme="light"] main {
-      background: var(--color-bg);
-    }
-
-    [data-theme="light"] .hero-title {
-      color: #1a1a1e;
-      -webkit-text-fill-color: #1a1a1e;
-      text-shadow: none;
-    }
-
-    [data-theme="light"] .hero-subtitle {
-      color: #6a6a72;
-    }
-
-    [data-theme="light"] .cta-primary {
-      background: #1a1a1e;
-      color: #f4f4f6 !important;
-    }
-
-    [data-theme="light"] .cta-primary:hover {
-      background: #333338;
-      box-shadow: 0 0 20px rgba(0, 0, 0, 0.12);
-    }
-
-    [data-theme="light"] .cta-outline {
-      border-color: #c0c0c8 !important;
-      color: #1a1a1e !important;
-    }
-
-    [data-theme="light"] .cta-outline:hover {
-      border-color: #1a1a1e !important;
-      color: #1a1a1e !important;
-    }
-
-    [data-theme="light"] .sidebar {
-      background: #ffffff !important;
-      border-right-color: var(--color-border) !important;
-    }
-
-    [data-theme="light"] .terminal-window {
-      background: #ffffff;
-      border-color: var(--color-border);
-      box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.04),
-        0 12px 40px -8px rgba(0, 0, 0, 0.08);
-    }
-
-    [data-theme="light"] .terminal-header {
-      background: var(--color-bg);
-      border-bottom-color: var(--color-border);
-    }
-
-    [data-theme="light"] .markdown-section strong,
-    [data-theme="light"] .markdown-section b {
-      color: #1a1a1e;
-    }
-
-    [data-theme="light"] .markdown-section h1,
-    [data-theme="light"] .markdown-section h2,
-    [data-theme="light"] .markdown-section h3,
-    [data-theme="light"] .markdown-section h4 {
-      color: #1a1a1e;
-    }
-
-    [data-theme="light"] .markdown-section code {
-      color: #1a1a1e;
-      background: #eaeaee;
-      border-color: #d0d0d6;
-    }
-
-    [data-theme="light"] .markdown-section pre {
-      background: #f8f8fa !important;
-      border-color: #d0d0d6;
-    }
-
-    [data-theme="light"] .markdown-section pre code {
-      color: #2a2a30;
-    }
-
-    /* Prism token overrides for light mode */
-    [data-theme="light"] .token.comment,
-    [data-theme="light"] .token.prolog,
-    [data-theme="light"] .token.doctype,
-    [data-theme="light"] .token.cdata {
-      color: #8a8a92;
-    }
-
-    [data-theme="light"] .token.punctuation {
-      color: #5a5a62;
-    }
-
-    [data-theme="light"] .token.property,
-    [data-theme="light"] .token.tag,
-    [data-theme="light"] .token.boolean,
-    [data-theme="light"] .token.number,
-    [data-theme="light"] .token.constant,
-    [data-theme="light"] .token.symbol {
-      color: #0070a0;
-    }
-
-    [data-theme="light"] .token.selector,
-    [data-theme="light"] .token.attr-name,
-    [data-theme="light"] .token.string,
-    [data-theme="light"] .token.char,
-    [data-theme="light"] .token.builtin {
-      color: #1a7a3a;
-    }
-
-    [data-theme="light"] .token.operator,
-    [data-theme="light"] .token.entity,
-    [data-theme="light"] .token.url {
-      color: #4a4a52;
-    }
-
-    [data-theme="light"] .token.atrule,
-    [data-theme="light"] .token.attr-value,
-    [data-theme="light"] .token.keyword {
-      color: #1a3a8a;
-    }
-
-    [data-theme="light"] .token.function,
-    [data-theme="light"] .token.class-name {
-      color: #a05a10;
-    }
-
-    [data-theme="light"] .token.regex,
-    [data-theme="light"] .token.important,
-    [data-theme="light"] .token.variable {
-      color: #a05a10;
-    }
-
-    /* ── Theme Toggle ───────────────────────────────── */
-    .theme-toggle {
-      position: fixed;
-      top: 14px;
-      right: 16px;
-      z-index: 100;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      border: 1px solid var(--color-border);
-      background: var(--color-surface);
-      color: var(--color-text-muted);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-      padding: 0;
-    }
-
-    .theme-toggle:hover {
-      color: var(--color-text);
-      border-color: var(--color-text-muted);
-    }
-
-    .theme-toggle svg {
-      width: 18px;
-      height: 18px;
-    }
-
-    .theme-toggle .icon-sun  { display: none; }
-    .theme-toggle .icon-moon { display: block; }
-
-    [data-theme="light"] .theme-toggle .icon-sun  { display: block; }
-    [data-theme="light"] .theme-toggle .icon-moon { display: none; }
-
-    /* smooth transitions */
-    body, .sidebar, .terminal-window, .terminal-header,
-    .hero-title, .hero-subtitle, .cta-primary, .cta-outline,
-    .markdown-section, .theme-toggle, main {
-      transition: background 0.3s ease, color 0.3s ease,
-                  border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="STITCH automatically fuzzes C and C++ libraries. Install the tool, reproduce bugs, and measure code coverage with a few commands.">
+  <title>STITCH — Documentation</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
 </head>
 <body>
-  <script>
-    (function(){var t=localStorage.getItem('stitch-theme');
-    if(t)document.documentElement.setAttribute('data-theme',t);})();
-  </script>
-  <canvas id="bg-canvas"></canvas>
-  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode">
-    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-  </button>
-  <div id="app"></div>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="wordmark" href="#about" aria-label="STITCH home">STITCH</a>
+    <nav aria-label="Main navigation">
+      <a href="#quickstart">Quickstart</a>
+      <a href="#examples">Examples</a>
+      <a href="#reference">Reference</a>
+      <a href="https://github.com/hgarrereyn/STITCH">GitHub <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
 
-  <script>
-    window.$docsify = {
-      name: 'STITCH',
-      repo: '',
-      coverpage: true,
-      onlyCover: false,
-      loadSidebar: true,
-      subMaxLevel: 3,
-      auto2top: true,
-      search: {
-        placeholder: 'Search docs…',
-        noData: 'No results.',
-        depth: 3
-      },
-      copyCode: {
-        buttonText: 'Copy',
-        successText: 'Copied'
-      },
-    };
-  </script>
+  <main id="main">
+    <div class="intro" id="about">
+      <h1>Automatic fuzzing for C and C++.</h1>
+      <p>STITCH uses LLMs to configure builds and infer harness specifications, then runs coverage-guided fuzzing with automatic crash triage.</p>
+    </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-rust.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-cpp.min.js"></script>
+    <section id="quickstart" aria-labelledby="quickstart-title">
+      <h2 id="quickstart-title">Quickstart</h2>
+      <p>Requires Python 3.10+, Git, Docker with <code>linux/amd64</code> support, and an OpenAI API key. Start Docker before running the commands below.</p>
+      <div class="code-block">
+        <pre aria-label="Install STITCH and fuzz zlib" tabindex="0"><code>pip install stitch-fuzz
+export OPENAI_API_KEY="your-api-key"
 
-  <script>
-    const PROJECTS = [
-      'https://github.com/madler/zlib',
-      'https://github.com/curl/curl',
-      'https://github.com/openssl/openssl',
-      'https://github.com/sqlite/sqlite',
-      'https://github.com/libexpat/libexpat',
-      'https://github.com/json-c/json-c',
-      'https://github.com/libjpeg-turbo/libjpeg-turbo',
-      'https://github.com/libarchive/libarchive',
-      'https://github.com/yaml/libyaml',
-      'https://github.com/redis/redis',
-    ];
+stitch init https://github.com/madler/zlib
+cd madler_zlib
 
-    function esc(s) {
-      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
+stitch gen                  <span class="comment"># Configure the build</span>
+stitch infer --name harn1    <span class="comment"># Infer a harness</span>
+stitch fuzz --name harn1     <span class="comment"># Fuzz and triage crashes</span></code></pre>
+      </div>
+      <p class="note">Installing from an artifact checkout? Use <code>pip install ./stitch</code> at the repository root instead of the first command.</p>
+      <p class="note">The first run builds Docker images. Setup and inference time depend on the target; LLM steps use your API account.</p>
+      <p>Press <kbd>Ctrl</kbd> + <kbd>C</kbd> to request a graceful stop. Rerun <code>stitch fuzz --name harn1</code> to resume. Crash reports are saved in <code>harnesses/harn1/campaign/reports/</code>.</p>
+    </section>
 
-    const CURSOR = '<span class="term-cursor"></span>';
-    const TYPE_MS = 32;
-    const DEL_MS = 18;
-    const HOLD_MS = 2000;
-    const PAUSE_MS = 400;
+    <section id="project-layout" aria-labelledby="project-layout-title">
+      <h2 id="project-layout-title">Project layout</h2>
+      <p>Each target has a project directory. Build settings are shared; each harness keeps its own fuzzing and coverage results.</p>
+      <div class="directory-tree">
+        <pre aria-label="Generated project folders and their contents" tabindex="0"><code>madler_zlib/
+├── stitch.json             <span class="comment">Source revision and project settings</span>
+├── config/                 <span class="comment">Dockerfile, build metadata, and test program</span>
+├── harnesses/
+│   └── harn1/              <span class="comment">One directory per harness</span>
+│       ├── harness.json    <span class="comment">Inferred harness specification</span>
+│       ├── campaign/
+│       │   ├── reports/    <span class="comment">Crash reports and triage results</span>
+│       │   └── revisions/  <span class="comment">Harness revisions and fuzzing outputs</span>
+│       └── coverage/       <span class="comment">HTML and JSON coverage reports</span>
+└── bugs/                   <span class="comment">Exported C++ reproducers</span></code></pre>
+      </div>
+      <p class="note">Main files and folders are shown above; they appear as you run each stage. Raw fuzzing writes to the directory given by <code>-o</code> (<code>outputs/</code> in the example below).</p>
+    </section>
 
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    <section id="examples" aria-labelledby="examples-title">
+      <h2 id="examples-title">Examples</h2>
+      <p class="section-intro">Run these from the project directory created above. If you already have a configured project and harness, use those instead.</p>
 
-    function makeLine(body, html) {
-      const row = document.createElement('div');
-      row.className = 'term-line';
-      row.innerHTML = `<span class="term-prompt"></span><span class="term-command">${html}</span>`;
-      body.appendChild(row);
-      return row.querySelector('.term-command');
-    }
-
-    async function typeInto(el, baseHtml, text, cls) {
-      for (let i = 0; i <= text.length; i++) {
-        const chunk = cls
-          ? `<span class="${cls}">${esc(text.slice(0, i))}</span>`
-          : esc(text.slice(0, i));
-        el.innerHTML = baseHtml + chunk + CURSOR;
-        await sleep(TYPE_MS);
-      }
-    }
-
-    async function deleteFrom(el, baseHtml, text, cls) {
-      for (let i = text.length; i >= 0; i--) {
-        const chunk = cls
-          ? `<span class="${cls}">${esc(text.slice(0, i))}</span>`
-          : esc(text.slice(0, i));
-        el.innerHTML = baseHtml + chunk + CURSOR;
-        await sleep(DEL_MS);
-      }
-    }
-
-    function setStatic(el, html) {
-      el.innerHTML = html;
-    }
-
-    async function runAnimation() {
-      const coverEl = document.querySelector('.cover-main');
-      if (!coverEl) return;
-
-      const marker = coverEl.querySelector('.terminal-marker');
-      if (!marker) return;
-
-      const termWindow = document.createElement('div');
-      termWindow.className = 'terminal-window';
-      termWindow.innerHTML = `
-        <div class="terminal-header">
-          <span class="terminal-dot red"></span>
-          <span class="terminal-dot yellow"></span>
-          <span class="terminal-dot green"></span>
-          <span class="terminal-title">terminal</span>
-          <span style="width:52px"></span>
+      <article id="reproduce-bugs" aria-labelledby="bugs-title">
+        <h3 id="bugs-title">Reproduce bugs</h3>
+        <p>After a campaign produces triaged reports, recompile and replay their minimized testcases with AddressSanitizer enabled.</p>
+        <div class="code-block">
+          <pre aria-label="Replay campaign bugs" tabindex="0"><code>stitch bugs replay --name harn1</code></pre>
         </div>
-        <div class="terminal-body"></div>
-      `;
-      marker.replaceWith(termWindow);
+        <p>To select one report, add <code>-b &lt;bug-hash&gt;</code>, using its directory name under <code>campaign/reports/</code>. The output shows whether the crash reproduces.</p>
+        <details>
+          <summary>Run a standalone C++ reproducer</summary>
+          <p>With a configured project and a saved <code>testcase.cpp</code>:</p>
+          <div class="code-block">
+            <pre aria-label="Run a standalone reproducer" tabindex="0"><code>stitch bugs run -t testcase.cpp</code></pre>
+          </div>
+          <p>Add <code>-d</code> to open the debugger, or <code>-c &lt;commit&gt;</code> to test another revision of the target library.</p>
+        </details>
+      </article>
 
-      const body = termWindow.querySelector('.terminal-body');
+      <article id="coverage" aria-labelledby="coverage-title">
+        <h3 id="coverage-title">Run a coverage experiment</h3>
+        <p>Fuzz the inferred harness for one hour without LLM triage, then measure source coverage from the saved corpus.</p>
+        <div class="code-block">
+          <pre aria-label="Run a timed fuzzing and coverage experiment" tabindex="0"><code>stitch fuzz --name harn1 --no-triage -o outputs \
+  --time-limit-seconds 3600
+stitch cover --name harn1 --outputs outputs --nproc 4</code></pre>
+        </div>
+        <p>Open <code>harnesses/harn1/coverage/html/index.html</code> for the report. Machine-readable results are in <code>harnesses/harn1/coverage/coverage.json</code>.</p>
+        <p class="note">The time limit applies to fuzzing, excluding the build. Coverage requires a nonempty <code>outputs/queue/</code>. Use a fresh project copy for each independent trial: coverage profiles accumulate within a harness.</p>
+      </article>
 
-      const INIT_PREFIX = '<span class="cmd-name">stitch</span> init ';
-      const INIT_SUFFIX = ' <span class="cmd-arg">.</span>';
+      <article id="inspect" aria-labelledby="inspect-title">
+        <h3 id="inspect-title">Inspect a project</h3>
+        <p>Check the pinned source revision, generated harnesses, and recorded LLM usage. Add <code>--harness harn1</code> for harness statistics.</p>
+        <div class="code-block">
+          <pre aria-label="Inspect project information" tabindex="0"><code>stitch info</code></pre>
+        </div>
+      </article>
+    </section>
 
-      const pipCmd   = makeLine(body, '<span class="cmd-name">pip</span> install <span class="cmd-arg">stitch-fuzz</span>');
-      const initCmd  = makeLine(body, INIT_PREFIX + CURSOR);
-      const genCmd   = makeLine(body, '<span class="cmd-name">stitch</span> gen  <span class="term-comment"># Automatically configure</span>');
-      const inferCmd = makeLine(body, '<span class="cmd-name">stitch</span> infer  <span class="term-comment"># Automatically infer a specification</span>');
-      const fuzzCmd  = makeLine(body, '<span class="cmd-name">stitch</span> fuzz  <span class="term-comment"># Automatically fuzz and triage bugs</span>');
+    <section id="reference" aria-labelledby="reference-title">
+      <h2 id="reference-title">Command reference</h2>
+      <p>Use <code>stitch --help</code> to list commands, or append <code>--help</code> to any command for its options.</p>
+      <div class="table-wrap">
+        <table>
+          <caption class="visually-hidden">Common STITCH commands</caption>
+          <thead><tr><th scope="col">Command</th><th scope="col">Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>stitch init &lt;source&gt;</code></td><td>Initialize from a Git URL or local source directory.</td></tr>
+            <tr><td><code>stitch gen</code></td><td>Generate the Docker build configuration.</td></tr>
+            <tr><td><code>stitch infer</code></td><td>Infer a harness specification.</td></tr>
+            <tr><td><code>stitch fuzz</code></td><td>Fuzz with automatic triage and harness repair.</td></tr>
+            <tr><td><code>stitch bugs</code></td><td>Replay, save, and analyze crashes.</td></tr>
+            <tr><td><code>stitch cover</code></td><td>Measure coverage from a saved corpus.</td></tr>
+            <tr><td><code>stitch info</code></td><td>Show project details and LLM usage.</td></tr>
+            <tr><td><code>stitch dev</code></td><td>Open a shell in the target container.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">For repeatable experiments, pin the target with <code>stitch init &lt;repo-url&gt; -c &lt;commit&gt;</code> and retain the generated configuration and harness.</p>
+    </section>
+  </main>
 
-      let idx = 0;
-
-      while (true) {
-        const project = PROJECTS[idx % PROJECTS.length];
-        idx++;
-
-        await typeInto(initCmd, INIT_PREFIX, project, 'cmd-arg');
-
-        setStatic(initCmd, INIT_PREFIX + `<span class="cmd-arg">${esc(project)}</span>` + INIT_SUFFIX);
-
-        await sleep(HOLD_MS);
-
-        await deleteFrom(initCmd, INIT_PREFIX, project, 'cmd-arg');
-
-        await sleep(PAUSE_MS);
-      }
-    }
-
-    let started = false;
-    const observer = new MutationObserver(() => {
-      if (!started && document.querySelector('.cover-main .terminal-marker')) {
-        started = true;
-        setTimeout(runAnimation, 400);
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  </script>
-
-  <script>
-  (async function () {
-    var canvas = document.getElementById('bg-canvas');
-    if (!canvas) return;
-    var gl = canvas.getContext('webgl', { alpha: false, antialias: false });
-    if (!gl) return;
-
-    await document.fonts.ready;
-
-    var CHARS = ' .:-=+*#%@';
-    var NUM   = CHARS.length;
-    var CELL_W = 10;
-    var CELL_H = 18;
-
-    var ac = document.createElement('canvas');
-    ac.width  = CELL_W * NUM;
-    ac.height = CELL_H;
-    var ax = ac.getContext('2d');
-    ax.fillStyle = '#000';
-    ax.fillRect(0, 0, ac.width, ac.height);
-    ax.fillStyle = '#fff';
-    ax.font = (CELL_H - 3) + 'px "JetBrains Mono", monospace';
-    ax.textAlign = 'center';
-    ax.textBaseline = 'middle';
-    for (var i = 0; i < NUM; i++) {
-      ax.fillText(CHARS[i], (i + 0.5) * CELL_W, CELL_H * 0.52);
-    }
-
-    var VS = [
-      'attribute vec2 a_pos;',
-      'void main(){gl_Position=vec4(a_pos,0.0,1.0);}'
-    ].join('\n');
-
-    var FS = [
-      'precision highp float;',
-      'uniform vec2 u_res;',
-      'uniform vec2 u_mouse;',
-      'uniform float u_time;',
-      'uniform sampler2D u_atlas;',
-      'uniform vec2 u_cell;',
-      'uniform float u_nchars;',
-      'uniform float u_theme;',
-      '',
-      'void main(){',
-      '  vec2 px=gl_FragCoord.xy;',
-      '  vec2 cell=floor(px/u_cell);',
-      '  vec2 cellUV=fract(px/u_cell);',
-      '  vec2 ctr=(cell+0.5)*u_cell;',
-      '  vec2 uv=ctr/u_res;',
-      '  float md=length(ctr-u_mouse);',
-      '',
-      '  float w=0.0;',
-      '  w+=sin(ctr.x*0.006+ctr.y*0.004+u_time*0.45)*0.28;',
-      '  w+=sin(ctr.x*0.011-ctr.y*0.008+u_time*0.35)*0.22;',
-      '  w+=sin(-ctr.x*0.005+ctr.y*0.013+u_time*0.30)*0.18;',
-      '  w+=sin(ctr.x*0.019+ctr.y*0.006+u_time*0.55)*0.10;',
-      '',
-      '  w+=sin(md*0.022-u_time*1.5)*exp(-md*0.003)*0.30;',
-      '  w+=exp(-md*0.004)*0.28;',
-      '',
-      '  w=clamp(w+0.5,0.0,1.0);',
-      '',
-      '  vec2 vc=uv-0.5;',
-      '  float vig=smoothstep(0.85,0.15,length(vc));',
-      '  w*=vig;',
-      '',
-      '  float idx=floor(w*(u_nchars-1.0)+0.5);',
-      '  idx=clamp(idx,0.0,u_nchars-1.0);',
-      '  float au=(idx+cellUV.x)/u_nchars;',
-      '  float av=cellUV.y;',
-      '  float ch=texture2D(u_atlas,vec2(au,av)).r;',
-      '',
-      '  float on=step(0.4,ch);',
-      '  vec3 bg=mix(vec3(0.039,0.039,0.059),vec3(0.96,0.96,0.97),u_theme);',
-      '  vec3 fg=mix(vec3(0.22,0.22,0.26),vec3(0.80,0.80,0.84),u_theme);',
-      '  gl_FragColor=vec4(mix(bg,fg,on),1.0);',
-      '}'
-    ].join('\n');
-
-    function compile(src, type) {
-      var s = gl.createShader(type);
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-        console.error(gl.getShaderInfoLog(s));
-        gl.deleteShader(s);
-        return null;
-      }
-      return s;
-    }
-
-    var vs = compile(VS, gl.VERTEX_SHADER);
-    var fs = compile(FS, gl.FRAGMENT_SHADER);
-    if (!vs || !fs) return;
-
-    var prog = gl.createProgram();
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(prog));
-      return;
-    }
-
-    var posAttr = gl.getAttribLocation(prog, 'a_pos');
-    var uRes    = gl.getUniformLocation(prog, 'u_res');
-    var uMouse  = gl.getUniformLocation(prog, 'u_mouse');
-    var uTime   = gl.getUniformLocation(prog, 'u_time');
-    var uCell   = gl.getUniformLocation(prog, 'u_cell');
-    var uNchars = gl.getUniformLocation(prog, 'u_nchars');
-    var uTheme  = gl.getUniformLocation(prog, 'u_theme');
-
-    var buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER,
-      new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-
-    var tex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, ac);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-    var mx = window.innerWidth * 0.5, my = window.innerHeight * 0.5;
-    var smx = mx, smy = my;
-
-    document.addEventListener('mousemove', function (e) {
-      mx = e.clientX; my = e.clientY;
-    });
-    document.addEventListener('touchmove', function (e) {
-      mx = e.touches[0].clientX; my = e.touches[0].clientY;
-    }, { passive: true });
-
-    function resize() {
-      canvas.width  = window.innerWidth;
-      canvas.height = window.innerHeight;
-      gl.viewport(0, 0, canvas.width, canvas.height);
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    gl.useProgram(prog);
-    gl.enableVertexAttribArray(posAttr);
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.vertexAttribPointer(posAttr, 2, gl.FLOAT, false, 0, 0);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.uniform1i(gl.getUniformLocation(prog, 'u_atlas'), 0);
-    gl.uniform2f(uCell, CELL_W, CELL_H);
-    gl.uniform1f(uNchars, NUM);
-
-    var themeLerp = 0.0;
-
-    function frame(t) {
-      var target = document.documentElement.getAttribute('data-theme') === 'light' ? 1.0 : 0.0;
-      themeLerp += (target - themeLerp) * 0.08;
-
-      smx += (mx - smx) * 0.07;
-      smy += (my - smy) * 0.07;
-      gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform2f(uMouse, smx, canvas.height - smy);
-      gl.uniform1f(uTime, t * 0.001);
-      gl.uniform1f(uTheme, themeLerp);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  })();
-  </script>
-
-  <script>
-    document.getElementById('theme-toggle').addEventListener('click', function () {
-      var html = document.documentElement;
-      var next = html.getAttribute('data-theme') === 'light' ? '' : 'light';
-      if (next) {
-        html.setAttribute('data-theme', next);
-        localStorage.setItem('stitch-theme', next);
-      } else {
-        html.removeAttribute('data-theme');
-        localStorage.removeItem('stitch-theme');
-      }
-    });
-  </script>
+  <footer>
+    <span>STITCH</span>
+    <div><a href="https://github.com/hgarrereyn/STITCH">Source code</a><a href="https://pypi.org/project/stitch-fuzz/">PyPI</a><a href="#about">Back to top ↑</a></div>
+  </footer>
+  <p id="copy-status" class="visually-hidden" role="status" aria-live="polite"></p>
 </body>
 </html>

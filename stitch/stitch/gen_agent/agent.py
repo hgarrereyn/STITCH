@@ -234,6 +234,7 @@ def run_agent(config: ProjectConfig, code_src: Path, usage: UsageTracker, extra:
                                 "type": "object",
                                 "properties": {
                                     "headers": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "language": {"type": "string"}}, "required": ["path", "language"]}},
+                                    "scan_only_headers": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
                                     "defines": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "value": {"type": "string"}}, "required": ["name", "value"]}},
                                 },
                                 "required": ["headers", "defines"],

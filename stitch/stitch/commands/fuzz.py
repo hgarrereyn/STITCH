@@ -178,12 +178,11 @@ def _do_fuzz_full(args, project: Project):
                 "cd /fuzz/workspace &&"
                 " mkdir -p /fuzz/persist/reports /fuzz/persist/buckets /fuzz/persist/seeds /fuzz/persist/revisions &&"
                 " export PYTHONUNBUFFERED=1 &&"
-                " ("
-                "   command -v stdbuf >/dev/null 2>&1 &&"
+                " if command -v stdbuf >/dev/null 2>&1; then"
                 f"  exec stdbuf -oL -eL stitchi inference looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions}{reset_flag}{corpus_flag}"
-                " ) || ("
+                "; else"
                 f"  exec stitchi inference looper --harness harness.json --campaign /tmp/stitch_campaign --persist /fuzz/persist --stop-file /fuzz/persist/control/stop --max-revisions {args.max_revisions}{reset_flag}{corpus_flag}"
-                " )"
+                "; fi"
             ),
             popen=True,
             use_tty=False,

@@ -9,6 +9,7 @@ pub struct ProjectInfo {
 #[derive(Serialize, Deserialize)]
 pub struct CodegenInfo {
     pub headers: Vec<CodegenHeader>,
+    pub scan_only_headers: Option<Vec<CodegenScanOnlyHeader>>,
     pub defines: Option<Vec<CodegenDefine>>,
 }
 
@@ -22,4 +23,9 @@ pub struct CodegenDefine {
 pub struct CodegenHeader {
     pub path: String,
     pub language: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CodegenScanOnlyHeader {
+    pub path: String,
 }

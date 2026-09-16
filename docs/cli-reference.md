@@ -1,87 +1,43 @@
-# CLI Reference
+# Command reference
 
-All commands are invoked via `poetry run stitch <command>` (or just `stitch` inside a Poetry shell).
+Use `stitch --help` to list commands and `stitch <command> --help` for all options. Project commands default to the current directory. Use `--name <name>` to select a harness when more than one exists.
 
-## Core Commands
+## Setup and fuzzing
 
-### `stitch init <repo-url>`
+| Command | Purpose | Useful options |
+| --- | --- | --- |
+| `stitch init <source> [path]` | Initialize from a Git URL or local source directory | `-c <commit>`, `-m <model>` |
+| `stitch gen` | Generate the Docker build configuration | `-e <context>`, `-m <model>` |
+| `stitch test` | Verify the build and code generation configuration | — |
+| `stitch infer` | Infer a harness specification | `--name <name>`, `--threads <n>`, `-m <model>` |
+| `stitch fuzz` | Fuzz with automatic triage and harness repair | `--name <name>`, `--max-revisions <n>` |
+| `stitch fuzz --no-triage -o <dir>` | Run the raw fuzzer and save its corpus | `--time-limit-seconds <n>` |
 
-Clone and initialize a target project.
+`stitch gen`, `stitch infer`, and full-mode `stitch fuzz` require `OPENAI_API_KEY`. Raw fuzzing, replay, and coverage can use an existing configuration and harness without LLM calls.
 
-| Option | Description |
-|--------|-------------|
-| `-c <commit>` | Pin to a specific commit hash |
+## Bugs and coverage
 
-### `stitch gen`
+| Command | Purpose | Useful options |
+| --- | --- | --- |
+| `stitch bugs list <projects-dir>` | List reports across project directories | `--severity <level>` |
+| `stitch bugs replay` | Recompile and replay minimized campaign testcases | `-b <bug-hash>`, `-c <commit>` |
+| `stitch bugs save` | Save a minimized reproducer to `bugs/<hash>.cpp` | `-b <bug-hash>` |
+| `stitch bugs run -t <testcase.cpp>` | Compile and run a standalone reproducer | `-d` (debugger), `-c <commit>` |
+| `stitch bugs exec -t <testcase.json>` | Execute a raw graph testcase | `--name <name>` |
+| `stitch bugs triage` | Triage saved crash buckets | `--watch`, `--nproc <n>` |
+| `stitch bugs analyze --crashes <dir>` | Analyze raw crash files | `-o <dir>` |
+| `stitch cover` | Measure source coverage from the latest campaign corpus | `--name <name>`, `--nproc <n>` |
+| `stitch cover --outputs <dir>` | Measure source coverage from raw fuzzing output | `--name <name>`, `--nproc <n>` |
 
-Run the Configure Agent to generate build artifacts in `config/`.
+Coverage reports are written to `harnesses/<name>/coverage/`. See the [quickstart examples](getting-started.md) for a complete timed run.
 
-**Outputs:** `Dockerfile`, `test.cpp`, `info.json`, `usage.json`
+## Utilities
 
-### `stitch infer`
+| Command | Purpose |
+| --- | --- |
+| `stitch info` | Show project details, harnesses, and recorded LLM usage |
+| `stitch info --harness <name>` | Show detailed harness statistics |
+| `stitch dev` | Open a shell in the target Docker container |
+| `stitch install-completions` | Install shell completions interactively |
 
-Launch the Inference Workflow to produce a harness specification.
-
-| Option | Description |
-|--------|-------------|
-| `--threads <n>` | Parallelize compilation tasks |
-| `--name <name>` | Label for the harness (default: `harn1`) |
-
-**Output:** `harnesses/<name>/harness.json`
-
-### `stitch fuzz`
-
-Start a fuzzing campaign in loop mode. Automatically triages crashes and patches the schema between revisions. Restartable.
-
-**Output:** `harnesses/<name>/campaign/` (includes `reports/`)
-
-### `stitch fuzz-raw`
-
-Run the fuzzer continuously without LLM-assisted triage.
-
-| Option | Description |
-|--------|-------------|
-| `-o <dir>` | Output directory for artifacts |
-
-## Utility Commands
-
-### `stitch info`
-
-Display project metadata and accumulated LLM costs.
-
-### `stitch dev`
-
-Launch an interactive shell inside the fuzzer Docker container.
-
-### `stitch test`
-
-Run the configuration `test.cpp` compilation pass.
-
-### `stitch stats`
-
-| Option | Description |
-|--------|-------------|
-| `--harness <name>` | Run constructability analysis on a specific harness |
-
-### `stitch replay`
-
-| Option | Description |
-|--------|-------------|
-| `-b <hash>` | Replay a minimized crash from a report folder |
-
-### `stitch bug`
-
-| Option | Description |
-|--------|-------------|
-| `-t <file.cpp>` | Replay an external reproducer |
-| `-d` | Launch with `pwndbg` for debugging |
-
-### `stitch install-completions`
-
-Auto-detect the current shell and install tab completions (with confirmation prompt).
-
-### `stitch completion show`
-
-| Option | Description |
-|--------|-------------|
-| `--shell <shell>` | Print the completion script for the given shell (e.g. `zsh`) |
+Older command names such as `fuzz-raw`, `replay`, `bug`, and `stats` have been replaced by `fuzz --no-triage`, `bugs replay`, `bugs run`, and `info --harness`, respectively.

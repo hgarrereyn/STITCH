@@ -173,10 +173,10 @@ def copy_compatible_corpus(prev_revision_dir: Path, next_revision_dir: Path,
 
 def compile_harness(workdir: Path):
     print(f'{Colors.GREEN}[+]{Colors.END} Converting harness: {workdir}')
-    subprocess.run(['stitchi', 'inference', 'to-schema', '--meta', workdir / 'harness.json', '--output', workdir / 'fuzzer.json'])
+    subprocess.run(['stitchi', 'inference', 'to-schema', '--meta', workdir / 'harness.json', '--output', workdir / 'fuzzer.json'], check=True)
 
     print(f'{Colors.GREEN}[+]{Colors.END} Building fuzzer: {workdir}')
-    subprocess.run(['stitchi', 'build', 'full', workdir / 'fuzzer'])
+    subprocess.run(['stitchi', 'build', 'full', workdir / 'fuzzer'], check=True)
 
 
 def _dir_size_bytes(path: Path) -> int:
@@ -371,7 +371,7 @@ def run_campaign(
     subprocess.run([
         str(workdir / 'fuzzer'),
         '--bypass-validation',
-    ], cwd=workdir)
+    ], cwd=workdir, check=True)
 
     # Prepare seed inputs. If outputs/queue exists, copy it to inputs
     (workdir / 'inputs').mkdir(parents=True, exist_ok=True)

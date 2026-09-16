@@ -34,7 +34,6 @@ libafl_targets = { version = "0.14.1", features = [
 ] }
 libafl_bolts = { version = "0.14.1" }
 
-mimalloc = { version = "*", default-features = false }
 libc = "0.2.167"
 colored = "2.0.4"
 serde = "*"

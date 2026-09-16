@@ -163,6 +163,8 @@ def _print_project_overview(project: Project, config: ProjectConfig) -> None:
                 parts = []
                 if pi.codegen.headers:
                     parts.append(f"{len(pi.codegen.headers)} header(s)")
+                if pi.codegen.scan_only_headers:
+                    parts.append(f"{len(pi.codegen.scan_only_headers)} scan-only header(s)")
                 if pi.build_flags:
                     parts.append(f"{len(pi.build_flags)} build flag(s)")
                 if parts:

@@ -1,70 +1,21 @@
 # Architecture
 
-STITCH is composed of a Rust fuzzing core and Python orchestration layer, connected through Docker containers.
+STITCH has a Python orchestration layer and a Rust fuzzing engine. Target builds and fuzzing run in Docker containers.
 
-## High-Level Overview
+| Package | Responsibility |
+| --- | --- |
+| `stitch` | User-facing CLI, project setup, build configuration agent, and container management |
+| `stitchi` | Container-side harness inference, crash triage, and harness repair |
+| `stitch_core` | Testcase representation, execution, and mutation |
+| `stitch_libafl` | Coverage-guided fuzzing built on LibAFL |
 
-```
-┌─────────────────────────────────────────────────┐
-│                  stitch (CLI)                    │
-│         Project setup · Orchestration            │
-│              Configure Agent (LLM)               │
-├─────────────────────────────────────────────────┤
-│              Docker Container                    │
-│  ┌───────────────────────────────────────────┐  │
-│  │            stitchi (internal)              │  │
-│  │   Inference Workflow · Triage Agent        │  │
-│  │            Patch Agent                     │  │
-│  ├───────────────────────────────────────────┤  │
-│  │           stitch_libafl                   │  │
-│  │        LibAFL fuzzing engine              │  │
-│  ├───────────────────────────────────────────┤  │
-│  │           stitch_core                     │  │
-│  │   Runtime · Mutation · Execution          │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-```
+## Workflow
 
-## Package Responsibilities
+1. `stitch init` records the target source and revision.
+2. `stitch gen` generates a Dockerfile, build metadata, and a test program in `config/`.
+3. `stitch infer` writes a harness specification to `harnesses/<name>/harness.json`.
+4. `stitch fuzz` runs the fuzzer, triages crashes, and repairs the harness between revisions. Results persist in `harnesses/<name>/campaign/`.
 
-### `stitch_core` (Rust)
+Use `stitch fuzz --no-triage -o <dir>` to run an existing harness without LLM triage or repair. `stitch cover --outputs <dir>` replays its saved corpus against a coverage-instrumented build.
 
-The foundational library handling:
-
-- Testcase representation and serialization
-- Mutation strategies
-- Runtime execution of test programs
-
-### `stitch_libafl` (Rust)
-
-Built on top of [LibAFL](https://github.com/AFLplusplus/LibAFL), this package implements:
-
-- Coverage-guided fuzzing loop
-- Crash detection and minimization
-- Integration with `stitch_core` for testcase handling
-
-### `stitch` (Python)
-
-The user-facing CLI and orchestration layer:
-
-- `stitch init` — clone and set up a target project
-- `stitch gen` — run the Configure Agent to produce build artifacts
-- `stitch infer` — launch the Inference Workflow
-- `stitch fuzz` / `stitch fuzz-raw` — start fuzzing campaigns
-
-### `stitchi` (Python)
-
-Installed inside fuzzer Docker containers, this package runs:
-
-- **Inference Workflow** — generates harness specifications from target code
-- **Triage Agent** — analyzes crashes and produces diagnostic reports
-- **Patch Agent** — modifies the harness schema to work around crash-causing issues
-
-## Data Flow
-
-1. The user runs `stitch init` + `stitch gen` to set up a project and generate a build configuration.
-2. `stitch infer` launches a container with `stitchi` to produce a harness specification (`harness.json`).
-3. `stitch fuzz` starts the fuzzing campaign. On each crash:
-    - The **Triage Agent** diagnoses the root cause.
-    - The **Patch Agent** optionally repairs the schema.
-    - Fuzzing resumes from the next revision.
+See the [quickstart](getting-started.md) for runnable examples.

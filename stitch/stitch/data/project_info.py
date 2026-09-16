@@ -7,6 +7,10 @@ class CodegenHeader(BaseModel):
     language: Literal["c", "cpp"]
 
 
+class CodegenScanOnlyHeader(BaseModel):
+    path: str
+
+
 class CodegenDefine(BaseModel):
     name: str
     value: str
@@ -14,6 +18,7 @@ class CodegenDefine(BaseModel):
 
 class CodegenConfig(BaseModel):
     headers: List[CodegenHeader] = Field(default_factory=list)
+    scan_only_headers: List[CodegenScanOnlyHeader] = Field(default_factory=list)
     defines: List[CodegenDefine] = Field(default_factory=list)
 
 
