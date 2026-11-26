@@ -2,8 +2,10 @@
 
 Requires Python 3.10+, Git, Docker with `linux/amd64` support, and an OpenAI API key. Start Docker first.
 
+To use the original STITCH, install version `0.1.2` specifically. Starting with `0.2.0`, `stitch-fuzz` is [STITCH++](https://github.com/hgarrereyn/STITCHplusplus), which new users should switch to.
+
 ```bash
-pip install stitch-fuzz
+pip install stitch-fuzz==0.1.2
 export OPENAI_API_KEY="your-api-key"
 
 stitch init https://github.com/madler/zlib
@@ -14,7 +16,7 @@ stitch infer --name harn1    # Infer a harness
 stitch fuzz --name harn1     # Fuzz and triage crashes
 ```
 
-To install from an artifact checkout, replace `pip install stitch-fuzz` with `pip install ./stitch`, run at the repository root.
+To install from an artifact checkout, replace `pip install stitch-fuzz==0.1.2` with `pip install ./stitch`, run at the repository root.
 
 The first run builds Docker images. Setup and inference time depend on the target; LLM steps use your API account. Press Ctrl+C to request a graceful stop, then rerun `stitch fuzz --name harn1` to resume.
 
